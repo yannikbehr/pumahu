@@ -1,19 +1,19 @@
-C ===========================================================================
-      PROGRAM M2011
-C ===========================================================================
-C
-C	A program to run calculations of heat and mass balances of Crater Lake,
-C	given various assumptions. Based on program LAKE (A W Hurst, 1979)
-C	Input lake temperatures &  chemical concentrations, with dilution
-C	Use standard wind velocity, or read input (e.g. based on Chateau/Waiouru
-C	Starts with dilution of Mg and Cl, then analyses water balances
-C	Looks at chloride content of steam
-C	This version for lake after 2003
+! ===========================================================================
+     PROGRAM M2011
+! ===========================================================================
+!
+!	A program to run calculations of heat and mass balances of Crater Lake,
+!	given various assumptions. Based on program LAKE (A W Hurst, 1979)
+!	Input lake temperatures &  chemical concentrations, with dilution
+!	Use standard wind velocity, or read input (e.g. based on Chateau/Waiouru
+!	Starts with dilution of Mg and Cl, then analyses water balances
+!	Looks at chloride content of steam
+!	This version for lake after 2003
 !       Different units, more suitable for daily inputs
-C	Lake area taken from absolute height
-C	NO Plots on screen or laserprinter, ONLY prints listing
-C	Adding Evaporation & Meltflow to 350 day Chloride Calculation
-C ---------------------------------------------------------------------------
+!	Lake area taken from absolute height
+!	NO Plots on screen or laserprinter, ONLY prints listing
+!	Adding Evaporation & Meltflow to 350 day Chloride Calculation
+! ---------------------------------------------------------------------------
 !       NEW SECTION stable isotopes
 !       O18 and H2 are measured in deviation in ppt (1/1000) from normal
 !       Bruce Christenson's Formulae for O18 & H2, maybe now correct
@@ -33,9 +33,9 @@ C ---------------------------------------------------------------------------
 	INTEGER*4 N,NN,NO
 	INTEGER NCL(200)
 	INTEGER ICL,IMG,NCLAV,CLDAY
-C  Input Lake Variables 	
+!  Input Lake Variables 	
 	REAL C(10000),DV(10000),F(10000),H(10000),M(10000),T(10000) 
-C  Input Wind Variables
+!  Input Wind Variables
 	REAL W(10000),X(10000),O18(10000),O18M(10000),H2(10000),H2M(10000)
 	REAL INF,MASS,MASSP,MELTF,MG,MGT(10000),AVCL(200),Oheavy,Deut,O18F,H2F
 	REAL A,VOL,VOLP,LOSS,TIMEM,FACTOR
@@ -48,12 +48,12 @@ C  Input Wind Variables
 	OPEN(UNIT=7,FILE='input.dat')			! Copy of data.dat
 	OPEN(UNIT=9,FILE='data.dat',STATUS='OLD')	! Input file
 
-C-- Initial Setup
+!-- Initial Setup
 	ENTHAL=6.0		!     TERAJOULES/GIGAGRAM (=000 M3 WATER)
 !   Day 1 is 1/1/2000
 	MM = 10000		!  Max number of days to calculate
 
-C-- Default wind velocity 
+!-- Default wind velocity 
 	Print *,' Default Wind Velocity m/s [2.0]: '
 	READ(5,1000) WIND
 1000	FORMAT(2F3.0)
@@ -71,7 +71,7 @@ C-- Default wind velocity
 	END DO
 
 
-C  Read WIND.BAT file if it exists
+!  Read WIND.BAT file if it exists
 	OPEN(UNIT=8,ERR=50,FILE='wind.dat',STATUS='OLD')
 	DO N = 1,MM
 	   READ(8,*,END=50) YR,MO,DY,WIND
@@ -94,7 +94,7 @@ C  Read WIND.BAT file if it exists
 
 
 
-C-- Read Data
+!-- Read Data
         N=1
   100	READ(9,109,END=170)  COMMENT,CBUFFER
   109	FORMAT(A1,A130)
@@ -119,7 +119,7 @@ C-- Read Data
 	END IF
 	NFINISH = NO
 
-C  No value for DR will be read as 1.0
+!  No value for DR will be read as 1.0
 	IF(DR .LT. 0.1) DR = 1.0
 !	DV(NO)=DR		! Dilution ratio (cf 1.0 for no dilution)
 !  Interpolation here for Temperature 
@@ -141,23 +141,22 @@ C  No value for DR will be read as 1.0
   	N=N+1
 	GO TO 100
 
-C-- End of Data, start Calculation
+!-- End of Data, start Calculation
   170	Continue
 	print *, NSTART,' to ',NFINISH,' days from 1/1/2000.'
 	write(7,*) NSTART,' to ',NFINISH,' days from 1/1/2000.'
 	DO N = NSTART,NFINISH
 	   CALL DATEF(YR,MO,DY,N)
-	   write(7,2198) yr,mo,dy,t(n),h(n),f(n),m(n),c(n),dv(n),nd(n),w(n),
-	 *  O18(n),H2(n)
+	   write(7,2198) yr,mo,dy,t(n),h(n),f(n),m(n),c(n),dv(n),nd(n),w(n),O18(n),H2(n)
  2198   format(i6,2i4,f6.1,f8.2,f6.1,2f6.3,f6.2,i9,f5.1,2f7.2)
 	END DO
-C FULLNESS calculates VOL & A(rea) from Lake Level
+! FULLNESS calculates VOL & A(rea) from Lake Level
 
 	CALL FULLNESS(H(NSTART))     
 	DENSITY = 1.003 - 0.00033*T(NSTART)	! Density about 1.0
 	MASS = VOL * DENSITY		! MASS of water in KT
 
-C-- Since M(N),C(N) in 1/1000, masses in T
+!-- Since M(N),C(N) in 1/1000, masses in T
 	MGT(NSTART)=M(NSTART)*MASS		! Initial total mass Mg	T
 	CLT(NSTART)=C(NSTART)*MASS		! Initial total mass Cl	T
 !	NPLOT = 0
@@ -171,12 +170,12 @@ C-- Since M(N),C(N) in 1/1000, masses in T
 	CLDAY = 0.0
 	WRITE(6,*) 'Crater Lake Balances   ',CAPTION
 	WRITE(6,299)
-  299	FORMAT('  YR MO DY   TEMP    STFL     PWR      EVFL    FMELT    INF   (DR-1)*M',
-     *	'   M-MP   FMG    FCL   O18    O18 M   O18F     H2    H2  M')
-C-- Start Main Loop
+  299	FORMAT('  YR MO DY   TEMP    STFL     PWR      EVFL    FMELT    INF   (DR-1)*M', &
+     	'   M-MP   FMG    FCL   O18    O18 M   O18F     H2    H2  M')
+!-- Start Main Loop
 	DO N = NSTART+1,NFINISH
 
-C-- Calculate Year, Month, Day for Printout
+!-- Calculate Year, Month, Day for Printout
 	    CALL DATEF(YR,MO,DY,ND(N))
 !	    print *, 'More Dates  ', yr, mo, dy, nd(n)
 !	    YR=YR-1900
@@ -186,7 +185,7 @@ C-- Calculate Year, Month, Day for Printout
 	    IF(C(N).LT.0.1) C(N)=C(N-1)	     ! Cl not measured, use last value
 	    DENSITY = 1.003 - 0.00033*T(N)
 
-C-- VOLUME and MASS calculations, also A(rea) depends on volume
+!-- VOLUME and MASS calculations, also A(rea) depends on volume
 	    VOLP = VOL			! Previous VOL 
 	    MASSP = MASS		! Previous MASS
 	    CALL FULLNESS(H(N))     
@@ -196,10 +195,10 @@ C-- VOLUME and MASS calculations, also A(rea) depends on volume
 !	    write(6,1198) yr,mo,dy,t(n),f(n),m(n),c(n),dv(n),VOL,A,TIMEM
  1198   format(i6,2i4,f6.1,f8.2,2f6.3,f6.2,f11.0,f9.0,f9.4)
 
-C-- DR is dilution ratio	! 1.0 for none, >1.0 if lake was diluted
+!-- DR is dilution ratio	! 1.0 for none, >1.0 if lake was diluted
 	    DR = DV(N)		! Dilution due to loss of water
 
-C-- Mass balances for Mg and Cl
+!-- Mass balances for Mg and Cl
 	    MGT(N)=MGT(N-1) + MASS*M(N) - MASSP*M(N-1)/DR   ! New total Mg input
 	    FMG(N)=(MGT(N) - MGT(N-1))/(ND(N)-ND(N-1))	    ! Mg input T/day
 	    IF((MGT(N-1)-MGT(N)).GT. 0.02*MASS*M(N)) THEN
@@ -216,43 +215,43 @@ C-- Mass balances for Mg and Cl
 	    END IF
 1130	    FORMAT(' At ',3I4,' Cl dilution query, change from',F6.3,' to',F6.3)
 
-C-- INF is net mass input to lake (KT) 
+!-- INF is net mass input to lake (KT) 
 	    INF = MASSP * (DR - 1.0)	! Input to replace outflow
 	    INF = INF + MASS - MASSP	! Input to change total mass	
-C-- If lake level near full, or eruptions are causing intermittent outflow, 
-C   both terms can apply
+!-- If lake level near full, or eruptions are causing intermittent outflow, 
+!   both terms can apply
 
-C-- Energy balances in TJ; ES = Surface heat loss, EL = change in stored energy
+!-- Energy balances in TJ; ES = Surface heat loss, EL = change in stored energy
             CALL ES(T(N),W(N),LOSS,EV )
 	    E= LOSS + EL(T(N-1),T(N))
 
-C-- NEW FEATURE Solar Incident Radiation Based on yearly guess & month
-C-- E is energy required from steam, so is reduced by sun energy
+!-- NEW FEATURE Solar Incident Radiation Based on yearly guess & month
+!-- E is energy required from steam, so is reduced by sun energy
 	    E=E - (ND(N) - ND(N-1)) *A* 0.000015 * (1 + 0.5*COS(((MO-1)*3.14)/6.0))
 
 
-C-- Steam input (in KT) to provide this Energy
+!-- Steam input (in KT) to provide this Energy
 	    STEAM = E/(ENTHAL-0.004*T(N))! Energy = Mass * Enthalpy
 	    EVAP  = EV			 ! Evaporation loss
 	    MELTF = INF + EVAP - STEAM	 ! Conservation of mass
 
-C-- Correction for energy to heat incoming meltwater
-C-- FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees C)
+!-- Correction for energy to heat incoming meltwater
+!-- FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees C)
 	    FACTOR=T(N)*0.004/(ENTHAL-T(N)*0.004)
 	    MELTF = MELTF/(1.0+FACTOR)		! Therefore less meltwater
 	    STEAM =STEAM+MELTF*FACTOR		! and more steam
 	    E=E+MELTF*T(N)*.004			! Correct energy input also
 
-C	Stable Isotopes calculated now
-C	H2 (meltf) now -75, not -57.5 (typo?)	
+!	Stable Isotopes calculated now
+!	H2 (meltf) now -75, not -57.5 (typo?)	
 	    CALL FRACTIONATE(T(N),O18F,H2F)
-C	Calculate relative contributions to deltaO18
-	    O18M(N) = ( MASSP*O18M(N-1) + STEAM * 10 - MELTF * 10.5 
-     &      + EVAP * (8.4 + 1000 * O18F + O18M(N-1)))/MASS
-	    H2M(N) = ( MASSP*H2M(N-1) - STEAM * 20 - MELTF * 75.0 
-     &      + EVAP * (10.12 + 1000 * H2F + H2M(N-1)))/MASS
+!	Calculate relative contributions to deltaO18
+	    O18M(N) = ( MASSP*O18M(N-1) + STEAM * 10 - MELTF * 10.5 & 
+           + EVAP * (8.4 + 1000 * O18F + O18M(N-1)))/MASS
+	    H2M(N) = ( MASSP*H2M(N-1) - STEAM * 20 - MELTF * 75.0 & 
+           + EVAP * (10.12 + 1000 * H2F + H2M(N-1)))/MASS
 
-C--  Cl in steam by mass   Done if DY = 1, i.e. every month
+!--  Cl in steam by mass   Done if DY = 1, i.e. every month
 	    CLTOT = CLTOT + CLT(N) - CLT(N-1) 
 	    MGTOT = MGTOT + MGT(N) - MGT(N-1) 
 	    EVTOT = EVTOT + EVAP 
@@ -278,53 +277,53 @@ C--  Cl in steam by mass   Done if DY = 1, i.e. every month
 		TTTOT = 0.0
 		CLDAY = 0.0
 	    END IF	! Chloride % bit
-C-- Flows are total amounts/day, 
+!-- Flows are total amounts/day, 
 	    STFL = STEAM/(ND(N)-ND(N-1))	! kT/day
 	    PWR  = E/TIMEM			! MW
 	    EVFL = EVAP/(ND(N)-ND(N-1))		! kT/day
 	    FMELT = MELTF/(ND(N)-ND(N-1))	! kT/day
-	    WRITE(6,499) YR,MO,DY,T(N),STFL,PWR,EVFL,
-     *	    FMELT,INF,(DR-1.0)*MASSP,MASS-MASSP,FMG(N),FCL(N),O18(N),O18M(N),O18F,H2(N),H2M(N),MASS
+	    WRITE(6,499) YR,MO,DY,T(N),STFL,PWR,EVFL, &
+     	    FMELT,INF,(DR-1.0)*MASSP,MASS-MASSP,FMG(N),FCL(N),O18(N),O18M(N),O18F,H2(N),H2M(N),MASS
   499 	    FORMAT(I4,2I3,F7.1,4F9.1,3F8.1,F7.0,F8.0,5F8.3,F9.3)
 
-C-- Put most flows into common units of Kg/sec or l/sec (difference negligible)
-C-- FLOWLINE calculates /day, so allow for this    		
+!-- Put most flows into common units of Kg/sec or l/sec (difference negligible)
+!-- FLOWLINE calculates /day, so allow for this    		
 	END DO	! for N
 
-C-- Second Printout
+!-- Second Printout
 	    WRITE(6,579) 
-  579	    FORMAT(//////' YR MO DY TEMP    Outlet    Mg     Cl      DR       MgT   ',
-     *	    '    ClT      F Cl    F Mg')
+  579	    FORMAT(//////' YR MO DY TEMP    Outlet    Mg     Cl      DR       MgT   ', &
+     	    '    ClT      F Cl    F Mg')
 	    DO N=NSTART,NFINISH
 	        CALL DATEF(YR,MO,DY,ND(N))
 !	        YR=YR-1900
-	        WRITE(6,489)YR,MO,DY,T(N),F(N),M(N),C(N),DV(N),MGT(N),CLT(N)
-     *	        ,FCL(N),FMG(N)
+	        WRITE(6,489)YR,MO,DY,T(N),F(N),M(N),C(N),DV(N),MGT(N),CLT(N) &
+     	        ,FCL(N),FMG(N)
   489	        FORMAT(I4,2I3,2F7.1,3F8.3,2F10.0,2F9.1)
 	    END DO	! for N
 
-C-- Chloride Printout
+!-- Chloride Printout
             
 	    WRITE(6,481) 
-  481	    FORMAT(////' YR MO DY   CL kT    St kT     %Cl     Ev kT    Mt',
-     *      ' kT    T Avge   Mg kT')
+  481	    FORMAT(////' YR MO DY   CL kT    St kT     %Cl     Ev kT    Mt', &
+           ' kT    T Avge   Mg kT')
  	    DO N=1,NCLAV
 		CALL DATEF(YR,MO,DY,NCL(N))
-		WRITE(6,479) YR,MO,DY,TCL(N),STCL(N),AVCL(N),TEV(N),
-     *      TMT(N),TAV(N),TMG(N)
+		WRITE(6,479) YR,MO,DY,TCL(N),STCL(N),AVCL(N),TEV(N), &
+           TMT(N),TAV(N),TMG(N)
 	    END DO	! For N
   479	    FORMAT(I4,2I3,2F9.1,F8.3,4F9.1)
 	    CLOSE(6)
 	STOP
 	END
 	
-C =============================================================================
+! =============================================================================
 	SUBROUTINE FULLNESS(F)
-C	Calculates VOL & A from lake Level NEW VERSION
+!	Calculates VOL & A from lake Level NEW VERSION
 !  Full is 2529.4 m = Rock Barrier Height
 !  Formula has large compensating terms, beware!
 !  As in previous versions, VOL is in 000 m3 = kT
-C -----------------------------------------------------------------------------
+! -----------------------------------------------------------------------------
 	IMPLICIT NONE
 	COMMON /L/ A,VOL
 	REAL A,F,VOL
@@ -344,10 +343,10 @@ C -----------------------------------------------------------------------------
 	RETURN
 	END
 
-C =============================================================================
+! =============================================================================
 	SUBROUTINE FRACTIONATE(T,O18F,H2F)
-C	Calculates Fractionation of O18 & H2 as function of temperature
-C -----------------------------------------------------------------------------
+!	Calculates Fractionation of O18 & H2 as function of temperature
+! -----------------------------------------------------------------------------
 !   For Bruces Formula, work directly with LnO & LnH
  	IMPLICIT NONE
 	REAL*4 T, Tk, O18F, H2F, LnO, LnH
@@ -363,12 +362,12 @@ C -----------------------------------------------------------------------------
 	RETURN
 	END
 
-C =============================================================================
+! =============================================================================
       SUBROUTINE ES(T,W,LOSS,EV )
-C     E loss from lake surface in TJ/day
-C	Equations apply for nominal surface area of 200000 square metres
-C       Since area is only to a small power, this error is negligible
-C -----------------------------------------------------------------------------
+!     E loss from lake surface in TJ/day
+!	Equations apply for nominal surface area of 200000 square metres
+!       Since area is only to a small power, this error is negligible
+! -----------------------------------------------------------------------------
 	IMPLICIT NONE
 	COMMON /L/ A,VOL
 	REAL*4 T,W,A,VOL,LOSS,EV
@@ -416,16 +415,16 @@ C -----------------------------------------------------------------------------
 	LOSS =(ER + EE*(1+Ratio))*86400*1.0E-12  ! TW/day
 
 
-C-- 	    Equation values MW (for 200000 sq. metre lake)
+!-- 	    Equation values MW (for 200000 sq. metre lake)
   100	CONTINUE
 	RETURN
 	END
 
 
-C =============================================================================
+! =============================================================================
 	FUNCTION EL(T1,T2)
-C	Change in E stored in lake in TJ
-C -----------------------------------------------------------------------------
+!	Change in E stored in lake in TJ
+! -----------------------------------------------------------------------------
 	IMPLICIT NONE
 	REAL T1,T2,EL,A,VOL
 	COMMON /L/ A,VOL
@@ -433,10 +432,10 @@ C -----------------------------------------------------------------------------
 	RETURN
 	END
 
-C =============================================================================
+! =============================================================================
 	SUBROUTINE DAYNO(IYR,MO,DY,NO)
-C--	Calculates Days since 2000 from Year,Month,Day
-C -----------------------------------------------------------------------------
+!--	Calculates Days since 2000 from Year,Month,Day
+! -----------------------------------------------------------------------------
 	IMPLICIT NONE
 	INTEGER*4 YR,MO,DY
 	INTEGER*4 I,IYR, NO
@@ -451,10 +450,10 @@ C -----------------------------------------------------------------------------
 	RETURN
 	END
 
-C =============================================================================
+! =============================================================================
 	SUBROUTINE DATEF(YR,MO,DY,No)
-C--	Calculates Year,Month,Day from days since 2000
-C -----------------------------------------------------------------------------
+!--	Calculates Year,Month,Day from days since 2000
+! -----------------------------------------------------------------------------
 	IMPLICIT NONE
 	INTEGER*4 YR,MO,DY,NO,A,B,C,P,Q,R,S
 	INTEGER*4 I,IYR
