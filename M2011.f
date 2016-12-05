@@ -147,7 +147,8 @@ C-- End of Data, start Calculation
 	write(7,*) NSTART,' to ',NFINISH,' days from 1/1/2000.'
 	DO N = NSTART,NFINISH
 	   CALL DATEF(YR,MO,DY,N)
-	   write(7,2198) yr,mo,dy,t(n),h(n),f(n),m(n),c(n),dv(n),nd(n),w(n),O18(n),H2(n)
+	   write(7,2198) yr,mo,dy,t(n),h(n),f(n),m(n),c(n),dv(n),nd(n),w(n),
+	 *  O18(n),H2(n)
  2198   format(i6,2i4,f6.1,f8.2,f6.1,2f6.3,f6.2,i9,f5.1,2f7.2)
 	END DO
 C FULLNESS calculates VOL & A(rea) from Lake Level
