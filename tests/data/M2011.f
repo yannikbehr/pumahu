@@ -284,7 +284,7 @@
 	    FMELT = MELTF/(ND(N)-ND(N-1))	! kT/day
 	    WRITE(6,499) YR,MO,DY,T(N),STFL,PWR,EVFL, &
      	    FMELT,INF,(DR-1.0)*MASSP,MASS-MASSP,FMG(N),FCL(N),O18(N),O18M(N),O18F,H2(N),H2M(N),MASS
-  499 	    FORMAT(I4,2I3,F7.1,4F9.1,3F8.1,F7.0,F8.0,5F8.3,F9.3)
+  499 	    FORMAT(I4,2I3,F7.1,4F9.1,3F8.1,F7.0,F8.0,5F8.3,F10.3)
 
 !-- Put most flows into common units of Kg/sec or l/sec (difference negligible)
 !-- FLOWLINE calculates /day, so allow for this    		
