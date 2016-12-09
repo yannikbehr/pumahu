@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from clemb import LakeDataCSV, LakeDataFITS, WindDataCSV, ClemB
+from clemb import LakeDataCSV, LakeDataFITS, WindDataCSV, Clemb
 
 
 class ClemTestCase(unittest.TestCase):
@@ -42,7 +42,13 @@ class ClemTestCase(unittest.TestCase):
                 l = f.readline()
                 if l == '\n':
                     break
-                yr, mo, dy, t, h, f, m, c, dv, nd, w, o18, h2 = l.split()
+                if not l:
+                    break
+                try:
+                    yr, mo, dy, t, h, fl, m, c, dv, nd, w, o18, h2 = l.split()
+                except:
+                    print(l)
+                    raise
                 data['date'].append(
                     np.datetime64('{}-{:02d}-{:02d}'.format(
                         yr, int(mo), int(dy))))
@@ -83,7 +89,7 @@ class ClemTestCase(unittest.TestCase):
     def test_clem(self):
         ldata = os.path.join(self.data_dir, 'data.dat')
         wdata = os.path.join(self.data_dir, 'wind.dat')
-        c = ClemB(LakeDataCSV(ldata), WindDataCSV(wdata))
+        c = Clemb(LakeDataCSV(ldata), WindDataCSV(wdata))
         rs = c.run()
         ts = self.load_test_results()
         np.testing.assert_array_almost_equal(rs['steam'],
