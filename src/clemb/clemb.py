@@ -38,18 +38,20 @@ class Variable(metaclass=ABCMeta):
 
 class Uniform(Variable):
 
-    def __init__(self, data):
-        self._data = data
+    def __init__(self, dates, data, name):
+        self._df = pd.DataFrame({name: data}, index=dates)
+        self._size = len(self._df)
         self._index = 0
         self._min = 0
         self._max = 0
 
     def __next__(self):
-        if self._index >= len(self._data):
+        if self._index >= self._size:
             raise StopIteration
-        s = self._data[self._index]
+        s = self._df.iloc[self._index]
         self._index += 1
-        return np.random.uniform(s - self._min, s + self._max)
+        return (s.name, np.random.uniform(s.values[0] - self._min,
+                                          s.values[0] + self._max))
 
     @property
     def data(self):
@@ -78,19 +80,20 @@ class Uniform(Variable):
 
 class Gauss(Variable):
 
-    def __init__(self, data):
-        self._data = data
+    def __init__(self, dates, data, name):
+        self._df = pd.DataFrame({name: data}, index=dates)
+        self._size = len(self._df)
         self._index = 0
         self._std = None
 
     def __next__(self):
-        if self._index >= len(self._data):
+        if self._index >= self._size:
             raise StopIteration
-        s = self._data[self._index]
+        s = self._df.iloc[self._index]
         self._index += 1
         if self._std is None:
-            return s
-        return np.random.normal(s, self._std)
+            return (s.name, s.values[0])
+        return (s.name, np.random.normal(s.values[0], self._std))
 
     @property
     def data(self):
@@ -137,8 +140,7 @@ class LakeDataCSV(DataLoader):
                 a = l.split()
                 y, m, d = map(int, a[0:3])
                 te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
-                dt = np.datetime64(
-                    '{}-{:02d}-{:02d}'.format(y, int(m), int(d)))
+                dt = np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d))
                 no = (dt - t0).astype(int) - 1
                 if n < 1:
                     nstart = no
@@ -169,6 +171,7 @@ class LakeDataCSV(DataLoader):
                         icl / 1000. + (rd_old['c'] - icl / 1000.) * fact)
                     rd['dv'].append(1.0 + (dr - 1.0) / (no - nprev))
                     rd['nd'].append(nn)
+                    rd['date'].append(t0 + (nn + 1) * np.timedelta64(1, 'D'))
                     rd['h'].append(hgt + (rd_old['h'] - hgt) * fact)
                     rd['f'].append(rd_old['f'])
                 rd['f'][-1] = fl
@@ -178,7 +181,7 @@ class LakeDataCSV(DataLoader):
                 n += 1
         vd = {}
         for _k in rd:
-            vd[_k] = Gauss(rd[_k])
+            vd[_k] = Gauss(rd['date'], rd[_k], _k)
         return vd
 
 

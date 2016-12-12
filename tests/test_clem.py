@@ -78,13 +78,14 @@ class ClemTestCase(unittest.TestCase):
         dl = LakeDataCSV(os.path.join(self.data_dir, 'data.dat'))
         vd = dl.get_data()
         ti = self.load_input()
-        temp = [t for t in vd['t']]
-        hgt = [h for h in vd['h']]
-        mg = [m for m in vd['m']]
-        cl = [c for c in vd['c']]
-        o18 = [o for o in vd['o18']]
-        h2 = [h for h in vd['h2']]
-        dno = [d for d in vd['nd']]
+        temp = [t for d, t in vd['t']]
+        hgt = [h for d, h in vd['h']]
+        mg = [m for d, m in vd['m']]
+        cl = [c for d, c in vd['c']]
+        o18 = [o for d, o in vd['o18']]
+        h2 = [h for d, h in vd['h2']]
+        dno = [d for dt, d in vd['nd']]
+        dt = [dt for dt, d in vd['date']]
         np.testing.assert_array_almost_equal(temp, ti['temp'], 1)
         np.testing.assert_array_equal(dno, ti['nd'])
         np.testing.assert_array_almost_equal(hgt, ti['hgt'], 2)
@@ -92,6 +93,8 @@ class ClemTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(cl, ti['cl'], 3)
         np.testing.assert_array_almost_equal(o18, ti['o18'], 2)
         np.testing.assert_array_almost_equal(h2, ti['h2'], 2)
+        np.testing.assert_array_equal(
+            np.array(dt, dtype='datetime64[ns]'), ti['date'])
 
     def test_wind_data_csv(self):
         dl = WindDataCSV(os.path.join(self.data_dir, 'wind.dat'))

@@ -21,16 +21,22 @@ class VariableTestCase(unittest.TestCase):
         Ensure the values returned are uniformly distributed or identical to
         the input in case no variation is desired.
         """
+        dt = []
+        for i in range(10):
+            dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.random.random_sample(10)
-        u = Uniform(din)
-        dout = [x for x in u]
+        u = Uniform(dt, din, 'u')
+        dout = [x for d, x in u]
         np.testing.assert_array_almost_equal(din, dout)
 
+        dt = []
+        for i in range(10000):
+            dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.ones(10000)
-        u1 = Uniform(din)
+        u1 = Uniform(dt, din, 'u1')
         u1.min = 1.0
         u1.max = 0.0
-        dout = np.array([x for x in u1])
+        dout = np.array([x for d, x in u1])
         self.assertTrue(np.all(dout >= 0.0))
         self.assertTrue(np.all(dout < 1.0))
         # E[dout]=0.5
@@ -41,15 +47,21 @@ class VariableTestCase(unittest.TestCase):
         Ensure the values returned are normally distributed or identical to
         the input in case no variation is desired.
         """
+        dt = []
+        for i in range(10):
+            dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.random.random_sample(10)
-        u = Gauss(din)
-        dout = [x for x in u]
+        u = Gauss(dt, din, 'u')
+        dout = [x for d, x in u]
         np.testing.assert_array_almost_equal(din, dout)
 
+        dt = []
+        for i in range(1000):
+            dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.zeros(1000)
-        u1 = Gauss(din)
+        u1 = Gauss(dt, din, 'u1')
         u1.std = 0.1
-        dout = np.array([x for x in u1])
+        dout = np.array([x for d, x in u1])
         # E[dout]=0.0
         self.assertTrue(abs(dout.mean()) < 0.01)
         # std[dout] = 0.1
