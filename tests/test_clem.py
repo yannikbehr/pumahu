@@ -1,7 +1,9 @@
+from collections import defaultdict
 import inspect
 import os
 import unittest
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -36,8 +38,7 @@ class ClemTestCase(unittest.TestCase):
             # skip header line
             f.readline()
 
-            data = {'date': [], 'temp': [], 'hgt': [], 'mg': [], 'cl': [],
-                    'wind': [], 'o18': [], 'h2': []}
+            data = defaultdict(list)
             while True:
                 l = f.readline()
                 if l == '\n':
@@ -59,6 +60,7 @@ class ClemTestCase(unittest.TestCase):
                 data['wind'].append(float(w))
                 data['o18'].append(float(o18))
                 data['h2'].append(float(h2))
+                data['nd'].append(int(nd))
         return pd.DataFrame(data)
 
     def setUp(self):
@@ -74,10 +76,22 @@ class ClemTestCase(unittest.TestCase):
 
     def test_lake_data_csv(self):
         dl = LakeDataCSV(os.path.join(self.data_dir, 'data.dat'))
-        df = dl.get_data()
+        vd = dl.get_data()
         ti = self.load_input()
-        np.testing.assert_array_almost_equal(df['temp'],
-                                             ti['temp'], 5)
+        temp = [t for t in vd['t']]
+        hgt = [h for h in vd['h']]
+        mg = [m for m in vd['m']]
+        cl = [c for c in vd['c']]
+        o18 = [o for o in vd['o18']]
+        h2 = [h for h in vd['h2']]
+        dno = [d for d in vd['nd']]
+        np.testing.assert_array_almost_equal(temp, ti['temp'], 1)
+        np.testing.assert_array_equal(dno, ti['nd'])
+        np.testing.assert_array_almost_equal(hgt, ti['hgt'], 2)
+        np.testing.assert_array_almost_equal(mg, ti['mg'], 3)
+        np.testing.assert_array_almost_equal(cl, ti['cl'], 3)
+        np.testing.assert_array_almost_equal(o18, ti['o18'], 2)
+        np.testing.assert_array_almost_equal(h2, ti['h2'], 2)
 
     def test_wind_data_csv(self):
         dl = WindDataCSV(os.path.join(self.data_dir, 'wind.dat'))

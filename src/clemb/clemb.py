@@ -4,6 +4,8 @@ temperature, wind speed and chemical dilution.
 """
 
 from abc import ABCMeta, abstractmethod
+from collections import defaultdict
+
 import numpy as np
 import pandas as pd
 
@@ -117,10 +119,67 @@ class DataLoader(metaclass=ABCMeta):
 class LakeDataCSV(DataLoader):
 
     def __init__(self, csvfile):
-        pass
+        self._fin = csvfile
 
     def get_data(self):
-        pass
+        rd = defaultdict(list)
+        rd_old = {}
+        n = 0
+        t0 = np.datetime64('2000-01-01')
+        with open(self._fin) as f:
+            while True:
+                l = f.readline()
+                if not l:
+                    break
+                # ignore commented lines
+                if not l.startswith(' '):
+                    continue
+                a = l.split()
+                y, m, d = map(int, a[0:3])
+                te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
+                dt = np.datetime64(
+                    '{}-{:02d}-{:02d}'.format(y, int(m), int(d)))
+                no = (dt - t0).astype(int) - 1
+                if n < 1:
+                    nstart = no
+                    nprev = no
+                    rd['nd'].append(no)
+                    rd['date'].append(dt)
+                    rd['t'].append(te)
+                    rd['h'].append(hgt)
+                    rd['f'].append(fl)
+                    rd['o18'].append(oheavy)
+                    rd['h2'].append(deut)
+                    rd['o18m'].append(oheavy)
+                    rd['h2m'].append(deut)
+                    rd['m'].append(img / 1000.)
+                    rd['c'].append(icl / 1000.)
+                    rd['dv'].append(1.0)
+                nfinish = no
+                if dr < 0.1:
+                    dr = 1.0
+                for nn in range(nprev + 1, nfinish + 1):
+                    fact = (no - nn) / (no - nprev)
+                    rd['t'].append(te + (rd_old['t'] - te) * fact)
+                    rd['o18'].append(oheavy + (rd_old['o18'] - oheavy) * fact)
+                    rd['h2'].append(deut + (rd_old['h2'] - deut) * fact)
+                    rd['m'].append(
+                        img / 1000. + (rd_old['m'] - img / 1000.) * fact)
+                    rd['c'].append(
+                        icl / 1000. + (rd_old['c'] - icl / 1000.) * fact)
+                    rd['dv'].append(1.0 + (dr - 1.0) / (no - nprev))
+                    rd['nd'].append(nn)
+                    rd['h'].append(hgt + (rd_old['h'] - hgt) * fact)
+                    rd['f'].append(rd_old['f'])
+                rd['f'][-1] = fl
+                for _k in rd:
+                    rd_old[_k] = rd[_k][-1]
+                nprev = no
+                n += 1
+        vd = {}
+        for _k in rd:
+            vd[_k] = Gauss(rd[_k])
+        return vd
 
 
 class LakeDataFITS(DataLoader):
