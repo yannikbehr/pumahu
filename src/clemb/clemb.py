@@ -53,6 +53,11 @@ class Uniform(Variable):
         return (s.name, np.random.uniform(s.values[0] - self._min,
                                           s.values[0] + self._max))
 
+    def __getitem__(self, datestring):
+        s = self._df.loc[datestring]
+        return (s.name, np.random.uniform(s.values[0] - self._min,
+                                          s.values[0] + self._max))
+
     @property
     def data(self):
         return self._data
@@ -91,6 +96,12 @@ class Gauss(Variable):
             raise StopIteration
         s = self._df.iloc[self._index]
         self._index += 1
+        if self._std is None:
+            return (s.name, s.values[0])
+        return (s.name, np.random.normal(s.values[0], self._std))
+
+    def __getitem__(self, datestring):
+        s = self._df.loc[datestring]
         if self._std is None:
             return (s.name, s.values[0])
         return (s.name, np.random.normal(s.values[0], self._std))
@@ -197,10 +208,22 @@ class LakeDataFITS(DataLoader):
 class WindDataCSV(DataLoader):
 
     def __init__(self, csvfile):
-        pass
+        self._fin = csvfile
 
     def get_data(self):
-        pass
+        windspeed = []
+        dates = []
+        with open(self._fin) as f:
+            while True:
+                l = f.readline()
+                if not l:
+                    break
+                a = l.split()
+                y, m, d = map(int, a[0:3])
+                ws, wd = map(float, a[3:])
+                dates.append(np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d)))
+                windspeed.append(ws)
+        return Gauss(dates, windspeed, 'wind')
 
 
 class Clemb:

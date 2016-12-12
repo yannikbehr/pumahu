@@ -34,6 +34,10 @@ class VariableTestCase(unittest.TestCase):
             dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.ones(10000)
         u1 = Uniform(dt, din, 'u1')
+        self.assertEqual(
+            u['1970-01-01T00:00:00Z'][0], np.datetime64('1970-01-01'))
+        self.assertEqual(
+            u1['1970-01-01T00:00:00Z'][1], 1.0)
         u1.min = 1.0
         u1.max = 0.0
         dout = np.array([x for d, x in u1])
@@ -60,6 +64,10 @@ class VariableTestCase(unittest.TestCase):
             dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.zeros(1000)
         u1 = Gauss(dt, din, 'u1')
+        self.assertEqual(
+            u['1970-01-01T00:00:00Z'][0], np.datetime64('1970-01-01'))
+        self.assertEqual(
+            u1['1970-01-01T00:00:00Z'][1], 0.0)
         u1.std = 0.1
         dout = np.array([x for d, x in u1])
         # E[dout]=0.0
