@@ -100,8 +100,13 @@ class ClemTestCase(unittest.TestCase):
         dl = WindDataCSV(os.path.join(self.data_dir, 'wind.dat'))
         df = dl.get_data()
         ti = self.load_input()
-        np.testing.assert_array_almost_equal(df['wind'],
-                                             ti['wind'], 5)
+        ws = []
+        for dt in ti['date']:
+            try:
+                ws.append(df[dt][1])
+            except KeyError:
+                ws.append(0.0)
+        np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
     def test_clem(self):
         ldata = os.path.join(self.data_dir, 'data.dat')
