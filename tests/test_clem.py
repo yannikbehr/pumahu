@@ -103,7 +103,7 @@ class ClemTestCase(unittest.TestCase):
         ws = []
         for dt in ti['date']:
             try:
-                ws.append(df[dt][1])
+                ws.append(df[dt])
             except KeyError:
                 ws.append(0.0)
         np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
@@ -112,10 +112,22 @@ class ClemTestCase(unittest.TestCase):
         ldata = os.path.join(self.data_dir, 'data.dat')
         wdata = os.path.join(self.data_dir, 'wind.dat')
         c = Clemb(LakeDataCSV(ldata), WindDataCSV(wdata))
+        a, vol = c.fullness(2529.4)
+        fvol = 8880.29883
+        diffvol = abs(vol - fvol) / fvol * 100.
+        fa = 196370.188
+        diffa = abs(a - fa) / fa * 100.
+        # Probably due to different precisions the numbers between the
+        # original Fortran code and the Python code differ slightly
+        self.assertTrue(diffvol < 0.0318)
+        self.assertTrue(diffa < 0.000722)
+        loss, ev = c.es(35.0, 5.0, 200000)
+        self.assertAlmostEqual(loss, 19.913621, 5)
+        self.assertAlmostEqual(ev, 5.119750, 5)
         rs = c.run()
         ts = self.load_test_results()
         np.testing.assert_array_almost_equal(rs['steam'],
-                                             ts['steam'], 5)
+                                             ts['steam'], 1)
 
 
 def suite():
