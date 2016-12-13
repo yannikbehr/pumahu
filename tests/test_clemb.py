@@ -10,7 +10,7 @@ import pandas as pd
 from clemb import LakeDataCSV, LakeDataFITS, WindDataCSV, Clemb
 
 
-class ClemTestCase(unittest.TestCase):
+class ClembTestCase(unittest.TestCase):
 
     def load_test_results(self):
         with open(os.path.join(self.data_dir, 'LAKEOUTm.DAT')) as f:
@@ -108,7 +108,7 @@ class ClemTestCase(unittest.TestCase):
                 ws.append(0.0)
         np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
-    def test_clem(self):
+    def test_clemb(self):
         ldata = os.path.join(self.data_dir, 'data.dat')
         wdata = os.path.join(self.data_dir, 'wind.dat')
         c = Clemb(LakeDataCSV(ldata), WindDataCSV(wdata))
@@ -131,7 +131,7 @@ class ClemTestCase(unittest.TestCase):
 
 
 def suite():
-    return unittest.makeSuite(ClemTestCase, 'test')
+    return unittest.makeSuite(ClembTestCase, 'test')
 
 if __name__ == '__main__':
     unittest.main(defaultTest='suite')
