@@ -3,7 +3,6 @@ import inspect
 import os
 import unittest
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 
@@ -18,20 +17,28 @@ class ClembTestCase(unittest.TestCase):
             for i in range(4):
                 f.readline()
             # now read until the next empty line
-            data = {'date': [], 't': [], 'm': [], 'steam': []}
+            data = defaultdict(list)
+            dates = []
             while True:
                 l = f.readline()
                 if l == '\n':
                     break
                 yr, mon, day, temp, stfl, pwr, evfl, fmelt, inf, drm, mmp,\
                     fmg, fcl, o18, o18m, o18f, h2, h22, m = l.split()
-                data['date'].append(
+                dates.append(
                     np.datetime64('{}-{:02d}-{:02d}'.format(
                         yr, int(mon), int(day))))
                 data['t'].append(float(temp))
-                data['m'].append(float(m))
                 data['steam'].append(float(stfl))
-        return pd.DataFrame(data)
+                data['pwr'].append(float(pwr))
+                data['evfl'].append(float(evfl))
+                data['fmelt'].append(float(fmelt))
+                data['inf'].append(float(inf))
+                data['fmg'].append(float(fmg))
+                data['fcl'].append(float(fcl))
+                data['mass'].append(float(m))
+
+        return pd.DataFrame(data, index=dates)
 
     def load_input(self):
         with open(os.path.join(self.data_dir, 'input.dat')) as f:
@@ -50,9 +57,8 @@ class ClembTestCase(unittest.TestCase):
                 except:
                     print(l)
                     raise
-                data['date'].append(
-                    np.datetime64('{}-{:02d}-{:02d}'.format(
-                        yr, int(mo), int(dy))))
+                data['date'].append(np.datetime64('{}-{:02d}-{:02d}'.format(
+                    yr, int(mo), int(dy))))
                 data['temp'].append(float(t))
                 data['hgt'].append(float(h))
                 data['mg'].append(float(m))
@@ -128,6 +134,22 @@ class ClembTestCase(unittest.TestCase):
         ts = self.load_test_results()
         np.testing.assert_array_almost_equal(rs['steam'],
                                              ts['steam'], 1)
+        np.testing.assert_array_almost_equal(rs['pwr'],
+                                             ts['pwr'], 1)
+        np.testing.assert_array_almost_equal(rs['evfl'],
+                                             ts['evfl'], 1)
+        np.testing.assert_array_almost_equal(rs['fmelt'],
+                                             ts['fmelt'], 1)
+        np.testing.assert_array_almost_equal(rs['inf'],
+                                             ts['inf'], 1)
+        np.testing.assert_array_almost_equal(rs['fmg'],
+                                             ts['fmg'], 0)
+        np.testing.assert_array_almost_equal(rs['fcl'],
+                                             ts['fcl'], 0)
+        diffmass = np.abs(rs['mass'][:, 0] - ts['mass']) / ts['mass'] * 100.
+        # Due to above mentioned difference in the volume computation the
+        # estimated mass of the crater lake also differs
+        self.assertTrue(np.all(diffmass < 0.041))
 
 
 def suite():

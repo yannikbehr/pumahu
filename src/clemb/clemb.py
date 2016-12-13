@@ -12,6 +12,9 @@ import pandas as pd
 
 
 class Variable(metaclass=ABCMeta):
+    """
+    A base class for a stochastic variable.
+    """
 
     def __iter__(self):
         return self
@@ -38,6 +41,9 @@ class Variable(metaclass=ABCMeta):
 
 
 class Uniform(Variable):
+    """
+    Re-define a set of data points as a sample of a uniform distribution.
+    """
 
     def __init__(self, dates, data, name):
         self._df = pd.DataFrame({name: data}, index=dates)
@@ -88,6 +94,9 @@ class Uniform(Variable):
 
 
 class Gauss(Variable):
+    """
+    Re-define a set of data points as a sample of a gaussian distribution.
+    """
 
     def __init__(self, dates, data, name):
         self._df = pd.DataFrame({name: data}, index=dates)
@@ -138,6 +147,9 @@ class DataLoader(metaclass=ABCMeta):
 
 
 class LakeDataCSV(DataLoader):
+    """
+    Load the lake measurements from a CSV file.
+    """
 
     def __init__(self, csvfile):
         self._fin = csvfile
@@ -204,6 +216,9 @@ class LakeDataCSV(DataLoader):
 
 
 class LakeDataFITS(DataLoader):
+    """
+    Load the lake measurements from the FITS database.
+    """
 
     def __init__(self):
         pass
@@ -213,6 +228,9 @@ class LakeDataFITS(DataLoader):
 
 
 class WindDataCSV(DataLoader):
+    """
+    Load wind speed data from a CSV file.
+    """
 
     def __init__(self, csvfile):
         self._fin = csvfile
@@ -234,20 +252,34 @@ class WindDataCSV(DataLoader):
 
 
 class Clemb:
+    """
+    Compute crater lake energy and mass balance. The model currently accounts
+    for evaporation effects and melt water flow inferred from the dilution of
+    magnesium and chloride ions.
+    """
 
     def __init__(self, lakedata, winddata):
+        """
+        Load the lake data (temperature, lake level, concentration of Mg++,
+        Cl-, O18 and deuterium) and the wind data.
+        """
         self._ld = lakedata.get_data()
         self._wd = winddata.get_data()
         self._dates = self._ld['date'].data.iloc[:, 0].values
-        self._enthalpy = 6.0
+        self._enthalpy = Uniform(
+            self._dates, np.ones(self._dates.size) * 6.0, 'enth')
 
     def run(self, nsamples=1):
+        """
+        Compute the amount of steam and energy that has to be put into a crater 
+        lake to cause an observed temperature change.
+        """
         mgt = Gauss(self._dates, np.zeros(self._dates.size), 'mgt')
         fmg = Gauss(self._dates, np.zeros(self._dates.size), 'fmg')
         clt = Gauss(self._dates, np.zeros(self._dates.size), 'clt')
         fcl = Gauss(self._dates, np.zeros(self._dates.size), 'fcl')
         m = self._ld['m']
-        c = self._ld['m']
+        c = self._ld['c']
         t = self._ld['t']
         h = self._ld['h']
         dv = self._ld['dv']
@@ -259,23 +291,15 @@ class Clemb:
         mass = vol * density
         mgt[d0] = m[d0] * mass
         clt[d0] = c[d0] * mass
-        nclav = 0
-        cltot = 0.0
-        mgtot = 0.0
-        evtot = 0.0
-        mttot = 0.0
-        sttot = 0.0
-        tttot = 0.0
-        clday = 0.0
         dold = d0
         dates = []
-        results = {'steam': [], 'pwr': [], 'evfl': [], 'fmelt': []}
+        results = {'steam': [], 'pwr': [], 'evfl': [], 'fmelt': [],
+                   'inf': [], 'fmg': [], 'fcl': [], 'mass': []}
         for dt, _ in self._ld['date']:
             for _n in range(nsamples):
                 # time interval in Megaseconds
                 timem = 0.0864 * (dt - dold).days
                 density = 1.003 - 0.00033 * t[dt]
-                volp = vol
                 massp = mass
                 a, vol = self.fullness(h[dt])
                 mass = vol * density
@@ -306,14 +330,14 @@ class Clemb:
                 # e is energy required from steam, so is reduced by sun energy
                 e -= self.esol(dold, dt, a)
                 # Energy = Mass * Enthalpy
-                steam = e / (self._enthalpy - 0.004 * t[dt])
+                steam = e / (self._enthalpy[dt] - 0.004 * t[dt])
                 evap = ev  # Evaporation loss
                 meltf = inf + evap - steam  # Conservation of mass
 
                 # Correction for energy to heat incoming meltwater
                 # FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees
                 # C)
-                factor = t[dt] * 0.004 / (self._enthalpy - t[dt] * 0.004)
+                factor = t[dt] * 0.004 / (self._enthalpy[dt] - t[dt] * 0.004)
                 meltf = meltf / (1.0 + factor)  # Therefore less meltwater
                 steam = steam + meltf * factor  # ...and more steam
                 e += meltf * t[dt] * 0.004  # Correct energy input also
@@ -324,6 +348,10 @@ class Clemb:
                 results['pwr'].append(e / timem)  # MW
                 results['evfl'].append(evap / (dt - dold).days)  # kT/day
                 results['fmelt'].append(meltf / (dt - dold).days)  # kT/day
+                results['mass'].append(mass)
+                results['inf'].append(inf)
+                results['fmg'].append(fmg[dt])
+                results['fcl'].append(fcl[dt])
                 dold = dt
 
         iterables = [dates, range(nsamples)]
@@ -367,8 +395,8 @@ class Clemb:
 
     def es(self, t, w, a):
         """
-        Energy loss from lake surface in TJ/day. Equations apply for nominal 
-        surface area of 200000 square metres. Since area is only to a small 
+        Energy loss from lake surface in TJ/day. Equations apply for nominal
+        surface area of 200000 square metres. Since area is only to a small
         power, this error is negligible.
         """
 
@@ -398,7 +426,8 @@ class Clemb:
         efree = a * (2.55 - 0.01 * t) * (t - 1.9) ** (1 / 3.0) * (vp1 - 6.5)
 
         # Forced convection by Satori's Equation
-        # Evaporation (kg/s per m2)= (0.00407 * W**0.8 / L**0.2 - 0.01107/L)(Pw-Pd)/P
+        # Evaporation (kg/s/m2) =
+        # (0.00407 * W**0.8 / L**0.2 - 0.01107/L)(Pw-Pd)/P
         # Latent heat of vapourization about 2400 kJ/kg in range 20 - 60 C,
         # Atmospheric Pressure 750 mBar at Crater Lake
 
