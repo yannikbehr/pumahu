@@ -16,7 +16,7 @@ python setup.py install
 or if administrator permissions are required
 
 ```
-sudo python setup.py Installation
+sudo python setup.py install
 ```
 
 #### *References*
