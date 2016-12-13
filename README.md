@@ -20,4 +20,4 @@ sudo python setup.py install
 ```
 
 #### *References*
-Hurst, T., Hashimoto, T., & Terada, A. (2015). Crater Lake Energy and Mass Balance. In J. V. Dmitri Rouwet, Bruce Christenson, Franco Tassi (Ed.), Volcanic Lakes (pp. 1–533). Springer Berlin Heidelberg. http://doi.org/10.1007/978364236833213
+Hurst, T., Hashimoto, T., & Terada, A. (2015). Crater Lake Energy and Mass Balance. In J. V. Dmitri Rouwet, Bruce Christenson, Franco Tassi (Ed.), Volcanic Lakes (pp. 1–533). Springer Berlin Heidelberg. http://doi.org/10.1007/978-3-642-36833-2_13
