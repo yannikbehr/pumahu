@@ -16,12 +16,15 @@ class Variable(metaclass=ABCMeta):
     A base class for a stochastic variable.
     """
 
+    def __init__(self, dates, data, name):
+        self._df = pd.DataFrame({name: data}, index=dates)
+        self._size = len(self._df)
+        self._name = name
+        self._dates = dates
+        self._index = 0
+
     def __iter__(self):
         return self
-
-    @abstractmethod
-    def __init__(self, data):
-        pass
 
     @abstractmethod
     def __next__(self):
@@ -46,9 +49,7 @@ class Uniform(Variable):
     """
 
     def __init__(self, dates, data, name):
-        self._df = pd.DataFrame({name: data}, index=dates)
-        self._size = len(self._df)
-        self._index = 0
+        super().__init__(dates, data, name)
         self._min = 0
         self._max = 0
 
@@ -70,7 +71,10 @@ class Uniform(Variable):
 
     @property
     def data(self):
-        return self._df
+        return pd.DataFrame({self._name:
+                             np.random.uniform(self._df[self._name] - 2.0,
+                                               self._df[self._name] + 2.0)},
+                            index=self._dates)
 
     @data.setter
     def data(self, dataframe):
@@ -99,9 +103,7 @@ class Gauss(Variable):
     """
 
     def __init__(self, dates, data, name):
-        self._df = pd.DataFrame({name: data}, index=dates)
-        self._size = len(self._df)
-        self._index = 0
+        super().__init__(dates, data, name)
         self._std = None
 
     def __next__(self):
@@ -124,6 +126,11 @@ class Gauss(Variable):
 
     @property
     def data(self):
+        if self._std is not None:
+            return pd.DataFrame({self._name:
+                                 np.random.normal(self._df[self._name],
+                                                  self._std)},
+                                index=self._dates)
         return self._df
 
     @data.setter
