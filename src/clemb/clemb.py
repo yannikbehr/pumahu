@@ -16,11 +16,10 @@ class Variable(metaclass=ABCMeta):
     A base class for a stochastic variable.
     """
 
-    def __init__(self, dates, data, name):
-        self._df = pd.DataFrame({name: data}, index=dates)
-        self._size = len(self._df)
-        self._name = name
-        self._dates = dates
+    def __init__(self, series):
+        self._ser = series
+        self._size = len(self._ser)
+        self._dates = self._ser.index
         self._index = 0
 
     def __iter__(self):
@@ -48,37 +47,34 @@ class Uniform(Variable):
     Re-define a set of data points as a sample of a uniform distribution.
     """
 
-    def __init__(self, dates, data, name):
-        super().__init__(dates, data, name)
+    def __init__(self, series):
+        super().__init__(series)
         self._min = 0
         self._max = 0
 
     def __next__(self):
         if self._index >= self._size:
             raise StopIteration
-        s = self._df.iloc[self._index]
+        v = self._ser[self._index]
+        d = self._ser.index[self._index]
         self._index += 1
-        return (s.name, np.random.uniform(s.values[0] - self._min,
-                                          s.values[0] + self._max))
+        return (d, np.random.uniform(v - self._min, v + self._max))
 
     def __getitem__(self, datestring):
-        s = self._df.loc[datestring]
-        return np.random.uniform(s.values[0] - self._min,
-                                 s.values[0] + self._max)
+        v = self._ser.loc[datestring]
+        return np.random.uniform(v - self._min, v + self._max)
 
     def __setitem__(self, datestring, value):
-        self._df.loc[datestring] = value
+        self._ser.loc[datestring] = value
 
     @property
     def data(self):
-        return pd.DataFrame({self._name:
-                             np.random.uniform(self._df[self._name] - 2.0,
-                                               self._df[self._name] + 2.0)},
-                            index=self._dates)
+        return pd.Series(np.random.uniform(self._ser - 2.0, self._ser + 2.0),
+                         index=self._dates)
 
     @data.setter
-    def data(self, dataframe):
-        self._df = dataframe
+    def data(self, series):
+        self._ser = series
 
     @property
     def min(self):
@@ -102,40 +98,39 @@ class Gauss(Variable):
     Re-define a set of data points as a sample of a gaussian distribution.
     """
 
-    def __init__(self, dates, data, name):
-        super().__init__(dates, data, name)
+    def __init__(self, series):
+        super().__init__(series)
         self._std = None
 
     def __next__(self):
         if self._index >= self._size:
             raise StopIteration
-        s = self._df.iloc[self._index]
+        v = self._ser[self._index]
+        d = self._ser.index[self._index]
         self._index += 1
         if self._std is None:
-            return (s.name, s.values[0])
-        return (s.name, np.random.normal(s.values[0], self._std))
+            return (d, v)
+        return (d, np.random.normal(v, self._std))
 
     def __getitem__(self, datestring):
-        s = self._df.loc[datestring]
+        v = self._ser.loc[datestring]
         if self._std is None:
-            return s.values[0]
-        return np.random.normal(s.values[0], self._std)
+            return v
+        return np.random.normal(v, self._std)
 
     def __setitem__(self, datestring, value):
-        self._df.loc[datestring] = value
+        self._ser[datestring] = value
 
     @property
     def data(self):
         if self._std is not None:
-            return pd.DataFrame({self._name:
-                                 np.random.normal(self._df[self._name],
-                                                  self._std)},
-                                index=self._dates)
-        return self._df
+            return pd.Series(np.random.normal(self._ser, self._std),
+                             index=self._dates)
+        return self._ser
 
     @data.setter
-    def data(self, dataframe):
-        self._df = dataframe
+    def data(self, series):
+        self._ser = series
 
     @property
     def std(self):
@@ -149,7 +144,7 @@ class Gauss(Variable):
 class DataLoader(metaclass=ABCMeta):
 
     @abstractmethod
-    def get_data(self):
+    def get_data(self, start, end):
         pass
 
 
@@ -161,10 +156,8 @@ class LakeDataCSV(DataLoader):
     def __init__(self, csvfile):
         self._fin = csvfile
 
-    def get_data(self):
+    def get_data(self, start, end):
         rd = defaultdict(list)
-        rd_old = {}
-        n = 0
         t0 = np.datetime64('2000-01-01')
         with open(self._fin) as f:
             while True:
@@ -179,46 +172,23 @@ class LakeDataCSV(DataLoader):
                 te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
                 dt = np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d))
                 no = (dt - t0).astype(int) - 1
-                if n < 1:
-                    nstart = no
-                    nprev = no
-                    rd['nd'].append(no)
-                    rd['date'].append(dt)
-                    rd['t'].append(te)
-                    rd['h'].append(hgt)
-                    rd['f'].append(fl)
-                    rd['o18'].append(oheavy)
-                    rd['h2'].append(deut)
-                    rd['o18m'].append(oheavy)
-                    rd['h2m'].append(deut)
-                    rd['m'].append(img / 1000.)
-                    rd['c'].append(icl / 1000.)
-                    rd['dv'].append(1.0)
-                nfinish = no
-                if dr < 0.1:
-                    dr = 1.0
-                for nn in range(nprev + 1, nfinish + 1):
-                    fact = (no - nn) / (no - nprev)
-                    rd['t'].append(te + (rd_old['t'] - te) * fact)
-                    rd['o18'].append(oheavy + (rd_old['o18'] - oheavy) * fact)
-                    rd['h2'].append(deut + (rd_old['h2'] - deut) * fact)
-                    rd['m'].append(
-                        img / 1000. + (rd_old['m'] - img / 1000.) * fact)
-                    rd['c'].append(
-                        icl / 1000. + (rd_old['c'] - icl / 1000.) * fact)
-                    rd['dv'].append(1.0 + (dr - 1.0) / (no - nprev))
-                    rd['nd'].append(nn)
-                    rd['date'].append(t0 + (nn + 1) * np.timedelta64(1, 'D'))
-                    rd['h'].append(hgt + (rd_old['h'] - hgt) * fact)
-                    rd['f'].append(rd_old['f'])
-                rd['f'][-1] = fl
-                for _k in rd:
-                    rd_old[_k] = rd[_k][-1]
-                nprev = no
-                n += 1
+                rd['date'].append(dt)
+                rd['nd'].append(no)
+                rd['t'].append(te)
+                rd['h'].append(hgt)
+                rd['f'].append(fl)
+                rd['o18'].append(oheavy)
+                rd['h2'].append(deut)
+                rd['o18m'].append(oheavy)
+                rd['h2m'].append(deut)
+                rd['m'].append(img / 1000.)
+                rd['c'].append(icl / 1000.)
+                rd['dv'].append(1.0)
+        df = pd.DataFrame(rd, index=rd['date'])
+        df = df.reindex(pd.date_range(start=start, end=end)).interpolate()
         vd = {}
-        for _k in rd:
-            vd[_k] = Gauss(rd['date'], rd[_k], _k)
+        for _c in df.columns:
+            vd[_c] = Gauss(df[_c])
         return vd
 
 
@@ -242,7 +212,7 @@ class WindDataCSV(DataLoader):
     def __init__(self, csvfile):
         self._fin = csvfile
 
-    def get_data(self):
+    def get_data(self, start, end, default=0.0):
         windspeed = []
         dates = []
         with open(self._fin) as f:
@@ -255,7 +225,9 @@ class WindDataCSV(DataLoader):
                 ws, wd = map(float, a[3:])
                 dates.append(np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d)))
                 windspeed.append(ws)
-        return Gauss(dates, windspeed, 'wind')
+        sr = pd.Series(windspeed, index=dates)
+        sr = sr.reindex(pd.date_range(start=start, end=end)).fillna(default)
+        return Gauss(sr)
 
 
 class Clemb:
@@ -265,26 +237,26 @@ class Clemb:
     magnesium and chloride ions.
     """
 
-    def __init__(self, lakedata, winddata):
+    def __init__(self, lakedata, winddata, start, end):
         """
         Load the lake data (temperature, lake level, concentration of Mg++,
         Cl-, O18 and deuterium) and the wind data.
         """
-        self._ld = lakedata.get_data()
-        self._wd = winddata.get_data()
-        self._dates = self._ld['date'].data.iloc[:, 0].values
-        self._enthalpy = Uniform(
-            self._dates, np.ones(self._dates.size) * 6.0, 'enth')
+        self._ld = lakedata.get_data(start, end)
+        self._wd = winddata.get_data(start, end)
+        self._dates = self._ld['date'].data.index
+        self._enthalpy = Uniform(pd.Series(np.ones(self._dates.size) * 6.0,
+                                           index=self._dates))
 
     def run(self, nsamples=1):
         """
         Compute the amount of steam and energy that has to be put into a crater 
         lake to cause an observed temperature change.
         """
-        mgt = Gauss(self._dates, np.zeros(self._dates.size), 'mgt')
-        fmg = Gauss(self._dates, np.zeros(self._dates.size), 'fmg')
-        clt = Gauss(self._dates, np.zeros(self._dates.size), 'clt')
-        fcl = Gauss(self._dates, np.zeros(self._dates.size), 'fcl')
+        mgt = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
+        fmg = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
+        clt = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
+        fcl = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
         m = self._ld['m']
         c = self._ld['c']
         t = self._ld['t']

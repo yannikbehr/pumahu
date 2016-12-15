@@ -1,6 +1,7 @@
 import unittest
 
 import numpy as np
+import pandas as pd
 
 from clemb.clemb import Variable, Uniform, Gauss
 
@@ -25,7 +26,7 @@ class VariableTestCase(unittest.TestCase):
         for i in range(10):
             dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.random.random_sample(10)
-        u = Uniform(dt, din, 'u')
+        u = Uniform(pd.Series(din, index=dt))
         dout = [x for d, x in u]
         np.testing.assert_array_almost_equal(din, dout)
 
@@ -33,7 +34,7 @@ class VariableTestCase(unittest.TestCase):
         for i in range(10000):
             dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.ones(10000)
-        u1 = Uniform(dt, din, 'u1')
+        u1 = Uniform(pd.Series(din, index=dt))
         self.assertEqual(u1['1970-01-01T00:00:00Z'], 1.0)
         u1.min = 1.0
         u1.max = 0.0
@@ -56,7 +57,7 @@ class VariableTestCase(unittest.TestCase):
         for i in range(10):
             dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.random.random_sample(10)
-        u = Gauss(dt, din, 'u')
+        u = Gauss(pd.Series(din, index=dt))
         dout = [x for d, x in u]
         np.testing.assert_array_almost_equal(din, dout)
 
@@ -64,7 +65,7 @@ class VariableTestCase(unittest.TestCase):
         for i in range(1000):
             dt.append(np.datetime64('1970-01-01') + i * np.timedelta64(1, 'D'))
         din = np.zeros(1000)
-        u1 = Gauss(dt, din, 'u1')
+        u1 = Gauss(pd.Series(din, index=dt))
         self.assertEqual(u1['1970-01-01T00:00:00Z'], 0.0)
         u1.std = 0.1
         dout = np.array([x for d, x in u1])

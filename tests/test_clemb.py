@@ -82,7 +82,7 @@ class ClembTestCase(unittest.TestCase):
 
     def test_lake_data_csv(self):
         dl = LakeDataCSV(os.path.join(self.data_dir, 'data.dat'))
-        vd = dl.get_data()
+        vd = dl.get_data(start='2003-01-16', end='2010-01-29')
         ti = self.load_input()
         temp = [t for d, t in vd['t']]
         hgt = [h for d, h in vd['h']]
@@ -104,20 +104,16 @@ class ClembTestCase(unittest.TestCase):
 
     def test_wind_data_csv(self):
         dl = WindDataCSV(os.path.join(self.data_dir, 'wind.dat'))
-        df = dl.get_data()
+        df = dl.get_data(start='2003-01-16', end='2010-01-29')
         ti = self.load_input()
-        ws = []
-        for dt in ti['date']:
-            try:
-                ws.append(df[dt])
-            except KeyError:
-                ws.append(0.0)
+        ws = [w for d, w in df]
         np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
     def test_clemb(self):
         ldata = os.path.join(self.data_dir, 'data.dat')
         wdata = os.path.join(self.data_dir, 'wind.dat')
-        c = Clemb(LakeDataCSV(ldata), WindDataCSV(wdata))
+        c = Clemb(LakeDataCSV(ldata), WindDataCSV(wdata),
+                  start='2003-01-16', end='2010-01-29')
         a, vol = c.fullness(2529.4)
         fvol = 8880.29883
         diffvol = abs(vol - fvol) / fvol * 100.
