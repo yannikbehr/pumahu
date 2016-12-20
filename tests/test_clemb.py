@@ -114,15 +114,15 @@ class ClembTestCase(unittest.TestCase):
         wdata = os.path.join(self.data_dir, 'wind.dat')
         c = Clemb(LakeDataCSV(ldata), WindDataCSV(wdata),
                   start='2003-01-16', end='2010-01-29')
-        a, vol = c.fullness(2529.4)
-        fvol = 8880.29883
+        a, vol = c.fullness(pd.Series(np.ones(10) * 2529.4))
+        fvol = np.ones(10) * 8880.29883
         diffvol = abs(vol - fvol) / fvol * 100.
-        fa = 196370.188
+        fa = np.ones(10) * 196370.188
         diffa = abs(a - fa) / fa * 100.
         # Probably due to different precisions the numbers between the
         # original Fortran code and the Python code differ slightly
-        self.assertTrue(diffvol < 0.0318)
-        self.assertTrue(diffa < 0.000722)
+        self.assertTrue(np.all(diffvol < 0.0318))
+        self.assertTrue(np.all(diffa < 0.000722))
         loss, ev = c.es(35.0, 5.0, 200000)
         self.assertAlmostEqual(loss, 19.913621, 5)
         self.assertAlmostEqual(ev, 5.119750, 5)
@@ -142,7 +142,7 @@ class ClembTestCase(unittest.TestCase):
                                              ts['fmg'], 0)
         np.testing.assert_array_almost_equal(rs['fcl'],
                                              ts['fcl'], 0)
-        diffmass = np.abs(rs['mass'][:, 0] - ts['mass']) / ts['mass'] * 100.
+        diffmass = np.abs(rs['mass'][0] - ts['mass']) / ts['mass'] * 100.
         # Due to above mentioned difference in the volume computation the
         # estimated mass of the crater lake also differs
         self.assertTrue(np.all(diffmass < 0.041))

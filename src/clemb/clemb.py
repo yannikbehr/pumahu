@@ -5,7 +5,6 @@ temperature, wind speed and chemical dilution.
 
 from abc import ABCMeta, abstractmethod
 from collections import defaultdict
-from math import exp, cos, sqrt
 
 import numpy as np
 import pandas as pd
@@ -69,7 +68,8 @@ class Uniform(Variable):
 
     @property
     def data(self):
-        return pd.Series(np.random.uniform(self._ser - 2.0, self._ser + 2.0),
+        return pd.Series(np.random.uniform(self._ser - self._min,
+                                           self._ser + self._max),
                          index=self._dates)
 
     @data.setter
@@ -253,87 +253,98 @@ class Clemb:
         Compute the amount of steam and energy that has to be put into a crater 
         lake to cause an observed temperature change.
         """
-        mgt = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
-        fmg = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
-        clt = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
-        fcl = Gauss(pd.Series(np.zeros(self._dates.size), index=self._dates))
-        m = self._ld['m']
-        c = self._ld['c']
-        t = self._ld['t']
-        h = self._ld['h']
-        dv = self._ld['dv']
-        w = self._wd
+        ndata = nsamples * self._dates.size - 1
+        results = {}
+        keys = ['steam', 'pwr', 'evfl', 'fmelt',
+                'inf', 'fmg', 'fcl', 'mass', 't']
+        for k in keys:
+            results[k] = np.zeros(ndata)
 
-        d0, _ = next(self._ld['date'])
-        a, vol = self.fullness(h[d0])
-        density = 1.003 - 0.00033 * t[d0]
-        mass = vol * density
-        mgt[d0] = m[d0] * mass
-        clt[d0] = c[d0] * mass
-        dold = d0
-        dates = []
-        results = {'steam': [], 'pwr': [], 'evfl': [], 'fmelt': [],
-                   'inf': [], 'fmg': [], 'fcl': [], 'mass': []}
-        for dt, _ in self._ld['date']:
-            for _n in range(nsamples):
-                # time interval in Megaseconds
-                timem = 0.0864 * (dt - dold).days
-                density = 1.003 - 0.00033 * t[dt]
-                massp = mass
-                a, vol = self.fullness(h[dt])
-                mass = vol * density
-                dr = dv[dt]
-                mgt[dt] = mgt[dold] + mass * m[dt] - massp * m[dold] / dr
-                fmg[dt] = (mgt[dt] - mgt[dold]) / (dt - dold).days
-                if (mgt[dold] - mgt[dt]) > 0.02 * mass * m[dt]:
-                    drmg = 0.98 * massp * m[dold] / mass * m[dt]
+        for n in range(nsamples):
+            df = pd.DataFrame({'t': self._ld['t'].data, 'm': self._ld['m'].data,
+                               'c': self._ld['c'].data, 'h': self._ld['h'].data,
+                               'dv': self._ld['dv'].data, 'w': self._wd.data},
+                              index=self._dates)
+            nd = (df.index[1:] - df.index[:-1]).days
+            # time interval in Megaseconds
+            timem = 0.0864 * (df.index[1:] - df.index[:-1]).days
+            density = 1.003 - 0.00033 * df['t']
+            a, vol = self.fullness(df['h'])
 
-                clt[dt] = clt[dold] + mass * c[dt] - massp * c[dold] / dr
-                fcl[dt] = (clt[dt] - clt[dold]) / (dt - dold).days
-                if (fcl[dold] - fcl[dt]) > 0.02 * mass * c[dt]:
-                    drmg = 0.98 * massp * c[dold] / mass * c[dt]
+            # Dilution due to loss of water
+            dr = df['dv'][1:].values
 
-                # Net mass input to lake [kT]
-                inf = massp * (dr - 1.0)  # input to replace outflow
-                inf = inf + mass - massp  # input to change total mass
-                try:
-                    loss, ev = self.es(t[dt], w[dt], a)
-                except KeyError:
-                    # No wind data
-                    loss, ev = self.es(t[dt], 0.0, a)
+            mass = vol[1:] * density[1:].values
+            massp = vol[:-1] * density[:-1].values
 
-                # Energy balances [TJ];
-                # es = Surface heat loss, el = change in stored energy
-                e = loss + self.el(t[dold], t[dt], vol)
+            # Mass balance for Mg++
+            mgt = np.zeros(df['m'].size)
+            drmg = np.ones(df['m'].size - 1)
+            mgt[0] = massp[0] * df['m'][0]
+            mgt[1:] = mass * df['m'][1:].values - \
+                massp * df['m'][:-1].values / dr
+            mgt = mgt.cumsum()
+            fmg = np.diff(mgt) / nd
+            idx = np.where(
+                np.diff(mgt[::-1])[::-1] > 0.02 * mass * df['m'][1:].values)
+            drmg[idx] = 0.98 * massp[idx] * df['m'][:-1].values[idx] / \
+                (mass[idx] * df['m'][1:].values[idx])
 
-                # e is energy required from steam, so is reduced by sun energy
-                e -= self.esol(dold, dt, a)
-                # Energy = Mass * Enthalpy
-                steam = e / (self._enthalpy[dt] - 0.004 * t[dt])
-                evap = ev  # Evaporation loss
-                meltf = inf + evap - steam  # Conservation of mass
+            # Mass balance for Cl-
+            clt = np.zeros(df['c'].size)
+            drcl = np.ones(df['c'].size - 1)
+            clt[0] = massp[0] * df['c'][0]
+            clt[1:] = mass * df['c'][1:].values - \
+                massp * df['c'][:-1].values / dr
+            clt = clt.cumsum()
+            fcl = np.diff(clt) / nd
+            idx = np.where(
+                np.diff(clt[::-1])[::-1] > 0.02 * mass * df['c'][1:].values)
+            drcl[idx] = 0.98 * massp[idx] * df['c'][:-1].values[idx] / \
+                (mass[idx] * df['c'][1:].values[idx])
 
-                # Correction for energy to heat incoming meltwater
-                # FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees
-                # C)
-                factor = t[dt] * 0.004 / (self._enthalpy[dt] - t[dt] * 0.004)
-                meltf = meltf / (1.0 + factor)  # Therefore less meltwater
-                steam = steam + meltf * factor  # ...and more steam
-                e += meltf * t[dt] * 0.004  # Correct energy input also
+            # Net mass input to lake [kT]
+            inf = massp * (dr - 1.0)  # input to replace outflow
+            inf = inf + mass - massp  # input to change total mass
+            loss, ev = self.es(df['t'][1:].values, df['w'][1:].values, a[1:])
 
-                # Flows are total amounts/day
-                dates.append(dt)
-                results['steam'].append(steam / (dt - dold).days)  # kT/day
-                results['pwr'].append(e / timem)  # MW
-                results['evfl'].append(evap / (dt - dold).days)  # kT/day
-                results['fmelt'].append(meltf / (dt - dold).days)  # kT/day
-                results['mass'].append(mass)
-                results['inf'].append(inf)
-                results['fmg'].append(fmg[dt])
-                results['fcl'].append(fcl[dt])
-                dold = dt
+            # Energy balances [TJ];
+            # es = Surface heat loss, el = change in stored energy
+            e = loss + \
+                self.el(df['t'][:-1].values, df['t'][1:].values, vol[1:])
 
-        iterables = [dates, range(nsamples)]
+            # e is energy required from steam, so is reduced by sun energy
+            e -= self.esol(df.index[:-1], df.index[1:], a[1:])
+            # Energy = Mass * Enthalpy
+            steam = e / (self._enthalpy.data[1:].values -
+                         0.004 * df['t'][1:].values)
+            evap = ev  # Evaporation loss
+            meltf = inf + evap - steam  # Conservation of mass
+
+            # Correction for energy to heat incoming meltwater
+            # FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees
+            # C)
+            factor = df['t'][1:].values * 0.004 / \
+                (self._enthalpy.data[1:].values - df['t'][1:].values * 0.004)
+            meltf = meltf / (1.0 + factor)  # Therefore less meltwater
+            steam = steam + meltf * factor  # ...and more steam
+            # Correct energy input also
+            e += meltf * df['t'][1:].values * 0.004
+
+            # Flows are total amounts/day
+            id0 = n * ndata
+            id1 = (n + 1) * ndata
+            results['steam'][id0:id1] = steam / nd  # kT/day
+            results['pwr'][id0:id1] = e / timem  # MW
+            results['evfl'][id0:id1] = evap / nd  # kT/day
+            results['fmelt'][id0:id1] = meltf / nd  # kT/day
+            results['mass'][id0:id1] = mass
+            results['inf'][id0:id1] = inf
+            results['t'][id0:id1] = df['t'][1:].values
+            results['fmg'][id0:id1] = fmg
+            results['fcl'][id0:id1] = fcl
+
+        iterables = [range(nsamples), df.index[1:]]
         midx = pd.MultiIndex.from_product(iterables)
         df = pd.DataFrame(results, index=midx)
         return df
@@ -342,21 +353,26 @@ class Clemb:
         """
         Calculate volume and area from lake level.
         """
-        if hgt < 2400.:
-            h = 2529.4
-            vol = (4.747475 * h * h * h - 34533.8 * h * h + 83773360. * h - 67772125000.) / \
-                1000.
-            a = 193400
-        else:
-            # Calculate from absolute level
-            h = hgt
-            v = 4.747475 * h * h * h - 34533.8 * h * h + 83773360. * h - \
-                67772125000.
-            h = h + 1.0
-            v1 = 4.747475 * h * h * h - 34533.8 * h * h + 83773360. * h - \
-                67772125000.
-            a = v1 - v
-            vol = v / 1000.
+        h = hgt.copy()
+        a = np.zeros(h.size)
+        vol = np.zeros(h.size)
+        idx1 = np.where(h < 2400.)
+        idx2 = np.where(h >= 2400.)
+        h.iloc[idx1] = 2529.4
+        vol[idx1] = (4.747475 * np.power(h.iloc[idx1], 3) -
+                     34533.8 * np.power(h.iloc[idx1], 2) + 83773360. *
+                     h.iloc[idx1] - 67772125000.) / 1000.
+        a[idx1] = 193400
+        # Calculate from absolute level
+        vol[idx2] = 4.747475 * np.power(h.iloc[idx2], 3) - \
+            34533.8 * np.power(h.iloc[idx2], 2) + 83773360. * h.iloc[idx2] - \
+            67772125000.
+        h.iloc[idx2] += 1.0
+        v1 = 4.747475 * np.power(h.iloc[idx2], 3) - \
+            34533.8 * np.power(h.iloc[idx2], 2) + 83773360. * h.iloc[idx2] - \
+            67772125000.
+        a[idx2] = v1 - vol[idx2]
+        vol[idx2] /= 1000.
         return (a, vol)
 
     def esol(self, d1, d2, a):
@@ -364,7 +380,7 @@ class Clemb:
         Solar Incident Radiation Based on yearly guess & month.
         """
         return (d2 - d1).days * a * 0.000015 * \
-            (1 + 0.5 * cos(((d2.month - 1) * 3.14) / 6.0))
+            (1 + 0.5 * np.cos(((d2.month - 1) * 3.14) / 6.0))
 
     def el(self, t1, t2, vol):
         """
@@ -382,9 +398,9 @@ class Clemb:
         l = 500  # Characteristic length of lake
         # Expressions for H2O properties as function of temperature
         # Vapour Pressure Function from CIMO Guide (WMO, 2008)
-        vp = 6.112 * exp(17.62 * t / (243.12 + t))
+        vp = 6.112 * np.exp(17.62 * t / (243.12 + t))
         # t - 1 for surface temperature
-        vp1 = 6.112 * exp(17.62 * (t - 1.) / (242.12 + t))
+        vp1 = 6.112 * np.exp(17.62 * (t - 1.) / (242.12 + t))
         # Vapour Density from Hyperphysics Site
         vd = .006335 + .0006718 * t - .000020887 * \
             t * t + .00000073095 * t * t * t
@@ -412,7 +428,7 @@ class Clemb:
 
         eforced = a * (0.00407 * w**0.8 / l**0.2 - 0.01107 / l) * \
             (vp - 6.5) / 800. * 2400000  # W
-        ee = sqrt(efree**2 + eforced**2)
+        ee = np.sqrt(efree**2 + eforced**2)
 
         # The ratio of Heat Loss by Convection to that by Evaporation is
         # rhoCp/L * (Tw - Ta)/(qw - qa) #rho is air density .948 kg/m3, Cp
