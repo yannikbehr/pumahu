@@ -253,7 +253,7 @@ class Clemb:
         Compute the amount of steam and energy that has to be put into a crater 
         lake to cause an observed temperature change.
         """
-        ndata = nsamples * self._dates.size - 1
+        ndata = nsamples * (self._dates.size - 1)
         results = {}
         keys = ['steam', 'pwr', 'evfl', 'fmelt',
                 'inf', 'fmg', 'fcl', 'mass', 't']
