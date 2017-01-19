@@ -248,17 +248,29 @@ class Clemb:
         self._enthalpy = Uniform(pd.Series(np.ones(self._dates.size) * 6.0,
                                            index=self._dates))
 
-    def run(self, nsamples=1):
+    def get_variable(self, key):
+        if key in self._ld:
+            return self._ld[key]
+        elif key in self._wd:
+            return self._wd[key]
+        elif key.lower() == 'enthalpy':
+            return self._enthalpy
+        else:
+            raise AttributeError('Unknown variable name.')
+
+    def run(self, sampleidx):
         """
         Compute the amount of steam and energy that has to be put into a crater 
         lake to cause an observed temperature change.
         """
-        ndata = nsamples * (self._dates.size - 1)
+        sidx = np.array(sampleidx)
+        nsamples = len(sidx)
+        ndata = self._dates.size - 1
         results = {}
         keys = ['steam', 'pwr', 'evfl', 'fmelt',
                 'inf', 'fmg', 'fcl', 'mass', 't']
         for k in keys:
-            results[k] = np.zeros(ndata)
+            results[k] = np.zeros(nsamples * ndata)
 
         for n in range(nsamples):
             df = pd.DataFrame({'t': self._ld['t'].data, 'm': self._ld['m'].data,
@@ -344,7 +356,7 @@ class Clemb:
             results['fmg'][id0:id1] = fmg
             results['fcl'][id0:id1] = fcl
 
-        iterables = [range(nsamples), df.index[1:]]
+        iterables = [sidx, df.index[1:]]
         midx = pd.MultiIndex.from_product(iterables)
         df = pd.DataFrame(results, index=midx)
         return df
