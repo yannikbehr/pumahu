@@ -268,7 +268,8 @@ class Clemb:
         ndata = self._dates.size - 1
         results = {}
         keys = ['steam', 'pwr', 'evfl', 'fmelt',
-                'inf', 'fmg', 'fcl', 'mass', 't']
+                'inf', 'fmg', 'fcl', 'mass', 't',
+                'wind']
         for k in keys:
             results[k] = np.zeros(nsamples * ndata)
 
@@ -355,6 +356,7 @@ class Clemb:
             results['t'][id0:id1] = df['t'][1:].values
             results['fmg'][id0:id1] = fmg
             results['fcl'][id0:id1] = fcl
+            results['wind'][id0:id1] = df['w'][1:].values
 
         iterables = [sidx, df.index[1:]]
         midx = pd.MultiIndex.from_product(iterables)
