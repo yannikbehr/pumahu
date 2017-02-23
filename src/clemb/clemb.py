@@ -10,6 +10,21 @@ import numpy as np
 import pandas as pd
 
 
+def df_resample(df):
+    """
+    Resample dataframe to daily sample rate.
+    """
+    # First upsample to 15 min intervals combined with a linear interpolation
+    ndates = pd.date_range(start=df.index.date[0], end=df.index.date[-1],
+                           freq='15T')
+    ndf = df.reindex(ndates, method='nearest',
+                     tolerance=np.timedelta64(15, 'm')).interpolate()
+    # Then downsample to 1 day intervals assigning the new values to mid day
+    #ndf = ndf.resample('1D', label='left', loffset='12H').mean()
+    ndf = ndf.resample('1D', label='left').mean()
+    return ndf
+
+
 class Variable(metaclass=ABCMeta):
     """
     A base class for a stochastic variable.
@@ -197,11 +212,80 @@ class LakeDataFITS(DataLoader):
     Load the lake measurements from the FITS database.
     """
 
-    def __init__(self):
-        pass
+    def __init__(self, url="https://fits.geonet.org.nz/observation"):
+        self.base_url = url
 
-    def get_data(self):
-        pass
+    def get_data(self, start, end):
+        # Get temperature
+        # Temperature has been recorded by 3 different sensors so 3 individual
+        # requests have to be made
+        url = "{}?siteID=RU001&networkID=VO&typeID=t&methodID={}"
+        names = ['t', 't_err']
+        tdf1 = pd.read_csv(url.format(self.base_url, 'therm'),
+                           index_col=0, names=names, skiprows=1,
+                           parse_dates=True)
+        tdf2 = pd.read_csv(url.format(self.base_url, 'thermcoup'),
+                           index_col=0, names=names, skiprows=1,
+                           parse_dates=True)
+        tdf3 = pd.read_csv(url.format(self.base_url, 'logic'),
+                           index_col=0, names=names, skiprows=1,
+                           parse_dates=True)
+        tdf3 = tdf3.combine_first(tdf2)
+        tdf3 = tdf3.combine_first(tdf1)
+        tdf = df_resample(tdf3)
+
+        # Get lake level
+        # The lake level data is stored qith respect to the overflow level of
+        # the lake. Unfortunately, that level has changed over time so to get
+        # the absolute lake level altitude, data from different periods have to
+        # be corrected differently. Also, lake level data has been measured by
+        # different methods requiring several requests.
+        url = "{}?siteID={}&networkID=VO&typeID=z"
+        names = ['h', 'h_err']
+        ldf = pd.read_csv(url.format(self.base_url, 'RU001'),
+                          index_col=0, names=names, skiprows=1,
+                          parse_dates=True)
+        ldf1 = pd.read_csv(url.format(self.base_url, 'RU001A'),
+                           index_col=0, names=names, skiprows=1,
+                           parse_dates=True)
+        ldf = ldf.combine_first(ldf1)
+        ldf.loc[ldf.index < '1997-01-01', 'h'] = 2530. + \
+            ldf.loc[ldf.index < '1997-01-01', 'h']
+        ldf.loc[(ldf.index > '1997-01-01') & (ldf.index < '2012-12-31'),
+                'h'] = 2529.5 + \
+            (ldf.loc[(ldf.index > '1997-01-01') &
+                     (ldf.index < '2012-12-31'), 'h'] - 1.3)
+        ldf.loc[ldf.index > '2016-01-01', 'h'] = 2529.35 + \
+            (ldf.loc[ldf.index > '2016-01-01', 'h'] - 2.0)
+        ldf = df_resample(ldf)
+
+        # Get Mg++
+        url = "{}?siteID=RU001&networkID=VO&typeID=Mg-w"
+        names = ['m', 'm_err']
+        mdf = pd.read_csv(url.format(self.base_url),
+                          index_col=0, names=names, skiprows=1,
+                          parse_dates=True)
+        mdf = df_resample(mdf)
+
+        # Get Cl-
+        url = "{}?siteID=RU001&networkID=VO&typeID=Cl-w"
+        names = ['c', 'c_err']
+        cdf = pd.read_csv(url.format(self.base_url), index_col=0,
+                          names=names, skiprows=1, parse_dates=True)
+        cdf = df_resample(cdf)
+
+        df = pd.merge(tdf, ldf, left_index=True, right_index=True, how='outer')
+        df = pd.merge(df, mdf, left_index=True, right_index=True, how='outer')
+        df = pd.merge(df, cdf, left_index=True, right_index=True, how='outer')
+        df = df.fillna(method='pad').dropna()
+        start = max(df.index.min(), pd.Timestamp(start))
+        end = min(df.index.max(), pd.Timestamp(end))
+        df = df.loc[start:end]
+        vd = {}
+        for c in ['t', 'h', 'm', 'c']:
+            vd[c] = Gauss(df[c])
+        vd['dv'] = Gauss(pd.Series(np.ones(df.index.size), index=df.index))
+        return vd
 
 
 class WindDataCSV(DataLoader):
@@ -212,7 +296,7 @@ class WindDataCSV(DataLoader):
     def __init__(self, csvfile):
         self._fin = csvfile
 
-    def get_data(self, start, end, default=0.0):
+    def get_data(self, start, end, default=2.0):
         windspeed = []
         dates = []
         with open(self._fin) as f:
@@ -244,7 +328,7 @@ class Clemb:
         """
         self._ld = lakedata.get_data(start, end)
         self._wd = winddata.get_data(start, end)
-        self._dates = self._ld['date'].data.index
+        self._dates = self._ld['t'].data.index
         self._enthalpy = Uniform(pd.Series(np.ones(self._dates.size) * 6.0,
                                            index=self._dates))
 
