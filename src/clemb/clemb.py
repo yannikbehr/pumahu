@@ -296,7 +296,7 @@ class WindDataCSV(DataLoader):
     def __init__(self, csvfile):
         self._fin = csvfile
 
-    def get_data(self, start, end, default=2.0):
+    def get_data(self, start, end, default=4.5):
         windspeed = []
         dates = []
         with open(self._fin) as f:
@@ -351,9 +351,8 @@ class Clemb:
         nsamples = len(sidx)
         ndata = self._dates.size - 1
         results = {}
-        keys = ['steam', 'pwr', 'evfl', 'fmelt',
-                'inf', 'fmg', 'fcl', 'mass', 't',
-                'wind']
+        keys = ['steam', 'pwr', 'evfl', 'fmelt', 'inf', 'fmg', 'mgt', 'mg',
+                'fcl', 'clt', 'cl', 'mass', 't', 'wind']
         for k in keys:
             results[k] = np.zeros(nsamples * ndata)
 
@@ -439,7 +438,11 @@ class Clemb:
             results['inf'][id0:id1] = inf
             results['t'][id0:id1] = df['t'][1:].values
             results['fmg'][id0:id1] = fmg
+            results['mgt'][id0:id1] = mgt[1:]
+            results['mg'][id0:id1] = df['m'][1:].values
             results['fcl'][id0:id1] = fcl
+            results['clt'][id0:id1] = clt[1:]
+            results['cl'][id0:id1] = df['c'][1:].values
             results['wind'][id0:id1] = df['w'][1:].values
 
         iterables = [sidx, df.index[1:]]
