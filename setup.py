@@ -18,5 +18,6 @@ setup(
     license="GPL v3",
     package_dir={'': 'src'},
     install_requires=['pandas', 'numpy'],
-    packages=['clemb']
+    packages=['clemb'],
+    package_data={'clemb': ['*.dat']}
 )
