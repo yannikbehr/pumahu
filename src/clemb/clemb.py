@@ -294,10 +294,11 @@ class WindDataCSV(DataLoader):
     Load wind speed data from a CSV file.
     """
 
-    def __init__(self, buf):
+    def __init__(self, buf, default=4.5):
         self._buf = buf
+        self._default = default
 
-    def get_data(self, start, end, default=4.5):
+    def get_data(self, start, end):
         windspeed = []
         dates = []
         while True:
@@ -311,7 +312,8 @@ class WindDataCSV(DataLoader):
             dates.append(np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d)))
             windspeed.append(ws)
         sr = pd.Series(windspeed, index=dates)
-        sr = sr.reindex(pd.date_range(start=start, end=end)).fillna(default)
+        sr = sr.reindex(pd.date_range(start=start, end=end)).fillna(
+            self._default)
         self._buf.seek(0)
         return Gauss(sr)
 

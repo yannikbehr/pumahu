@@ -6,7 +6,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from clemb import LakeDataCSV, LakeDataFITS, WindDataCSV, Clemb
+from clemb import LakeDataCSV, LakeDataFITS, WindDataCSV, Clemb, get_data
 
 
 class ClembTestCase(unittest.TestCase):
@@ -81,7 +81,7 @@ class ClembTestCase(unittest.TestCase):
                                              ti['temp'], 5)
 
     def test_lake_data_csv(self):
-        dl = LakeDataCSV(os.path.join(self.data_dir, 'data.dat'))
+        dl = LakeDataCSV(get_data('data/data.dat'))
         vd = dl.get_data(start='2003-01-16', end='2010-01-29')
         ti = self.load_input()
         temp = [t for d, t in vd['t']]
@@ -103,16 +103,15 @@ class ClembTestCase(unittest.TestCase):
             np.array(dt, dtype='datetime64[ns]'), ti['date'])
 
     def test_wind_data_csv(self):
-        dl = WindDataCSV(os.path.join(self.data_dir, 'wind.dat'))
+        dl = WindDataCSV(get_data('data/wind.dat'), default=0.0)
         df = dl.get_data(start='2003-01-16', end='2010-01-29')
         ti = self.load_input()
         ws = [w for d, w in df]
         np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
     def test_clemb(self):
-        ldata = os.path.join(self.data_dir, 'data.dat')
-        wdata = os.path.join(self.data_dir, 'wind.dat')
-        c = Clemb(LakeDataCSV(ldata), WindDataCSV(wdata),
+        c = Clemb(LakeDataCSV(get_data('data/data.dat')),
+                  WindDataCSV(get_data('data/wind.dat'), default=0.0),
                   start='2003-01-16', end='2010-01-29')
         a, vol = c.fullness(pd.Series(np.ones(10) * 2529.4))
         fvol = np.ones(10) * 8880.29883
@@ -126,7 +125,7 @@ class ClembTestCase(unittest.TestCase):
         loss, ev = c.es(35.0, 5.0, 200000)
         self.assertAlmostEqual(loss, 19.913621, 5)
         self.assertAlmostEqual(ev, 5.119750, 5)
-        rs = c.run()
+        rs = c.run([0])
         ts = self.load_test_results()
         np.testing.assert_array_almost_equal(rs['steam'],
                                              ts['steam'], 1)
