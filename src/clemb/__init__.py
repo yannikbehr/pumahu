@@ -1,9 +1,7 @@
 from .clemb import *
 
-import os
-
-_ROOT = os.path.abspath(os.path.dirname(__file__))
+import pkg_resources
 
 
-def get_data(path):
-    return os.path.join(_ROOT, 'data', path)
+def get_data(filename):
+    return pkg_resources.resource_stream(__name__, filename)

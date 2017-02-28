@@ -168,42 +168,43 @@ class LakeDataCSV(DataLoader):
     Load the lake measurements from a CSV file.
     """
 
-    def __init__(self, csvfile):
-        self._fin = csvfile
+    def __init__(self, buf):
+        self._buf = buf
 
     def get_data(self, start, end):
         rd = defaultdict(list)
         t0 = np.datetime64('2000-01-01')
-        with open(self._fin) as f:
-            while True:
-                l = f.readline()
-                if not l:
-                    break
-                # ignore commented lines
-                if not l.startswith(' '):
-                    continue
-                a = l.split()
-                y, m, d = map(int, a[0:3])
-                te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
-                dt = np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d))
-                no = (dt - t0).astype(int) - 1
-                rd['date'].append(dt)
-                rd['nd'].append(no)
-                rd['t'].append(te)
-                rd['h'].append(hgt)
-                rd['f'].append(fl)
-                rd['o18'].append(oheavy)
-                rd['h2'].append(deut)
-                rd['o18m'].append(oheavy)
-                rd['h2m'].append(deut)
-                rd['m'].append(img / 1000.)
-                rd['c'].append(icl / 1000.)
-                rd['dv'].append(1.0)
+        while True:
+            l = self._buf.readline()
+            if not l:
+                break
+            # ignore commented lines
+            l = l.decode()
+            if not l.startswith(' '):
+                continue
+            a = l.split()
+            y, m, d = map(int, a[0:3])
+            te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
+            dt = np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d))
+            no = (dt - t0).astype(int) - 1
+            rd['date'].append(dt)
+            rd['nd'].append(no)
+            rd['t'].append(te)
+            rd['h'].append(hgt)
+            rd['f'].append(fl)
+            rd['o18'].append(oheavy)
+            rd['h2'].append(deut)
+            rd['o18m'].append(oheavy)
+            rd['h2m'].append(deut)
+            rd['m'].append(img / 1000.)
+            rd['c'].append(icl / 1000.)
+            rd['dv'].append(1.0)
         df = pd.DataFrame(rd, index=rd['date'])
         df = df.reindex(pd.date_range(start=start, end=end)).interpolate()
         vd = {}
         for _c in df.columns:
             vd[_c] = Gauss(df[_c])
+        self._buf.seek(0)
         return vd
 
 
@@ -293,24 +294,25 @@ class WindDataCSV(DataLoader):
     Load wind speed data from a CSV file.
     """
 
-    def __init__(self, csvfile):
-        self._fin = csvfile
+    def __init__(self, buf):
+        self._buf = buf
 
     def get_data(self, start, end, default=4.5):
         windspeed = []
         dates = []
-        with open(self._fin) as f:
-            while True:
-                l = f.readline()
-                if not l:
-                    break
-                a = l.split()
-                y, m, d = map(int, a[0:3])
-                ws, wd = map(float, a[3:])
-                dates.append(np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d)))
-                windspeed.append(ws)
+        while True:
+            l = self._buf.readline()
+            if not l:
+                break
+            l = l.decode()
+            a = l.split()
+            y, m, d = map(int, a[0:3])
+            ws, wd = map(float, a[3:])
+            dates.append(np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d)))
+            windspeed.append(ws)
         sr = pd.Series(windspeed, index=dates)
         sr = sr.reindex(pd.date_range(start=start, end=end)).fillna(default)
+        self._buf.seek(0)
         return Gauss(sr)
 
 
