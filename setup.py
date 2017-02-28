@@ -19,5 +19,5 @@ setup(
     package_dir={'': 'src'},
     install_requires=['pandas', 'numpy'],
     packages=['clemb'],
-    package_data={'clemb': ['*.dat']}
+    package_data={'clemb': ['data/*.dat']}
 )
