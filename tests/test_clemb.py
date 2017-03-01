@@ -111,10 +111,10 @@ class ClembTestCase(unittest.TestCase):
                                              ti['cl'], 0)
 
     def test_lake_data_csv(self):
+        ti = self.load_input()
         with get_data('data/data.dat') as lb:
             dl = LakeDataCSV(lb)
             vd = dl.get_data(start='2003-01-16', end='2010-01-29')
-            ti = self.load_input()
             temp = [t for d, t in vd['t']]
             hgt = [h for d, h in vd['h']]
             mg = [m for d, m in vd['m']]
@@ -133,13 +133,30 @@ class ClembTestCase(unittest.TestCase):
             np.testing.assert_array_equal(
                 np.array(dt, dtype='datetime64[ns]'), ti['date'])
 
+        dl1 = LakeDataCSV()
+        vd = dl1.get_data(start='2003-01-16', end='2010-01-29')
+        np.testing.assert_array_almost_equal(vd['t'].data, ti['temp'], 1)
+        np.testing.assert_array_equal(vd['nd'].data, ti['nd'])
+        np.testing.assert_array_almost_equal(vd['h'].data, ti['hgt'], 2)
+        np.testing.assert_array_almost_equal(vd['m'].data, ti['mg'], 3)
+        np.testing.assert_array_almost_equal(vd['c'].data, ti['cl'], 3)
+        np.testing.assert_array_almost_equal(vd['o18'].data, ti['o18'], 2)
+        np.testing.assert_array_almost_equal(vd['h2'].data, ti['h2'], 2)
+        np.testing.assert_array_equal(
+            np.array(vd['date'].data.index, dtype='datetime64[ns]'), ti['date'])
+
     def test_wind_data_csv(self):
+        ti = self.load_input()
         with get_data('data/wind.dat') as wb:
             dl = WindDataCSV(wb, default=0.0)
             df = dl.get_data(start='2003-01-16', end='2010-01-29')
-            ti = self.load_input()
             ws = [w for d, w in df]
             np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
+
+        dl1 = WindDataCSV(default=0.0)
+        df1 = dl1.get_data(start='2003-01-16', end='2010-01-29')
+        ws = [w for d, w in df1]
+        np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
     def test_clemb(self):
         with get_data('data/data.dat') as lb, get_data('data/wind.dat') as wb:
