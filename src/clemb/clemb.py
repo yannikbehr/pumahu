@@ -385,6 +385,8 @@ class Clemb:
         """
         sidx = np.array(sampleidx)
         nsamples = len(sidx)
+        if nsamples < 1:
+            return None
         ndata = self._dates.size - 1
         results = {}
         keys = ['steam', 'pwr', 'evfl', 'fmelt', 'inf', 'fmg', 'mgt', 'mg',
