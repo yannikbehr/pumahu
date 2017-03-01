@@ -288,6 +288,29 @@ class LakeDataFITS(DataLoader):
         vd['dv'] = Gauss(pd.Series(np.ones(df.index.size), index=df.index))
         return vd
 
+    def to_table(self, start, end, filename):
+        """
+        Write a data file that can be read by the original Fortran code and 
+        used for unit testing.
+        """
+        d = self.get_data(start, end)
+        lines = []
+        fl = 0
+        dr = 0.0
+        o18 = 0.0
+        deut = 0.0
+        for i in range(d['t'].data.size):
+            date = d['t'].data.index[i]
+            s_input = (date.year, date.month, date.day, d['t'].data.ix[i],
+                       d['h'].data.ix[i], fl, int(round(d['m'].data.ix[i])),
+                       int(round(d['c'].data.ix[i])), dr, o18, deut)
+            s_format = "{:<6d}{:<4d}{:<4d}{:<7.1f}{:<8.1f}{:<4d}{:<6d}{:<6d}"
+            s_format += "{:<5.1f}{:<7.1f}{:<7.1f}\n"
+            line = s_format.format(*s_input)
+            lines.append(line)
+        with open(filename, 'w') as fh:
+            fh.writelines(lines)
+
 
 class WindDataCSV(DataLoader):
     """
