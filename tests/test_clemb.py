@@ -103,6 +103,12 @@ class ClembTestCase(unittest.TestCase):
         ti = self.load_fits_input()
         np.testing.assert_array_almost_equal(df['t'].data,
                                              ti['temp'], 1)
+        np.testing.assert_array_almost_equal(df['h'].data,
+                                             ti['hgt'], 1)
+        np.testing.assert_array_almost_equal(df['m'].data,
+                                             ti['mg'], 0)
+        np.testing.assert_array_almost_equal(df['c'].data,
+                                             ti['cl'], 0)
 
     def test_lake_data_csv(self):
         with get_data('data/data.dat') as lb:
