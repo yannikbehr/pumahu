@@ -371,8 +371,8 @@ class Clemb:
     def get_variable(self, key):
         if key in self._ld:
             return self._ld[key]
-        elif key in self._wd:
-            return self._wd[key]
+        elif key.lower() == 'wind':
+            return self._wd
         elif key.lower() == 'enthalpy':
             return self._enthalpy
         else:
