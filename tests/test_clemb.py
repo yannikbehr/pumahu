@@ -1,6 +1,7 @@
 from collections import defaultdict
 import inspect
 import os
+import time
 import unittest
 
 import numpy as np
@@ -99,7 +100,10 @@ class ClembTestCase(unittest.TestCase):
 
     def test_lake_data_fits(self):
         dl = LakeDataFITS()
+        tic = time.time()
         df = dl.get_data('20160603', '20161231')
+        toc = time.time()
+        td1 = toc - tic
         ti = self.load_fits_input()
         np.testing.assert_array_almost_equal(df['t'].data,
                                              ti['temp'], 1)
@@ -108,6 +112,21 @@ class ClembTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(df['m'].data,
                                              ti['mg'], 0)
         np.testing.assert_array_almost_equal(df['c'].data,
+                                             ti['cl'], 0)
+        # Make sure that a second request gets the data from the cache
+        # instead of requesting it again
+        tic = time.time()
+        df1 = dl.get_data('20160603', '20161231')
+        toc = time.time()
+        td2 = toc - tic
+        self.assertTrue(td2 / td1 * 100. < 0.1)
+        np.testing.assert_array_almost_equal(df1['t'].data,
+                                             ti['temp'], 1)
+        np.testing.assert_array_almost_equal(df1['h'].data,
+                                             ti['hgt'], 1)
+        np.testing.assert_array_almost_equal(df1['m'].data,
+                                             ti['mg'], 0)
+        np.testing.assert_array_almost_equal(df1['c'].data,
                                              ti['cl'], 0)
 
     def test_lake_data_csv(self):

@@ -220,73 +220,81 @@ class LakeDataFITS(DataLoader):
 
     def __init__(self, url="https://fits.geonet.org.nz/observation"):
         self.base_url = url
+        self.df = None
 
     def get_data(self, start, end):
-        # Get temperature
-        # Temperature has been recorded by 3 different sensors so 3 individual
-        # requests have to be made
-        url = "{}?siteID=RU001&networkID=VO&typeID=t&methodID={}"
-        names = ['t', 't_err']
-        tdf1 = pd.read_csv(url.format(self.base_url, 'therm'),
-                           index_col=0, names=names, skiprows=1,
-                           parse_dates=True)
-        tdf2 = pd.read_csv(url.format(self.base_url, 'thermcoup'),
-                           index_col=0, names=names, skiprows=1,
-                           parse_dates=True)
-        tdf3 = pd.read_csv(url.format(self.base_url, 'logic'),
-                           index_col=0, names=names, skiprows=1,
-                           parse_dates=True)
-        tdf3 = tdf3.combine_first(tdf2)
-        tdf3 = tdf3.combine_first(tdf1)
-        tdf = df_resample(tdf3)
+        """
+        Request data from the FITS database unless it has been already cached.
+        """
+        if self.df is None:
+            # Get temperature
+            # Temperature has been recorded by 3 different sensors so 3 individual
+            # requests have to be made
+            url = "{}?siteID=RU001&networkID=VO&typeID=t&methodID={}"
+            names = ['t', 't_err']
+            tdf1 = pd.read_csv(url.format(self.base_url, 'therm'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            tdf2 = pd.read_csv(url.format(self.base_url, 'thermcoup'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            tdf3 = pd.read_csv(url.format(self.base_url, 'logic'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            tdf3 = tdf3.combine_first(tdf2)
+            tdf3 = tdf3.combine_first(tdf1)
+            tdf = df_resample(tdf3)
 
-        # Get lake level
-        # The lake level data is stored qith respect to the overflow level of
-        # the lake. Unfortunately, that level has changed over time so to get
-        # the absolute lake level altitude, data from different periods have to
-        # be corrected differently. Also, lake level data has been measured by
-        # different methods requiring several requests.
-        url = "{}?siteID={}&networkID=VO&typeID=z"
-        names = ['h', 'h_err']
-        ldf = pd.read_csv(url.format(self.base_url, 'RU001'),
-                          index_col=0, names=names, skiprows=1,
-                          parse_dates=True)
-        ldf1 = pd.read_csv(url.format(self.base_url, 'RU001A'),
-                           index_col=0, names=names, skiprows=1,
-                           parse_dates=True)
-        ldf = ldf.combine_first(ldf1)
-        ldf.loc[ldf.index < '1997-01-01', 'h'] = 2530. + \
-            ldf.loc[ldf.index < '1997-01-01', 'h']
-        ldf.loc[(ldf.index > '1997-01-01') & (ldf.index < '2012-12-31'),
-                'h'] = 2529.5 + \
-            (ldf.loc[(ldf.index > '1997-01-01') &
-                     (ldf.index < '2012-12-31'), 'h'] - 1.3)
-        ldf.loc[ldf.index > '2016-01-01', 'h'] = 2529.35 + \
-            (ldf.loc[ldf.index > '2016-01-01', 'h'] - 2.0)
-        ldf = df_resample(ldf)
+            # Get lake level
+            # The lake level data is stored qith respect to the overflow level of
+            # the lake. Unfortunately, that level has changed over time so to get
+            # the absolute lake level altitude, data from different periods have to
+            # be corrected differently. Also, lake level data has been measured by
+            # different methods requiring several requests.
+            url = "{}?siteID={}&networkID=VO&typeID=z"
+            names = ['h', 'h_err']
+            ldf = pd.read_csv(url.format(self.base_url, 'RU001'),
+                              index_col=0, names=names, skiprows=1,
+                              parse_dates=True)
+            ldf1 = pd.read_csv(url.format(self.base_url, 'RU001A'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            ldf = ldf.combine_first(ldf1)
+            ldf.loc[ldf.index < '1997-01-01', 'h'] = 2530. + \
+                ldf.loc[ldf.index < '1997-01-01', 'h']
+            ldf.loc[(ldf.index > '1997-01-01') & (ldf.index < '2012-12-31'),
+                    'h'] = 2529.5 + \
+                (ldf.loc[(ldf.index > '1997-01-01') &
+                         (ldf.index < '2012-12-31'), 'h'] - 1.3)
+            ldf.loc[ldf.index > '2016-01-01', 'h'] = 2529.35 + \
+                (ldf.loc[ldf.index > '2016-01-01', 'h'] - 2.0)
+            ldf = df_resample(ldf)
 
-        # Get Mg++
-        url = "{}?siteID=RU001&networkID=VO&typeID=Mg-w"
-        names = ['m', 'm_err']
-        mdf = pd.read_csv(url.format(self.base_url),
-                          index_col=0, names=names, skiprows=1,
-                          parse_dates=True)
-        mdf = df_resample(mdf)
+            # Get Mg++
+            url = "{}?siteID=RU001&networkID=VO&typeID=Mg-w"
+            names = ['m', 'm_err']
+            mdf = pd.read_csv(url.format(self.base_url),
+                              index_col=0, names=names, skiprows=1,
+                              parse_dates=True)
+            mdf = df_resample(mdf)
 
-        # Get Cl-
-        url = "{}?siteID=RU001&networkID=VO&typeID=Cl-w"
-        names = ['c', 'c_err']
-        cdf = pd.read_csv(url.format(self.base_url), index_col=0,
-                          names=names, skiprows=1, parse_dates=True)
-        cdf = df_resample(cdf)
+            # Get Cl-
+            url = "{}?siteID=RU001&networkID=VO&typeID=Cl-w"
+            names = ['c', 'c_err']
+            cdf = pd.read_csv(url.format(self.base_url), index_col=0,
+                              names=names, skiprows=1, parse_dates=True)
+            cdf = df_resample(cdf)
 
-        df = pd.merge(tdf, ldf, left_index=True, right_index=True, how='outer')
-        df = pd.merge(df, mdf, left_index=True, right_index=True, how='outer')
-        df = pd.merge(df, cdf, left_index=True, right_index=True, how='outer')
-        df = df.fillna(method='pad').dropna()
-        start = max(df.index.min(), pd.Timestamp(start))
-        end = min(df.index.max(), pd.Timestamp(end))
-        df = df.loc[start:end]
+            self.df = pd.merge(
+                tdf, ldf, left_index=True, right_index=True, how='outer')
+            self.df = pd.merge(
+                self.df, mdf, left_index=True, right_index=True, how='outer')
+            self.df = pd.merge(
+                self.df, cdf, left_index=True, right_index=True, how='outer')
+            self.df = self.df.fillna(method='pad').dropna()
+        start = max(self.df.index.min(), pd.Timestamp(start))
+        end = min(self.df.index.max(), pd.Timestamp(end))
+        df = self.df.loc[start:end]
         vd = {}
         for c in ['t', 'h', 'm', 'c']:
             vd[c] = Gauss(df[c])
