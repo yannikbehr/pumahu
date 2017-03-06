@@ -214,6 +214,34 @@ class ClembTestCase(unittest.TestCase):
             # estimated mass of the crater lake also differs
             self.assertTrue(np.all(diffmass < 0.041))
 
+            # Test the update function
+            t1 = c.get_variable('t')
+            h1 = c.get_variable('h')
+            wd1 = c.get_variable('wind')
+            t1.std = 0.5
+            c.update_data('2010-01-01', '2010-01-29')
+            t2 = c.get_variable('t')
+            h2 = c.get_variable('h')
+            wd2 = c.get_variable('wind')
+            self.assertEqual(t1.std, t2.std)
+            self.assertEqual(h1.data['20100128'], h2.data['20100128'])
+            self.assertEqual(wd1.data['20100128'], wd2.data['20100128'])
+
+        # Test the update function with the FITS interface
+        c1 = Clemb(LakeDataFITS(), WindDataCSV(),
+                   start='2003-01-16', end='2010-01-29')
+        t1 = c1.get_variable('t')
+        h1 = c1.get_variable('h')
+        wd1 = c1.get_variable('wind')
+        t1.std = 0.5
+        c1.update_data('2010-01-01', '2010-01-29')
+        t2 = c1.get_variable('t')
+        h2 = c1.get_variable('h')
+        wd2 = c1.get_variable('wind')
+        self.assertEqual(t1.std, t2.std)
+        self.assertEqual(h1.data['20100128'], h2.data['20100128'])
+        self.assertEqual(wd1.data['20100128'], wd2.data['20100128'])
+
 
 def suite():
     return unittest.makeSuite(ClembTestCase, 'test')

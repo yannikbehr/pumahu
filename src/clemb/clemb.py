@@ -175,41 +175,48 @@ class LakeDataCSV(DataLoader):
         else:
             self._buf = pkg_resources.resource_stream(
                 __name__, 'data/data.dat')
+        self.df = None
 
     def get_data(self, start, end):
-        with self._buf:
+        if self.df is None:
             rd = defaultdict(list)
-            t0 = np.datetime64('2000-01-01')
-            while True:
-                l = self._buf.readline()
-                if not l:
-                    break
-                # ignore commented lines
-                l = l.decode()
-                if not l.startswith(' '):
-                    continue
-                a = l.split()
-                y, m, d = map(int, a[0:3])
-                te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
-                dt = np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d))
-                no = (dt - t0).astype(int) - 1
-                rd['date'].append(dt)
-                rd['nd'].append(no)
-                rd['t'].append(te)
-                rd['h'].append(hgt)
-                rd['f'].append(fl)
-                rd['o18'].append(oheavy)
-                rd['h2'].append(deut)
-                rd['o18m'].append(oheavy)
-                rd['h2m'].append(deut)
-                rd['m'].append(img / 1000.)
-                rd['c'].append(icl / 1000.)
-                rd['dv'].append(1.0)
-            df = pd.DataFrame(rd, index=rd['date'])
-            df = df.reindex(pd.date_range(start=start, end=end)).interpolate()
-            vd = {}
-            for _c in df.columns:
-                vd[_c] = Gauss(df[_c])
+            with self._buf:
+                t0 = np.datetime64('2000-01-01')
+                while True:
+                    l = self._buf.readline()
+                    if not l:
+                        break
+                    # ignore commented lines
+                    l = l.decode()
+                    if not l.startswith(' '):
+                        continue
+                    a = l.split()
+                    y, m, d = map(int, a[0:3])
+                    te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
+                    dt = np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d))
+                    no = (dt - t0).astype(int) - 1
+                    rd['date'].append(dt)
+                    rd['nd'].append(no)
+                    rd['t'].append(te)
+                    rd['h'].append(hgt)
+                    rd['f'].append(fl)
+                    rd['o18'].append(oheavy)
+                    rd['h2'].append(deut)
+                    rd['o18m'].append(oheavy)
+                    rd['h2m'].append(deut)
+                    rd['m'].append(img / 1000.)
+                    rd['c'].append(icl / 1000.)
+                    rd['dv'].append(1.0)
+            self.df = pd.DataFrame(rd, index=rd['date'])
+            self.df = self.df.reindex(
+                pd.date_range(start=self.df.index.min(),
+                              end=self.df.index.max())).interpolate()
+        start = max(self.df.index.min(), pd.Timestamp(start))
+        end = min(self.df.index.max(), pd.Timestamp(end))
+        df = self.df.loc[start:end]
+        vd = {}
+        for _c in df.columns:
+            vd[_c] = Gauss(df[_c])
         return vd
 
 
@@ -337,24 +344,27 @@ class WindDataCSV(DataLoader):
             self._buf = pkg_resources.resource_stream(
                 __name__, 'data/wind.dat')
         self._default = default
+        self.sr = None
 
     def get_data(self, start, end):
-        with self._buf:
-            windspeed = []
-            dates = []
-            while True:
-                l = self._buf.readline()
-                if not l:
-                    break
-                l = l.decode()
-                a = l.split()
-                y, m, d = map(int, a[0:3])
-                ws, wd = map(float, a[3:])
-                dates.append(np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d)))
-                windspeed.append(ws)
-            sr = pd.Series(windspeed, index=dates)
-            sr = sr.reindex(pd.date_range(start=start, end=end)).fillna(
-                self._default)
+        if self.sr is None:
+            with self._buf:
+                windspeed = []
+                dates = []
+                while True:
+                    l = self._buf.readline()
+                    if not l:
+                        break
+                    l = l.decode()
+                    a = l.split()
+                    y, m, d = map(int, a[0:3])
+                    ws, wd = map(float, a[3:])
+                    dates.append(
+                        np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d)))
+                    windspeed.append(ws)
+            self.sr = pd.Series(windspeed, index=dates)
+        sr = self.sr.reindex(
+            pd.date_range(start=start, end=end)).fillna(self._default)
         return Gauss(sr)
 
 
@@ -370,6 +380,8 @@ class Clemb:
         Load the lake data (temperature, lake level, concentration of Mg++,
         Cl-, O18 and deuterium) and the wind data.
         """
+        self.lakedata = lakedata
+        self.winddata = winddata
         self._ld = lakedata.get_data(start, end)
         self._wd = winddata.get_data(start, end)
         self._dates = self._ld['t'].data.index
@@ -385,6 +397,30 @@ class Clemb:
             return self._enthalpy
         else:
             raise AttributeError('Unknown variable name.')
+
+    def update_data(self, start, end):
+        """
+        Update the timeframe to analyse.
+        """
+        stds = {}
+        for k in self._ld:
+            stds[k] = self._ld[k].std
+        wd_std = self._wd.std
+        self._ld = self.lakedata.get_data(start, end)
+        self._wd = self.winddata.get_data(start, end)
+
+        self._dates = self._ld['t'].data.index
+
+        for k in stds:
+            self._ld[k].std = stds[k]
+        self._wd.std = wd_std
+        self._dates = self._ld['t'].data.index
+        mine = self._enthalpy.min
+        maxe = self._enthalpy.max
+        self._enthalpy = Uniform(pd.Series(np.ones(self._dates.size) * 6.0,
+                                           index=self._dates))
+        self._enthalpy.min = mine
+        self._enthalpy.max = maxe
 
     def run(self, sampleidx):
         """
@@ -407,6 +443,8 @@ class Clemb:
                                'c': self._ld['c'].data, 'h': self._ld['h'].data,
                                'dv': self._ld['dv'].data, 'w': self._wd.data},
                               index=self._dates)
+            # es returns nan entries if wind is less than 0.0
+            df.loc[df['w'] < 0, 'w'] = 0.0
             nd = (df.index[1:] - df.index[:-1]).days
             # time interval in Megaseconds
             timem = 0.0864 * (df.index[1:] - df.index[:-1]).days
@@ -490,6 +528,7 @@ class Clemb:
             results['clt'][id0:id1] = clt[1:]
             results['cl'][id0:id1] = df['c'][1:].values
             results['wind'][id0:id1] = df['w'][1:].values
+            results['llvl'][id0:id1] = df['h'][1:].values
 
         iterables = [sidx, df.index[1:]]
         midx = pd.MultiIndex.from_product(iterables)
