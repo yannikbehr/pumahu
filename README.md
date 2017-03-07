@@ -14,7 +14,7 @@ changes in Mt. Ruapehu's crater lake. It has an interactive component which is c
 * scipy >= 0.18
 * bokeh >= 0.12
 * ipyparallel >= 6.1
-* ipywidgets >= 5.2
+* ipywidgets >= 6.0
 
 First check out the source code:
 ```

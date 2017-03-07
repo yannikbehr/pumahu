@@ -16,13 +16,17 @@ RUN sudo chmod -R g+w /usr/local
 USER $NB_USER
 # Install Python 3 packages
 RUN conda install --quiet --yes \
-    'ipywidgets=5.2*' \
+	'ipywidgets' \
     'pandas=0.19*' \
     'scipy=0.18*' \
     'bokeh=0.12*' \
     'ipyparallel' \
     && conda clean -tipsy
 
+USER root
+RUN pip install -I -U pip && pip install -I -U ipywidgets
+
+USER $NB_USER
 # Activate ipywidgets extension in the environment that runs the notebook server
 RUN jupyter nbextension enable --py widgetsnbextension --sys-prefix
 RUN ipcluster nbextension enable
