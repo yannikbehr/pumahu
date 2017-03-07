@@ -434,7 +434,7 @@ class Clemb:
         ndata = self._dates.size - 1
         results = {}
         keys = ['steam', 'pwr', 'evfl', 'fmelt', 'inf', 'fmg', 'mgt', 'mg',
-                'fcl', 'clt', 'cl', 'mass', 't', 'wind']
+                'fcl', 'clt', 'cl', 'mass', 't', 'wind', 'llvl']
         for k in keys:
             results[k] = np.zeros(nsamples * ndata)
 
