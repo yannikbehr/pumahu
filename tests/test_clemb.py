@@ -98,7 +98,6 @@ class ClembTestCase(unittest.TestCase):
         self.data_dir = os.path.join(os.path.dirname(os.path.abspath(
             inspect.getfile(inspect.currentframe()))), "data")
 
-    @unittest.skip("FITS data appears to have changed")
     def test_lake_data_fits(self):
         dl = LakeDataFITS()
         tic = time.time()
