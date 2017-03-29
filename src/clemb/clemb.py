@@ -387,6 +387,8 @@ class Clemb:
         self._dates = self._ld['t'].data.index
         self._enthalpy = Uniform(pd.Series(np.ones(self._dates.size) * 6.0,
                                            index=self._dates))
+        self.use_drcl = False
+        self.use_drmg = False
 
     def get_variable(self, key):
         if key in self._ld:
@@ -437,6 +439,24 @@ class Clemb:
         self._enthalpy.min = mine
         self._enthalpy.max = maxe
 
+    @property
+    def drcl(self):
+        return self.use_drcl
+
+    @drcl.setter
+    def drcl(self, val):
+        if not self.use_drmg:
+            self.use_drcl = val
+
+    @property
+    def drmg(self):
+        return self.use_drmg
+
+    @drmg.setter
+    def drmg(self, val):
+        if not self.use_drcl:
+            self.use_drmg = val
+
     def run(self, sampleidx):
         """
         Compute the amount of steam and energy that has to be put into a crater 
@@ -485,6 +505,9 @@ class Clemb:
             drmg[idx] = 0.98 * massp[idx] * df['m'][:-1].values[idx] / \
                 (mass[idx] * df['m'][1:].values[idx])
 
+            if self.use_drmg:
+                dr = drmg
+
             # Mass balance for Cl-
             clt = np.zeros(df['c'].size)
             drcl = np.ones(df['c'].size - 1)
@@ -497,6 +520,9 @@ class Clemb:
                 np.diff(clt[::-1])[::-1] > 0.02 * mass * df['c'][1:].values)
             drcl[idx] = 0.98 * massp[idx] * df['c'][:-1].values[idx] / \
                 (mass[idx] * df['c'][1:].values[idx])
+
+            if self.use_drcl:
+                dr = drcl
 
             # Net mass input to lake [kT]
             inf = massp * (dr - 1.0)  # input to replace outflow
