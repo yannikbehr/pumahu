@@ -1,4 +1,5 @@
 from .clemb import *
+from .clemb_vis import *
 
 import pkg_resources
 
