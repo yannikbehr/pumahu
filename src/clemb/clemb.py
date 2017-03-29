@@ -405,11 +405,26 @@ class Clemb:
         stds = {}
         for k in self._ld:
             stds[k] = self._ld[k].std
+        # allow for tinkering with the dilution factor
+        old_dv = self._ld['dv'].data
+
         wd_std = self._wd.std
         self._ld = self.lakedata.get_data(start, end)
         self._wd = self.winddata.get_data(start, end)
-
         self._dates = self._ld['t'].data.index
+
+        # See if old dilution values overlap with new; if not discard
+        old_start = old_dv.index.min()
+        old_end = old_dv.index.max()
+        new_start = self._dates.min()
+        new_end = self._dates.max()
+        if not old_start > new_end or not old_end < new_start:
+            # Find overlapping region
+            start = max(old_start, new_start)
+            end = min(old_end, new_end)
+            new_dv = self._ld['dv'].data.copy()
+            new_dv[start:end] = old_dv[start:end]
+            self._ld['dv'] = Gauss(new_dv)
 
         for k in stds:
             self._ld[k].std = stds[k]
@@ -604,6 +619,10 @@ class Clemb:
         # For both delT and es, we make a 1 C correction, for surface temp
         # below bulk water temp. SVP at average air tmperature 6.5 mBar
 
+        # Assumption: air temperature 1.9 C with corresponding vapour pressure
+        # of 6.5 mBar and humidity around 50%
+        # efree = a * 2.2 * (t - 1.9) ** (1 / 3.0) * (vp1 - 6.5) #should be
+
         efree = a * (2.55 - 0.01 * t) * (t - 1.9) ** (1 / 3.0) * (vp1 - 6.5)
 
         # Forced convection by Satori's Equation
@@ -612,14 +631,20 @@ class Clemb:
         # Latent heat of vapourization about 2400 kJ/kg in range 20 - 60 C,
         # Atmospheric Pressure 750 mBar at Crater Lake
 
+        # eforced = a * (0.00407 * w**0.8 / l**0.2 - 0.01107 / l) * \
+        #    (vp1 - 6.5) / 800. * 2400000  # W #should be
+
         eforced = a * (0.00407 * w**0.8 / l**0.2 - 0.01107 / l) * \
             (vp - 6.5) / 800. * 2400000  # W
+
         ee = np.sqrt(efree**2 + eforced**2)
 
         # The ratio of Heat Loss by Convection to that by Evaporation is
         # rhoCp/L * (Tw - Ta)/(qw - qa) #rho is air density .948 kg/m3, Cp
         # Specific Heat of Air 1005 J/kg degC, qw & qa are Sat Vap Density
 
+        # outside temperature should be 1.9 not 0.9
+        # e2 is vapour pressure at ambient conditions
         ratio = .948 * (1005 / 2400000.) * (t - 0.9) / (vd - .0022)
 
         # The power calculation is in W. Calculate Energy Loss (TW/day) and
