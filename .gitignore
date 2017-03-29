@@ -2,4 +2,9 @@
 .pydevproject
 M2011
 ruapehu_heat_flow_project_10min_pitch.ppt
-					
+*~
+build
+dist
+*.pyc
+*.egg-info
+.ipynb_checkpoints
