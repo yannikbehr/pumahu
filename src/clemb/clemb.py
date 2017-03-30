@@ -389,6 +389,8 @@ class Clemb:
                                            index=self._dates))
         self.use_drcl = False
         self.use_drmg = False
+        # Specific heat for water
+        self.cw = 0.0042
 
     def get_variable(self, key):
         if key in self._ld:
@@ -462,6 +464,7 @@ class Clemb:
         Compute the amount of steam and energy that has to be put into a crater 
         lake to cause an observed temperature change.
         """
+
         sidx = np.array(sampleidx)
         nsamples = len(sidx)
         if nsamples < 1:
@@ -545,12 +548,12 @@ class Clemb:
             # Correction for energy to heat incoming meltwater
             # FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees
             # C)
-            factor = df['t'][1:].values * 0.004 / \
-                (self._enthalpy.data[1:].values - df['t'][1:].values * 0.004)
+            factor = df['t'][1:].values * self.cw / \
+                (self._enthalpy.data[1:].values - df['t'][1:].values * self.cw)
             meltf = meltf / (1.0 + factor)  # Therefore less meltwater
             steam = steam + meltf * factor  # ...and more steam
             # Correct energy input also
-            e += meltf * df['t'][1:].values * 0.004
+            e += meltf * df['t'][1:].values * self.cw
 
             # Flows are total amounts/day
             id0 = n * ndata
@@ -613,7 +616,7 @@ class Clemb:
         """
         Change in Energy stored in the lake [TJ]
         """
-        return (t2 - t1) * vol * 0.0042
+        return (t2 - t1) * vol * self.cw
 
     def es(self, t, w, a):
         """
@@ -622,56 +625,58 @@ class Clemb:
         power, this error is negligible.
         """
 
-        l = 500  # Characteristic length of lake
-        # Expressions for H2O properties as function of temperature
-        # Vapour Pressure Function from CIMO Guide (WMO, 2008)
-        vp = 6.112 * np.exp(17.62 * t / (243.12 + t))
-        # t - 1 for surface temperature
-        vp1 = 6.112 * np.exp(17.62 * (t - 1.) / (242.12 + t))
-        # Vapour Density from Hyperphysics Site
-        vd = .006335 + .0006718 * t - .000020887 * \
-            t * t + .00000073095 * t * t * t
+        # Assumptions:
+        # Characteristic length of lake is 500 m
+        l = 500
+        # Surface temperature about 1 C less than bulk water
+        ts = t - 1.0
+        # Air temperature is 0.9 C
+        t_air = 0.9
+        # Saturation vapour pressure at air temperature = 6.5 mBar and
+        # humidity around 50%. This is slightly less than 6.577 posted on
+        # the Hyperphysics site
+        vp_air = 6.5
+        # Saturation vapour density at ambient conditions
+        vd_air = 0.0022
+        # Atmospheric pressure is 800 mBar at Crater Lake
+        pa = 800.
+        # Specific heat of air 1005 J/kg
+        ca = 1005
+        # Air density .948 kg/m^3
+        da = .948
+        # Latent heat of vapourization about 2400 kJ/kg in range 20 - 60 C,
+        lh = 2400000.
 
-        # First term is for radiation, Power(W) = aC(Tw^4 - Ta^4)A
+        # Expressions for H2O properties as function of temperature
+        # Saturation vapour Pressure Function from CIMO Guide (WMO, 2008)
+        vp = 6.112 * np.exp(17.62 * ts / (243.12 + ts))
+        # Saturation vapour Density from Hyperphysics Site
+        vd = .006335 + .0006718 * ts - .000020887 * \
+            ts * ts + .00000073095 * ts * ts * ts
+
+        # First term is for radiation, Power(W) = CA(e_wTw^4 - e_aTa^4)
         # Temperatures absolute, a is emissivity, C Stefans Constant
-        tk = t + 273.15
-        tl = 0.9 + 273.15  # 0.9 C is air temperature
-        er = 0.8 * 5.67E-8 * a * (tk**4 - tl**4)
+        tk = ts + 273.15
+        tl = t_air + 273.15
+        er = 5.67E-8 * a * (0.97 * tk**4 - 0.8 * tl**4)
 
         # Free convection formula from Adams et al(1990)
         # Power (W) = A * factor * delT^1/3 * (es-ea)
-        # where factor = 2.3 at 25C and 18% less at 67 C, hence
-        # factor = 2.55 - 0.01 * Twr.
-        # For both delT and es, we make a 1 C correction, for surface temp
-        # below bulk water temp. SVP at average air tmperature 6.5 mBar
 
-        # Assumption: air temperature 1.9 C with corresponding vapour pressure
-        # of 6.5 mBar and humidity around 50%
-        # efree = a * 2.2 * (t - 1.9) ** (1 / 3.0) * (vp1 - 6.5) #should be
-
-        efree = a * (2.55 - 0.01 * t) * (t - 1.9) ** (1 / 3.0) * (vp1 - 6.5)
+        efree = a * 2.2 * (ts - t_air) ** (1 / 3.0) * (vp - vp_air)
 
         # Forced convection by Satori's Equation
         # Evaporation (kg/s/m2) =
-        # (0.00407 * W**0.8 / L**0.2 - 0.01107/L)(Pw-Pd)/P
-        # Latent heat of vapourization about 2400 kJ/kg in range 20 - 60 C,
-        # Atmospheric Pressure 750 mBar at Crater Lake
-
-        # eforced = a * (0.00407 * w**0.8 / l**0.2 - 0.01107 / l) * \
-        #    (vp1 - 6.5) / 800. * 2400000  # W #should be
+        # (0.00407 * W**0.8 / L**0.2 - 0.01107/L)(es-ea)/pa
 
         eforced = a * (0.00407 * w**0.8 / l**0.2 - 0.01107 / l) * \
-            (vp - 6.5) / 800. * 2400000  # W
+            (vp - vp_air) / pa * lh  # W
 
         ee = np.sqrt(efree**2 + eforced**2)
 
         # The ratio of Heat Loss by Convection to that by Evaporation is
         # rhoCp/L * (Tw - Ta)/(qw - qa) #rho is air density .948 kg/m3, Cp
-        # Specific Heat of Air 1005 J/kg degC, qw & qa are Sat Vap Density
-
-        # outside temperature should be 1.9 not 0.9
-        # e2 is vapour pressure at ambient conditions
-        ratio = .948 * (1005 / 2400000.) * (t - 0.9) / (vd - .0022)
+        ratio = da * (ca / lh) * (ts - t_air) / (vd - vd_air)
 
         # The power calculation is in W. Calculate Energy Loss (TW/day) and
         # evaporative volume loss in kT/day

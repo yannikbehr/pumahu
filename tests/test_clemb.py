@@ -191,8 +191,8 @@ class ClembTestCase(unittest.TestCase):
             self.assertTrue(np.all(diffvol < 0.0318))
             self.assertTrue(np.all(diffa < 0.000722))
             loss, ev = c.es(35.0, 5.0, 200000)
-            self.assertAlmostEqual(loss, 19.913621, 5)
-            self.assertAlmostEqual(ev, 5.119750, 5)
+            self.assertAlmostEqual(loss, 20.61027, 5)
+            self.assertAlmostEqual(ev, 4.87546, 5)
             rs = c.run([0])
             ts = self.load_test_results()
             np.testing.assert_array_almost_equal(rs['steam'],

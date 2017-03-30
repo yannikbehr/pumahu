@@ -231,16 +231,16 @@
 
 
 !-- Steam input (in KT) to provide this Energy
-	    STEAM = E/(ENTHAL-0.004*T(N))! Energy = Mass * Enthalpy
+	    STEAM = E/(ENTHAL-0.0042*T(N))! Energy = Mass * Enthalpy
 	    EVAP  = EV			 ! Evaporation loss
 	    MELTF = INF + EVAP - STEAM	 ! Conservation of mass
 
 !-- Correction for energy to heat incoming meltwater
 !-- FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees C)
-	    FACTOR=T(N)*0.004/(ENTHAL-T(N)*0.004)
+	    FACTOR=T(N)*0.0042/(ENTHAL-T(N)*0.0042)
 	    MELTF = MELTF/(1.0+FACTOR)		! Therefore less meltwater
 	    STEAM =STEAM+MELTF*FACTOR		! and more steam
-	    E=E+MELTF*T(N)*.004			! Correct energy input also
+	    E=E+MELTF*T(N)*.0042			! Correct energy input also
 
 !	Stable Isotopes calculated now
 !	H2 (meltf) now -75, not -57.5 (typo?)	
@@ -372,22 +372,23 @@
 	COMMON /L/ A,VOL
 	REAL*4 T,W,A,VOL,LOSS,EV
 	REAL*4 ER,EE,EC,Efree,Eforced
-	REAL*4 TK,TL,L
+	REAL*4 TK,TL,L,Ts
 	REAL*4 VP,VP1,VD,Ratio
 
 	L = 500					! Characteristic length of lake			
 !  Expressions for H2O properties as function of temperature
 ! Vapour Pressure Function from CIMO Guide (WMO, 2008)
-	VP = 6.112 * exp(17.62*T/(243.12+T))
-	VP1= 6.112 * exp(17.62*(T-1.)/(242.12+T)) ! T - 1 for surface T
+    Ts = T - 1.0
+	VP = 6.112 * exp(17.62*Ts/(243.12+Ts))
+!	VP1= 6.112 * exp(17.62*(T-1.)/(243.12-1.0+T)) ! T - 1 for surface T
 ! Vapour Density from Hyperphysics Site
-	VD = .006335 + .0006718*T-.000020887*T*T+.00000073095*T*T*T
+	VD = .006335 + .0006718*Ts-.000020887*Ts*Ts+.00000073095*Ts*Ts*Ts
 
-!	First term is for radiation, Power(W) = aC(Tw^4 - Ta^4)A 
+!	First term is for radiation, Power(W) = C*A*(e_w*Tw^4 - e_a*Ta^4)
 !	Temperatures absolute, a is emissivity, C Stefans Constant   
-	TK = T + 273.15
+	TK = Ts + 273.15
 	TL = 0.9 + 273.15		! 0.9 C is air temperature
-	ER = 0.8 * 5.67E-8 * A * (TK*TK*TK*TK -  TL*TL*TL*TL) 
+	ER = 5.67E-8 * A * (0.97*TK*TK*TK*TK -  0.8*TL*TL*TL*TL)
 !	ER = 0.8 * 5.67 * A * (TK*TK*TK*TK -  TL*TL*TL*TL) / 100000000
 
 !  Free convection formula from Adams et al(1990) Power (W) = A * factor * delT^1/3 * (es-ea)
@@ -395,18 +396,18 @@
 !  For both delT and es, we make a 1 C correction, for surface temp below bulk water temp 
 !  SVP at average air tmperature 6.5 mBar   
 
-	Efree = A * (2.55-0.01*T) * (T - 1.9) ** (1/3.0) * (VP1 - 6.5)	
+	Efree = A * 2.2 * (Ts - 0.9) ** (1/3.0) * (VP - 6.5)
 
 !  Forced convection by Satori's Equation  Evaporation (kg/s per m2)= (0.00407 * W**0.8 / L**0.2 - 0.01107/L)(Pw-Pd)/P
 !  Latent heat of vapourization about 2400 kJ/kg in range 20 - 60 C, Atmospheric Pressure 750 mBar at Crater Lake
 
-    	Eforced = A * (0.00407 * W**0.8 / L**0.2 - 0.01107/L) * (VP-6.5)/800. * 2400000		! W
+    Eforced = A * (0.00407 * W**0.8 / L**0.2 - 0.01107/L) * (VP-6.5)/800. * 2400000		! W
 	EE = sqrt(Efree*Efree + Eforced*Eforced)
 
 !  The ratio of Heat Loss by Convection to that by Evaporation is rhoCp/L * (Tw - Ta)/(qw - qa)
 !  rho is air density .948 kg/m3, Cp Specific Heat of Air 1005 J/kg degC, qw & qa are Sat Vap Density 
 
-	Ratio = .948 * (1005 /2400000.) * (T - 0.9) / (VD - .0022) 
+	Ratio = .948 * (1005 /2400000.) * (Ts - 0.9) / (VD - .0022)
 !	print *, W,' ',T, ' ', Efree/1000.,'  ',Eforced/1000.,' ',EE/1000.,' ',Ratio
 
 !  The power calculation is in W. Calculate Energy Loss (TW/day) and
