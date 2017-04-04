@@ -21,6 +21,8 @@ RUN conda install --quiet --yes \
     'scipy=0.18*' \
     'bokeh=0.12*' \
     'ipyparallel' \
+    'seaborn' \
+	&& conda install --quiet --yes ipympl -c conda-forge \
     && conda clean -tipsy
 
 USER root
