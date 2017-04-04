@@ -21,9 +21,9 @@ RUN conda install --quiet --yes \
     'scipy=0.18*' \
     'bokeh=0.12*' \
     'ipyparallel' \
-    'seaborn' \
-	&& conda install --quiet --yes ipympl -c conda-forge \
-    && conda clean -tipsy
+    'seaborn'
+
+RUN conda install --quiet --yes ipympl -c conda-forge 
 
 USER root
 RUN pip install -I -U pip && pip install -I -U ipywidgets
