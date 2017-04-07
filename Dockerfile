@@ -38,5 +38,4 @@ RUN git clone --depth=1 https://github.com/yannikbehr/clemb.git
 WORKDIR /usr/local/src/clemb
 RUN python3 setup.py install
 
-CMD jupyter notebook --no-browser --ip=* --notebook-dir=/usr/local/src/clemb/notebook --port=8888
-
+CMD jupyter notebook --no-browser --ip=* --notebook-dir=/usr/local/src/clemb/notebook --config=/usr/local/src/clemb/notebook/jupyter_notebook_config.py
