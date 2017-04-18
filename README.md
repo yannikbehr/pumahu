@@ -43,23 +43,18 @@ jupyter notebook&
 ```
 
 #### Docker
-First check out the source code:
+First pull the image from docker-hub:
 ```
-git clone --depth=1 https://github.com/yannikbehr/clemb.git
+git pull yadabe/clemb:latest
 ```
-Then compile the docker images:
+Then start the image:
 ```
-cd clemb
-docker build -t clemb .  
+docker run -it --rm -p 8888:8888 yadabe/clemb
 ```
-...and start the image:
-```
-docker run -it --rm -p 8888:8888 clemb
-```
-This will start a container from the docker image and expose the docker container's port 8888 to your local port 8888. It will also print a URL in the command line window to connect to the jupyter notebook. Copy and paste this into your browser. You should now see the start page of the jupyter notebook.
+This will start a container from the docker image and expose the docker container's port 8888 to your local port 8888. To connect to the notebook type `http://localhost:8888` in your web-browser and enter the password.
 
 ### Running the notebook
-At this point you should see the start page of your jupyter notebook. Before starting the notebook `clemb_viz.ipynb` go to the `IPython Clusters` tab and start a cluster with the number of engines equal to the number of cores on your machine. Now go back to the `Files` tab, start the notebook, and click `Cell->Run All`. This will execute the notebook. To see the interactive part of the notebook scroll to the bottom.
+At this point you should see the start page of your jupyter notebook. Before starting the notebook `clemb_viz.ipynb` go to the `IPython Clusters` tab and start a cluster with the number of engines less or equal to the number of cores on your machine. Now go back to the `Files` tab, start the notebook, and click `Cell->Run All`. This will execute the notebook. To see the interactive part of the notebook scroll to the bottom. Note that you will have to confirm entries in the interactive text fields with `Enter`.
 
 #### *References*
 Hurst, T., Hashimoto, T., & Terada, A. (2015). Crater Lake Energy and Mass Balance. In J. V. Dmitri Rouwet, Bruce Christenson, Franco Tassi (Ed.), Volcanic Lakes (pp. 1–533). Springer Berlin Heidelberg. http://doi.org/10.1007/978-3-642-36833-2_13
