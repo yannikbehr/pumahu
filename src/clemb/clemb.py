@@ -10,6 +10,8 @@ import numpy as np
 import pandas as pd
 import pkg_resources
 
+from pykalman import KalmanFilter
+
 
 def df_resample(df):
     """
@@ -31,7 +33,7 @@ class Variable(metaclass=ABCMeta):
     A base class for a stochastic variable.
     """
 
-    def __init__(self, series):
+    def __init__(self, series, *args):
         self._ser = series
         self._size = len(self._ser)
         self._dates = self._ser.index
@@ -156,6 +158,56 @@ class Gauss(Variable):
     def std(self, value):
         self._std = value
 
+class Kalman(Variable):
+    """
+    Instead of assigning random errors compute the 
+    Kalman smoothed time series.
+    """
+
+    def __init__(self, series, proc_cov, obs_cov):
+        super().__init__(series)
+        self._std = None
+        y = series.values
+        self.kf = KalmanFilter(transition_matrices=np.array([[1, 1], [0, 1]]),
+                              transition_covariance=proc_cov*np.array([[1./3.,1./2.],[1./2.,1.]]),
+                              observation_matrices=np.array([1.,0.]),
+                              observation_covariance=obs_cov,
+                              initial_state_mean=np.array([y[0],y[1]-y[0]]),
+                              initial_state_covariance=0.001*np.eye(2),
+                              observation_offsets=0.0)
+        state_estimates, cov_estimates = self.kf.smooth(y)
+        self.state = state_estimates[:,0]
+        self.cov = np.sqrt(cov_estimates[:,0,0])
+
+    @property
+    def data(self):
+        if self._std is not None:
+            # choose randomly either the high, low or mean
+            # curve
+            factor = np.random.randint(-1,2,1)[0]*self._std
+            return pd.Series(self.state+factor*self.cov, index=self._dates)
+        
+        return pd.Series(self.state, index=self._dates)
+
+    @data.setter
+    def data(self, series):
+        y = series.values
+        kf.initial_state_mean = np.array([y[0],y[1]-y[0]])
+        state_estimates, cov_estimates = self.kf.smooth(y)
+        self.state = state_estimates[:,0]
+        self.cov = np.sqrt(cov_estimates[:,0,0])
+
+    @property
+    def std(self):
+        return self._std
+
+    @std.setter
+    def std(self, value):
+        self._std = value
+    
+    def __next__(self):
+        raise Exception("Next is undefined for Kalman variables.")
+        
 
 class DataLoader(metaclass=ABCMeta):
 
@@ -303,8 +355,10 @@ class LakeDataFITS(DataLoader):
         end = min(self.df.index.max(), pd.Timestamp(end))
         df = self.df.loc[start:end]
         vd = {}
-        for c in ['t', 'h', 'm', 'c']:
+        for c in ['m', 'c']:
             vd[c] = Gauss(df[c])
+        vd['t'] = Kalman(df['t'], 0.003, 0.1)
+        vd['h'] = Kalman(df['h'], 0.0001, 0.0005)
         vd['dv'] = Gauss(pd.Series(np.ones(df.index.size), index=df.index))
         return vd
 
@@ -477,8 +531,10 @@ class Clemb:
             results[k] = np.zeros(nsamples * ndata)
 
         for n in range(nsamples):
-            df = pd.DataFrame({'t': self._ld['t'].data, 'm': self._ld['m'].data,
-                               'c': self._ld['c'].data, 'h': self._ld['h'].data,
+            df = pd.DataFrame({'t': self._ld['t'].data,
+                               'm': self._ld['m'].data,
+                               'c': self._ld['c'].data, 
+                               'h': self._ld['h'].data,
                                'dv': self._ld['dv'].data, 'w': self._wd.data},
                               index=self._dates)
             # es returns nan entries if wind is less than 0.0
