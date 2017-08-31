@@ -1,12 +1,11 @@
 FROM jupyter/base-notebook
 
-MAINTAINER Yannik Behr
+MAINTAINER Yannik Behr <y.behr@gns.cri.nz>
 
 USER root
 RUN apt-get update && \
     apt-get install -y \
     git \
-    openssh-server \
     && apt-get clean
 
 # Grant NB_USER permission to /usr/local
