@@ -15,17 +15,18 @@ RUN sudo chmod -R g+w /usr/local
 USER $NB_USER
 # Install Python 3 packages
 RUN conda install --quiet --yes \
-	'ipywidgets' \
+    'ipywidgets=6.*' \
     'pandas=0.19*' \
     'scipy=0.18*' \
     'bokeh=0.12*' \
-    'ipyparallel' \
-    'seaborn'
-
-RUN conda install --quiet --yes ipympl -c conda-forge 
+    'ipyparallel=6.*' \
+    'seaborn=0.7.1' \
+    'notebook=5.*' \
+    'ipympl=0.0.5' 
 
 USER root
-RUN pip install -I -U pip && pip install -I -U ipywidgets
+RUN pip install -I -U pip && \
+    pip install git+https://github.com/yannikbehr/pykalman.git@masked_arrays 
 
 USER $NB_USER
 # Activate ipywidgets extension in the environment that runs the notebook server
