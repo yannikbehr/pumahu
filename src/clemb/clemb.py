@@ -551,7 +551,7 @@ class Clemb:
             mass = vol[1:] * density[1:].values
             massp = vol[:-1] * density[:-1].values
 
-            # Mass balance for Mg++
+            # Dilution inferred from Mg++
             mgt = np.zeros(df['m'].size)
             drmg = np.ones(df['m'].size - 1)
             mgt[0] = massp[0] * df['m'][0]
@@ -559,14 +559,12 @@ class Clemb:
                 massp * df['m'][:-1].values / dr
             mgt = mgt.cumsum()
             fmg = np.diff(mgt) / nd
-            idx = np.where(
-                np.diff(mgt[::-1])[::-1] > 0.02 * mass * df['m'][1:].values)
-            drmg[idx] = 0.98 * massp[idx] * df['m'][:-1].values[idx] / \
-                (mass[idx] * df['m'][1:].values[idx])
+            drmg = massp * df['m'][:-1].values / \
+                   (mass * df['m'][1:].values)
             if self.use_drmg:
                 dr = drmg
 
-            # Mass balance for Cl-
+            # Dilution inferred from Cl-
             clt = np.zeros(df['c'].size)
             drcl = np.ones(df['c'].size - 1)
             clt[0] = massp[0] * df['c'][0]
@@ -574,10 +572,8 @@ class Clemb:
                 massp * df['c'][:-1].values / dr
             clt = clt.cumsum()
             fcl = np.diff(clt) / nd
-            idx = np.where(
-                np.diff(clt[::-1])[::-1] > 0.02 * mass * df['c'][1:].values)
-            drcl[idx] = 0.98 * massp[idx] * df['c'][:-1].values[idx] / \
-                (mass[idx] * df['c'][1:].values[idx])
+            drcl = massp * df['c'][:-1].values/ \
+                   (mass * df['c'][1:].values)
 
             if self.use_drcl:
                 dr = drcl
