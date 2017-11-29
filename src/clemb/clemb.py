@@ -563,7 +563,6 @@ class Clemb:
                 np.diff(mgt[::-1])[::-1] > 0.02 * mass * df['m'][1:].values)
             drmg[idx] = 0.98 * massp[idx] * df['m'][:-1].values[idx] / \
                 (mass[idx] * df['m'][1:].values[idx])
-
             if self.use_drmg:
                 dr = drmg
 
@@ -586,7 +585,7 @@ class Clemb:
             # Net mass input to lake [kT]
             inf = massp * (dr - 1.0)  # input to replace outflow
             inf = inf + mass - massp  # input to change total mass
-            loss, ev = self.es(df['t'][1:].values, df['w'][1:].values, a[1:])
+            loss, ev = self.es(df['t'][:-1].values, df['w'][:-1].values, a[:-1])
 
             # Energy balances [TJ];
             # es = Surface heat loss, el = change in stored energy
@@ -594,22 +593,22 @@ class Clemb:
                 self.el(df['t'][:-1].values, df['t'][1:].values, vol[1:])
 
             # e is energy required from steam, so is reduced by sun energy
-            e -= self.esol(df.index[:-1], df.index[1:], a[1:])
+            e -= self.esol(df.index[:-1], df.index[1:], a[:-1])
             # Energy = Mass * Enthalpy
-            steam = e / (self._enthalpy.data[1:].values -
-                         0.004 * df['t'][1:].values)
+            steam = e / (self._enthalpy.data[:-1].values -
+                         0.0042 * df['t'][:-1].values)
             evap = ev  # Evaporation loss
             meltf = inf + evap - steam  # Conservation of mass
 
             # Correction for energy to heat incoming meltwater
             # FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees
             # C)
-            factor = df['t'][1:].values * self.cw / \
-                (self._enthalpy.data[1:].values - df['t'][1:].values * self.cw)
+            factor = df['t'][:-1].values * self.cw / \
+                (self._enthalpy.data[:-1].values - df['t'][:-1].values * self.cw)
             meltf = meltf / (1.0 + factor)  # Therefore less meltwater
             steam = steam + meltf * factor  # ...and more steam
             # Correct energy input also
-            e += meltf * df['t'][1:].values * self.cw
+            e += meltf * df['t'][:-1].values * self.cw
 
             # Flows are total amounts/day
             id0 = n * ndata
@@ -666,7 +665,7 @@ class Clemb:
         Solar Incident Radiation Based on yearly guess & month.
         """
         return (d2 - d1).days * a * 0.000015 * \
-            (1 + 0.5 * np.cos(((d2.month - 1) * 3.14) / 6.0))
+            (1 + 0.5 * np.cos(((d1.month - 1) * 3.14) / 6.0))
 
     def el(self, t1, t2, vol):
         """
