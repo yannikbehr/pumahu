@@ -586,7 +586,7 @@ class Clemb:
             # Energy balances [TJ];
             # es = Surface heat loss, el = change in stored energy
             e = loss + \
-                self.el(df['t'][:-1].values, df['t'][1:].values, vol[1:])
+                    self.el(df['t'][:-1].values, df['t'][1:].values, vol[:-1])
 
             # e is energy required from steam, so is reduced by sun energy
             e -= self.esol(df.index[:-1], df.index[1:], a[:-1])
@@ -615,17 +615,17 @@ class Clemb:
             results['fmelt'][id0:id1] = meltf / nd  # kT/day
             results['mass'][id0:id1] = mass
             results['inf'][id0:id1] = inf
-            results['t'][id0:id1] = df['t'][1:].values
+            results['t'][id0:id1] = df['t'][:-1].values
             results['fmg'][id0:id1] = fmg
-            results['mgt'][id0:id1] = mgt[1:]
-            results['mg'][id0:id1] = df['m'][1:].values
+            results['mgt'][id0:id1] = mgt[:-1]
+            results['mg'][id0:id1] = df['m'][:-1].values
             results['fcl'][id0:id1] = fcl
-            results['clt'][id0:id1] = clt[1:]
-            results['cl'][id0:id1] = df['c'][1:].values
-            results['wind'][id0:id1] = df['w'][1:].values
-            results['llvl'][id0:id1] = df['h'][1:].values
+            results['clt'][id0:id1] = clt[:-1]
+            results['cl'][id0:id1] = df['c'][:-1].values
+            results['wind'][id0:id1] = df['w'][:-1].values
+            results['llvl'][id0:id1] = df['h'][:-1].values
 
-        iterables = [sidx, df.index[1:]]
+        iterables = [sidx, df.index[:-1]]
         midx = pd.MultiIndex.from_product(iterables)
         df = pd.DataFrame(results, index=midx)
         return df
