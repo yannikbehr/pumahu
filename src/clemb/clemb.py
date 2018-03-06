@@ -305,7 +305,7 @@ class LakeDataFITS(DataLoader):
             tdf = df_resample(tdf3)
 
             # Get lake level
-            # The lake level data is stored qith respect to the overflow level of
+            # The lake level data is stored with respect to the overflow level of
             # the lake. Unfortunately, that level has changed over time so to get
             # the absolute lake level altitude, data from different periods have to
             # be corrected differently. Also, lake level data has been measured by
