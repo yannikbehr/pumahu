@@ -68,6 +68,11 @@ def es(T, w, a):
 
 
 def fullness(hgt):
+    """
+    Calculates crater lake volume and area from lake Level
+    The formula has large compensating terms, beware!
+    Volume is in 1e3 m^3 = kt
+    """
     h = hgt.copy()
     vol = 4.747475 * np.power(h, 3) - 34533.8 * np.power(h, 2) + 83773360. * h - 67772125000.
     h += 1.0
@@ -116,7 +121,6 @@ class model:
            volume=0., volcheat=0., meltwater=0., outflow=0.,
            solar=0., enthalpy=6.0, windspeed=4.5):
         cw = 0.0042
-        density = 1.003 - 0.00033 * state[0]
         qe, me = es(state[0], windspeed, surfacearea)
         factor = state[0]*cw/(enthalpy - state[0]*cw)
         qi = volcheat - meltwater*state[0]*cw
@@ -126,16 +130,31 @@ class model:
         self.mevap = me
         g0 = 1./(cw*volume)*(-qe + solar + qi)
         g1 = meltwater + steam - me - outflow 
-        g2 = -outflow*(state[2]/state[1])
+        # dX/dt = -M_out*(X_t/m_t)
+        # X_t is the total amount of a chemical
+        # species at time t
+        g2 = -outflow*state[2]/volume
         return np.array([g0, g1, g2])
 
 
 def forward_model(y, dt, surfacearea, volume, volcheat, 
-                  meltwater, outflow, solar, enthalpy, windspeed):
+                  meltwater, outflow, solar, enthalpy, windspeed,
+                  method='euler'):
     a = model()
-    y_new = euler(y, 0., dt, a.dT, surfacearea=surfacearea, 
-                  volume=volume, volcheat=volcheat, meltwater=meltwater,
-                  outflow=outflow, solar=solar, enthalpy=enthalpy,
-                  windspeed=windspeed)
+    if method == 'euler':
+        y_new = euler(y, 0., dt, a.dT, surfacearea=surfacearea, 
+                      volume=volume, volcheat=volcheat, meltwater=meltwater,
+                      outflow=outflow, solar=solar, enthalpy=enthalpy,
+                      windspeed=windspeed)
+    elif method == 'rk2':
+        y_new = rk2(y, 0., dt, a.dT, surfacearea=surfacearea, 
+                    volume=volume, volcheat=volcheat, meltwater=meltwater,
+                    outflow=outflow, solar=solar, enthalpy=enthalpy,
+                    windspeed=windspeed)
+    elif method == 'rk4':
+        y_new = rk4(y, 0., dt, a.dT, surfacearea=surfacearea, 
+                    volume=volume, volcheat=volcheat, meltwater=meltwater,
+                    outflow=outflow, solar=solar, enthalpy=enthalpy,
+                    windspeed=windspeed)
     return (y_new, a.steam, a.mevap)
    
