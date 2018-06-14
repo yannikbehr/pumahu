@@ -122,13 +122,13 @@ class model:
            solar=0., enthalpy=6.0, windspeed=4.5):
         cw = 0.0042
         qe, me = es(state[0], windspeed, surfacearea)
-        factor = state[0]*cw/(enthalpy - state[0]*cw)
         qi = volcheat - meltwater*state[0]*cw
-        steam = qi / (enthalpy - state[0]*cw)
-        steam += meltwater * factor 
+        steam = volcheat / (enthalpy - state[0]*cw)
         self.steam = steam
         self.mevap = me
-        g0 = 1./(cw*volume)*(-qe + solar + qi)
+        # energy loss due to outflow
+        qo = outflow*state[0]*cw
+        g0 = 1./(cw*state[1])*(-qe + solar + qi - qo)
         g1 = meltwater + steam - me - outflow 
         # dX/dt = -M_out*(X_t/m_t)
         # X_t is the total amount of a chemical
