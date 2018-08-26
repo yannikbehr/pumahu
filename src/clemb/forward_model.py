@@ -123,7 +123,7 @@ class model:
         cw = 0.0042
         qe, me = es(state[0], windspeed, surfacearea)
         qi = volcheat - meltwater*state[0]*cw
-        steam = volcheat / (enthalpy - state[0]*cw)
+        steam = volcheat / enthalpy
         self.steam = steam
         self.mevap = me
         # energy loss due to outflow
@@ -133,7 +133,7 @@ class model:
         # dX/dt = -M_out*(X_t/m_t)
         # X_t is the total amount of a chemical
         # species at time t
-        g2 = -outflow*state[2]/volume
+        g2 = -outflow*state[2]/state[1]
         return np.array([g0, g1, g2])
 
 
