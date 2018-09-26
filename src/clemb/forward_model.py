@@ -1,7 +1,6 @@
 import numpy as np
 
 
-
 def es(T, w, a):
     """
     Energy loss from lake surface in TJ/day. Equations apply for nominal
@@ -33,8 +32,8 @@ def es(T, w, a):
     # Saturation vapour Pressure Function from CIMO Guide (WMO, 2008)
     vp = 6.112 * np.exp(17.62 * ts / (243.12 + ts))
     # Saturation vapour Density from Hyperphysics Site
-    vd = .006335 + .0006718 * ts - .000020887 * \
-         ts * ts + .00000073095 * ts * ts * ts
+    vd = (.006335 + .0006718 * ts - .000020887 *
+          ts * ts + .00000073095 * ts * ts * ts)
 
     # First term is for radiation, Power(W) = CA(e_wTw^4 - e_aTa^4)
     # Temperatures absolute, a is emissivity, C Stefans Constant
@@ -74,28 +73,44 @@ def fullness(hgt):
     Volume is in 1e3 m^3 = kt
     """
     h = hgt.copy()
-    vol = 4.747475 * np.power(h, 3) - 34533.8 * np.power(h, 2) + 83773360. * h - 67772125000.
-    h += 1.0
-    v1 = 4.747475 * np.power(h, 3) - 34533.8 * np.power(h, 2) + 83773360. * h - 67772125000.
-    a = v1 - vol
-    vol /= 1000.
+    a = np.zeros(h.shape)
+    vol = np.zeros(h.shape)
+    idx1 = np.where(h < 2400.)
+    idx2 = np.where(h >= 2400.)
+    h[idx1] = 2529.4
+    vol[idx1] = (4.747475 * np.power(h[idx1], 3) -
+                 34533.8 * np.power(h[idx1], 2) + 83773360. *
+                 h[idx1] - 67772125000.) / 1000.
+    a[idx1] = 193400
+    # Calculate from absolute level
+    vol[idx2] = 4.747475 * np.power(h[idx2], 3) - \
+        34533.8 * np.power(h[idx2], 2) + 83773360. * h[idx2] - \
+        67772125000.
+    h[idx2] += 1.0
+    v1 = 4.747475 * np.power(h[idx2], 3) - \
+        34533.8 * np.power(h[idx2], 2) + 83773360. * h[idx2] - \
+        67772125000.
+    a[idx2] = v1 - vol[idx2]
+    vol[idx2] /= 1000.
     return a, vol
 
 
-def esol(time, a, datetime):
+def esol(ndays, a, month):
     """
     Solar Incident Radiation Based on yearly guess & month.
     """
-    pesol = a * 0.000015 * (1 + 0.5 * np.cos(((datetime[int(time)].month - 1) * 3.14) / 6.0))
+    pesol = (ndays * a * 0.000015 *
+             (1 + 0.5 * np.cos(((month - 1) * 3.14) / 6.0)))
     return pesol
 
 
 # Second-order Runge-Kutta
-def rk2 (y, time, dt, derivs, **kargs) :
+def rk2(y, time, dt, derivs, **kargs):
     k0 = dt * derivs(y, time, **kargs)
     k1 = dt * derivs(y + k0, time + dt, **kargs)
     y_next = y + 0.5 * (k0 + k1)
     return y_next
+
 
 # Fourth-order Runge-Kutta
 def rk4(y, time, dt, derivs, **kargs):
@@ -106,15 +121,17 @@ def rk4(y, time, dt, derivs, **kargs):
     y_next = y + 1./6.*(k0 + 2 * k1 + 2 * k2 + k3)
     return y_next
 
+
 def euler(y, time, dt, derivs, **kargs):
     k0 = dt * derivs(y, time, **kargs)
     y_next = y + k0
     return y_next
 
+
 class model:
 
     def __init__(self):
-        self.steam = None       
+        self.steam = None
         self.mevap = None
 
     def dT(self, state, time, datetime=0., surfacearea=0.,
@@ -129,7 +146,7 @@ class model:
         # energy loss due to outflow
         qo = outflow*state[0]*cw
         g0 = 1./(cw*state[1])*(-qe + solar + qi - qo)
-        g1 = meltwater + steam - me - outflow 
+        g1 = meltwater + steam - me - outflow
         # dX/dt = -M_out*(X_t/m_t)
         # X_t is the total amount of a chemical
         # species at time t
@@ -137,24 +154,23 @@ class model:
         return np.array([g0, g1, g2])
 
 
-def forward_model(y, dt, surfacearea, volume, volcheat, 
+def forward_model(y, dt, surfacearea, volume, volcheat,
                   meltwater, outflow, solar, enthalpy, windspeed,
                   method='euler'):
     a = model()
     if method == 'euler':
-        y_new = euler(y, 0., dt, a.dT, surfacearea=surfacearea, 
+        y_new = euler(y, 0., dt, a.dT, surfacearea=surfacearea,
                       volume=volume, volcheat=volcheat, meltwater=meltwater,
                       outflow=outflow, solar=solar, enthalpy=enthalpy,
                       windspeed=windspeed)
     elif method == 'rk2':
-        y_new = rk2(y, 0., dt, a.dT, surfacearea=surfacearea, 
+        y_new = rk2(y, 0., dt, a.dT, surfacearea=surfacearea,
                     volume=volume, volcheat=volcheat, meltwater=meltwater,
                     outflow=outflow, solar=solar, enthalpy=enthalpy,
                     windspeed=windspeed)
     elif method == 'rk4':
-        y_new = rk4(y, 0., dt, a.dT, surfacearea=surfacearea, 
+        y_new = rk4(y, 0., dt, a.dT, surfacearea=surfacearea,
                     volume=volume, volcheat=volcheat, meltwater=meltwater,
                     outflow=outflow, solar=solar, enthalpy=enthalpy,
                     windspeed=windspeed)
     return (y_new, a.steam, a.mevap)
-   
