@@ -354,7 +354,7 @@ class LakeDataCSV:
 
 def derived_obs(df1, df2, df3, nsamples=100):
     """
-    Compute absolute amount of Mg++, volume, lake aread,
+    Compute absolute amount of Mg++, volume, lake area,
     water density and lake mass using Monte Carlo sampling
     """
     rn1 = np.random.randn(df1['obs'].size, nsamples)
@@ -501,10 +501,12 @@ class Clemb:
         """
         self.lakedata = lakedata
         self.winddata = winddata
-        self._df = lakedata.get_data(start, end)
-        self._dates = self._df.index
-        self._df['W'] = winddata.get_data(self._dates[0], self._dates[-1])
-        self._df['H'] = np.ones(self._dates.size) * 6.0
+        if lakedata is not None:
+            self._df = lakedata.get_data(start, end)
+            self._dates = self._df.index
+        if winddata is not None:
+            self._df['W'] = winddata.get_data(self._dates[0], self._dates[-1])
+            self._df['H'] = np.ones(self._dates.size) * 6.0
         self.use_drmg = False
         # Specific heat for water
         self.cw = 0.0042
@@ -662,7 +664,6 @@ class Clemb:
             return res
 
         nsteps = self._df.shape[0] - 1
-        dt = 1.
         nparams = 9
 
         qin = Uniform('qin', 0, 1000)
@@ -708,6 +709,7 @@ class Clemb:
 
                 y = np.array([T, M, X])
                 y_next = np.array([T_next, M_next, X_next])
+                dt = (self._dates[i+1] - self._dates[i])/pd.Timedelta('1D')
                 pycb.set_data(y_next, cov, self._dates[i].month, dt, ws)
                 rs = ns.explore(vars=[qin, m_in, m_out, h, T, M, X, a, v],
                                 initial_samples=100,
