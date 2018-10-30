@@ -9,7 +9,7 @@ from setuptools import setup
 # do the build/install
 setup(
     name="clemb",
-    version="0.0.1",
+    version="0.0.2",
     description="Python package to compute crater lake energy and mass balance.",
     long_description="Python package to compute crater lake energy and mass balance.",
     author="Yannik Behr",
