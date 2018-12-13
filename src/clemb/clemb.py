@@ -11,6 +11,7 @@ import numpy as np
 from numpy.ma import masked_equal
 import pandas as pd
 import pkg_resources
+from scipy.interpolate import interp1d
 import xarray as xr
 
 from sampling import (NestedSampling, Uniform,
@@ -494,24 +495,27 @@ class Clemb:
     magnesium and chloride ions.
     """
 
-    def __init__(self, lakedata, winddata, start, end):
+    def __init__(self, lakedata, winddata, start, end, h=6., pre_txt=None):
         """
         Load the lake data (temperature, lake level, concentration of Mg++,
         Cl-, O18 and deuterium) and the wind data.
         """
         self.lakedata = lakedata
         self.winddata = winddata
+        self.h = h
+        self.pre_txt = pre_txt
         if lakedata is not None:
             self._df = lakedata.get_data(start, end)
             self._dates = self._df.index
         if winddata is not None:
             self._df['W'] = winddata.get_data(self._dates[0], self._dates[-1])
-            self._df['H'] = np.ones(self._dates.size) * 6.0
+            self._df['H'] = np.ones(self._dates.size) * self.h
         self.use_drmg = False
         # Specific heat for water
         self.cw = 0.0042
         self.results_dir = './'
-
+        self.fullness = fullness
+        
     def get_variable(self, key):
         if key in self._ld:
             return self._ld[key]
@@ -561,10 +565,12 @@ class Clemb:
         """
         tstart = self._dates[0]
         tend = self._dates[-1]
-        res_fn = os.path.join(self.results_dir,
-                              'backward_{:s}_{:s}.nc')
+        res_fn = 'backward_{:s}_{:s}.nc'
         res_fn = res_fn.format(tstart.strftime('%Y-%m-%d'),
                                tend.strftime('%Y-%m-%d'))
+        if self.pre_txt is not None:
+            res_fn = self.pre_txt + '_' + res_fn
+        res_fn = os.path.join(self.results_dir, res_fn)
         if not new and os.path.isfile(res_fn):
             res = xr.open_dataset(res_fn)
             res.close()
@@ -579,12 +585,11 @@ class Clemb:
 
         # es returns nan entries if wind is less than 0.0
         self._df.loc[self._df['W'] < 0, 'W'] = 0.0
-        nd = (self._df.index[1:] - self._df.index[:-1]).days
+        nd = (self._df.index[1:] - self._df.index[:-1])/pd.Timedelta('1D')
         # time interval in Megaseconds
         timem = 0.0864 * nd
         density = 1.003 - 0.00033 * self._df['T']
-        a, vol = fullness(self._df['z'].values)
-
+        a, vol = self.fullness(self._df['z'].values)
         # Dilution due to loss of water
         dr = self._df['dv'][1:].values
 
@@ -609,15 +614,14 @@ class Clemb:
         inf = inf + mass - massp  # input to change total mass
         loss, ev = es(self._df['T'][:-1].values,
                       self._df['W'][:-1].values, a[:-1])
-
+        loss *= nd
         # Energy balances [TJ];
         # es = Surface heat loss, el = change in stored energy
         e = loss + self.el(self._df['T'][:-1].values,
                            self._df['T'][1:].values, vol[:-1])
 
         # e is energy required from steam, so is reduced by sun energy
-        e -= esol((self._df.index[1:] - self._df.index[:-1]).days, a[:-1],
-                  self._dates[:-1].month)
+        e -= esol(nd, a[:-1], self._dates[:-1].month)
         # Energy = Mass * Enthalpy
         steam = e / (self._df['H'][:-1].values -
                      0.0042 * self._df['T'][:-1].values)
@@ -651,13 +655,18 @@ class Clemb:
         res.to_netcdf(res_fn)
         return res
 
-    def run_forward(self, nsamples=10000, nresample=500, new=False):
+    def run_forward(self, nsamples=10000, nresample=500, q_in_min=0.,
+                    q_in_max=1000., m_in_min=0., m_in_max=20., 
+                    m_out_min=0., m_out_max=20., new=False,
+                    m_out_prior=None):
         tstart = self._dates[0]
         tend = self._dates[-1]
-        res_fn = os.path.join(self.results_dir,
-                              'forward_{:s}_{:s}.nc')
+        res_fn = 'forward_{:s}_{:s}.nc'
         res_fn = res_fn.format(tstart.strftime('%Y-%m-%d'),
                                tend.strftime('%Y-%m-%d'))
+        if self.pre_txt is not None:
+            res_fn = self.pre_txt + '_' + res_fn
+        res_fn = os.path.join(self.results_dir, res_fn)
         if not new and os.path.isfile(res_fn):
             res = xr.open_dataset(res_fn)
             res.close()
@@ -666,10 +675,18 @@ class Clemb:
         nsteps = self._df.shape[0] - 1
         nparams = 9
 
-        qin = Uniform('qin', 0, 1000)
-        m_in = Uniform('m_in', 0, 20)
-        h = Constant('h', 6.)
-        m_out = Uniform('m_out', 0, 20)
+        qin = Uniform('qin', q_in_min, q_in_max)
+        m_in = Uniform('m_in', m_in_min, m_in_max)
+        h = Constant('h', self.h)
+        f_m_out_min = None
+        f_m_out_max = None
+        if m_out_prior is not None:
+            a = np.load(m_out_prior)
+            z, m_out_min, m_out_max = a['z'], a['o_min'], a['o_max']
+            f_m_out_min = interp1d(z, m_out_min, fill_value='interpolate') 
+            f_m_out_max = interp1d(z, m_out_max, fill_value='interpolate')
+        else:
+            m_out = Uniform('m_out', m_out_min, m_out_max)
         ws = 4.5
 
         # return values
@@ -678,8 +695,12 @@ class Clemb:
         m_out_samples = np.zeros((nsteps, nresample))
         h_samples = np.zeros((nsteps, nresample))
         lh = np.zeros((nsteps, nresample))
+        wt = np.zeros((nsteps, nresample))
         exp = np.zeros((nsteps, nparams))
         var = np.zeros((nsteps, nparams))
+        mx = np.zeros((nsteps, nparams+1))
+        ig = np.zeros((nsteps))
+        z = np.zeros((nsteps, 2))
         model_data = np.zeros((nsteps, nresample, 3))
         steam = np.zeros((nsteps, nresample))
         mevap = np.zeros((nsteps, nresample))
@@ -697,6 +718,10 @@ class Clemb:
                 X = Normal('X', self._df['X'][i], self._df['X_err'][i])
                 v = Normal('v', self._df['v'][i], self._df['v_err'][i])
                 a = Normal('a', self._df['a'][i], self._df['a_err'][i])
+                if m_out_prior is not None:
+                    m_out_min = f_m_out_min(self._df['z'][i])
+                    m_out_max = f_m_out_max(self._df['z'][i])
+                    m_out = Uniform('m_out', float(m_out_min), float(m_out_max))       
                 T_sigma = self._df['T_err'][i+1]
                 M_sigma = self._df['M_err'][i+1]
                 X_sigma = self._df['X_err'][i+1]
@@ -718,6 +743,9 @@ class Clemb:
                 smp = rs.resample_posterior(nresample)
                 exp[i, :] = rs.getexpt()
                 var[i, :] = rs.getvar()
+                mx[i, :] = rs.getmax()
+                ig[i] = rs.getH()
+                z[i, :] = rs.getZ()
                 for j, _s in enumerate(smp):
                     Q_in = _s._vars[0].get_value()
                     M_in = _s._vars[1].get_value()
@@ -740,16 +768,23 @@ class Clemb:
                     m_out_samples[i, j] = M_out
                     h_samples[i, j] = H
                     lh[i, j] = np.exp(_s._logL)
+                    wt[i, j] = np.exp(_s._logWt)
+                    
                 del smp
                 bar.update(i)
         res = xr.Dataset({'exp': (('dates', 'parameters'), exp),
                           'var': (('dates', 'parameters'), var),
+                          'max': (('dates', 'parameters'), mx[:,:-1]),
+                          'z': (('dates', 'val_std' ), z),
+                          'ig': (('dates'), ig),
                           'q_in': (('dates', 'sampleidx'),
                                    masked_equal(qin_samples, 0)),
                           'h': (('dates', 'sampleidx'),
                                 masked_equal(h_samples, 0)),
                           'lh': (('dates', 'sampleidx'),
                                  masked_equal(lh, 0)),
+                          'wt': (('dates', 'sampleidx'),
+                                 masked_equal(wt, 0)),
                           'm_in': (('dates', 'sampleidx'),
                                    masked_equal(m_in_samples, 0)),
                           'm_out': (('dates', 'sampleidx'),
@@ -763,7 +798,8 @@ class Clemb:
                          {'dates': self._dates[:-1],
                           'parameters': ['q_in', 'm_in', 'm_out',
                                          'h', 'T', 'M', 'X', 'a', 'v'],
-                          'obs': ['T', 'M', 'X']})
+                          'obs': ['T', 'M', 'X'],
+                          'val_std': ['val', 'std']})
         res.to_netcdf(res_fn)
         return res
 
