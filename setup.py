@@ -9,7 +9,7 @@ from setuptools import setup
 # do the build/install
 setup(
     name="clemb",
-    version="0.0.2",
+    version="0.0.3",
     description="Python package to compute crater lake energy and mass balance.",
     long_description="Python package to compute crater lake energy and mass balance.",
     author="Yannik Behr",
@@ -19,5 +19,5 @@ setup(
     package_dir={'': 'src'},
     install_requires=['pandas', 'numpy'],
     packages=['clemb'],
-    package_data={'clemb': ['data/*.dat', 'notebook/*.ipynb']}
+    package_data={'clemb': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']}
 )
