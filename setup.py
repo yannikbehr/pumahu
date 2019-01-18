@@ -17,7 +17,8 @@ setup(
     url="",
     license="GPL v3",
     package_dir={'': 'src'},
-    install_requires=['pandas', 'numpy'],
+    install_requires=['pandas', 'numpy', 'progressbar2', 'filterpy',
+                      'scipy', 'xarray'],
     packages=['clemb'],
     package_data={'clemb': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']}
 )
