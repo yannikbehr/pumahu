@@ -5,6 +5,7 @@ temperature, wind speed and chemical dilution.
 
 from collections import defaultdict
 import datetime
+from functools import partial
 import os
 
 import numpy as np
@@ -14,9 +15,8 @@ import pkg_resources
 from scipy.interpolate import interp1d
 import xarray as xr
 
-from sampling import (NestedSampling, Uniform,
-                      Callback, Normal, Constant,
-                      SamplingException)
+from nsampling import (NestedSampling, Uniform,
+                       Normal, Constant)
 
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 from filterpy.kalman import KalmanFilter as KF
@@ -28,48 +28,34 @@ import progressbar
 from clemb.forward_model import forward_model, fullness, esol, es
 
 
-class NSCallback(Callback):
+def likelihood(vals, y1, cov, month, dt, ws):
     """
     Callback function to compute the log-likelihood for nested sampling.
     """
-
-    def __init__(self):
-        Callback.__init__(self)
-
-    def set_data(self, y1, cov, month, dt, ws):
-        self.y1 = y1
-        self.ws = ws
+    try:
         # the precision matrix is the inverse of the
         # covariance matrix
-        self.prec = np.linalg.inv(cov)
-        self.factor = -np.log(np.power(2.*np.pi, cov.shape[0])
-                              + np.sqrt(np.linalg.det(cov)))
-        self.month = month
-        self.dt = dt
-        self.y_new = None
-
-    def run(self, vals):
-        try:
-            Q_in = vals[0]*0.0864
-            M_melt = vals[1]
-            Mout = vals[2]
-            H = vals[3]
-            T = vals[4]
-            M = vals[5]
-            X = vals[6]
-            a = vals[7]
-            v = vals[8]
-            y0 = np.array([T, M, X])
-            solar = esol(self.dt, a, self.month)
-            y_new, steam, mevap = forward_model(y0, self.dt, a, v, Q_in,
-                                                M_melt, Mout, solar,
-                                                H, self.ws, method='euler')
-            self.y_new = y_new
-            lh = self.factor - 0.5*np.dot(y_new-self.y1,
-                                          np.dot(self.prec, y_new-self.y1))
-        except:
-            raise SamplingException("Oh no, a SamplingException!")
-        return lh
+        prec = np.linalg.inv(cov)
+        factor = -np.log(np.power(2.*np.pi, cov.shape[0])
+                         + np.sqrt(np.linalg.det(cov)))
+        Q_in = vals[0]*0.0864
+        M_melt = vals[1]
+        Mout = vals[2]
+        H = vals[3]
+        T = vals[4]
+        M = vals[5]
+        X = vals[6]
+        a = vals[7]
+        v = vals[8]
+        y0 = np.array([T, M, X])
+        solar = esol(dt, a, month)
+        y_new, steam, mevap = forward_model(y0, dt, a, v, Q_in,
+                                            M_melt, Mout, solar,
+                                            H, ws, method='euler')
+        lh = factor - 0.5*np.dot(y_new-y1, np.dot(prec, y_new-y1))
+    except:
+        raise Exception("Oh no, a SamplingException!")
+    return lh
 
 
 def df_resample(df):
@@ -705,10 +691,6 @@ class Clemb:
         steam = np.zeros((nsteps, nresample))
         mevap = np.zeros((nsteps, nresample))
 
-        ns = NestedSampling()
-        pycb = NSCallback()
-        pycb.__disown__()
-        ns.setCallback(pycb)
 
         with progressbar.ProgressBar(max_value=nsteps-1) as bar:
             for i in range(nsteps):
@@ -735,10 +717,11 @@ class Clemb:
                 y = np.array([T, M, X])
                 y_next = np.array([T_next, M_next, X_next])
                 dt = (self._dates[i+1] - self._dates[i])/pd.Timedelta('1D')
-                pycb.set_data(y_next, cov, self._dates[i].month, dt, ws)
-                rs = ns.explore(vars=[qin, m_in, m_out, h, T, M, X, a, v],
-                                initial_samples=100,
-                                maximum_steps=nsamples)
+                ns = NestedSampling()
+                _lh = partial(likelihood, y1=y_next, cov=cov,
+                              month=self._dates[i].month, dt=dt, ws=ws)
+                rs = ns.explore([qin, m_in, m_out, h, T, M, X, a, v], 100,
+                                nsamples, _lh, 20, 0.1)
                 del T, M, X, v, a
                 smp = rs.resample_posterior(nresample)
                 exp[i, :] = rs.getexpt()
@@ -747,15 +730,7 @@ class Clemb:
                 ig[i] = rs.getH()
                 z[i, :] = rs.getZ()
                 for j, _s in enumerate(smp):
-                    Q_in = _s._vars[0].get_value()
-                    M_in = _s._vars[1].get_value()
-                    M_out = _s._vars[2].get_value()
-                    H = _s._vars[3].get_value()
-                    T = _s._vars[4].get_value()
-                    M = _s._vars[5].get_value()
-                    X = _s._vars[6].get_value()
-                    a = _s._vars[7].get_value()
-                    v = _s._vars[8].get_value()
+                    Q_in, M_in, M_out, H, T, M, X, a, v = _s.get_value()
                     y = np.array([T, M, X])
                     solar = esol(dt, a, self._dates[i].month)
                     y_mod, st, me = forward_model(y, dt, a, v, Q_in*0.0864,
@@ -767,10 +742,10 @@ class Clemb:
                     m_in_samples[i, j] = M_in
                     m_out_samples[i, j] = M_out
                     h_samples[i, j] = H
-                    lh[i, j] = np.exp(_s._logL)
-                    wt[i, j] = np.exp(_s._logWt)
-                    
-                del smp
+                    lh[i, j] = np.exp(_s.get_logL())
+                    wt[i, j] = np.exp(_s.get_logWt())
+
+                del smp, ns, rs
                 bar.update(i)
         res = xr.Dataset({'exp': (('dates', 'parameters'), exp),
                           'var': (('dates', 'parameters'), var),
