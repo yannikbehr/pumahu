@@ -644,7 +644,7 @@ class Clemb:
     def run_forward(self, nsamples=10000, nresample=500, q_in_min=0.,
                     q_in_max=1000., m_in_min=0., m_in_max=20., 
                     m_out_min=0., m_out_max=20., new=False,
-                    m_out_prior=None):
+                    m_out_prior=None, tolZ=1e-3):
         tstart = self._dates[0]
         tend = self._dates[-1]
         res_fn = 'forward_{:s}_{:s}.nc'
@@ -721,7 +721,7 @@ class Clemb:
                 _lh = partial(likelihood, y1=y_next, cov=cov,
                               month=self._dates[i].month, dt=dt, ws=ws)
                 rs = ns.explore([qin, m_in, m_out, h, T, M, X, a, v], 100,
-                                nsamples, _lh, 20, 0.1)
+                                nsamples, _lh, 20, 0.1, tolZ)
                 del T, M, X, v, a
                 smp = rs.resample_posterior(nresample)
                 exp[i, :] = rs.getexpt()
