@@ -149,19 +149,19 @@ def get_mg_data(tstart=None,
     mg_df = pd.read_csv(url, index_col=0, names=names, skiprows=1,
                         parse_dates=True)
     if tstart is not None:
-        tstart = max(mg_df.index.min(), pd.Timestamp(tstart))
+        # Find the sampling date that is closest to the requested
+        # start time
+        idx = np.abs((mg_df.index - pd.Timestamp(tstart))).argmin()
+        _tstart = mg_df.index[idx]
     else:
-        tstart = mg_df.index.min()
-    mg_df = mg_df.loc[(mg_df.index >= tstart) & (mg_df.index <= tend)]
+        _tstart = mg_df.index.min()
+    mg_df = mg_df.loc[(mg_df.index >= _tstart) & (mg_df.index <= tend)]
 
     mg_df = mg_df.groupby(common_date, axis=0).mean()
-    new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+    new_dates = pd.date_range(start=_tstart, end=tend, freq='D')
     mg_df = mg_df.reindex(index=new_dates)
-    # Find the first non-NaN entry
-    tstart_min = mg_df.loc[~mg_df['obs'].isnull()].index[0]
-    # Ensure the time series starts with a non-NaN value
-    mg_df = mg_df.loc[mg_df.index >= tstart_min]
-    return interpolate_mg(mg_df)
+    img_df = interpolate_mg(mg_df)
+    return img_df.loc[(img_df.index >= tstart) & (img_df.index <= tend)]
 
 
 def interpolate_T(df, dt=1):
