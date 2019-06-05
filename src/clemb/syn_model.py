@@ -53,11 +53,11 @@ class SynModel:
         vol = self.a * level
         return self.a, vol/1e3
 
-    def run(self, nsteps, q_in, mode='gamma'):
+    def run(self, q_in, mode='gamma', nsteps=100):
         dates = pd.date_range(start='1/1/2017', end='21/1/2017',
                               periods=nsteps)
-        dt = (dates[1] - dates[0])/pd.Timedelta('1D')
         t = np.linspace(0, self.tmax, nsteps)
+        dt = (dates[1] - dates[0])/pd.Timedelta('1D')
         if mode == 'sinus':
             qi = np.sin(2.*np.pi*self.f*t + np.deg2rad(15))*q_in/2.+q_in/2.
             qi *= tukey(nsteps, 0.9)
@@ -80,6 +80,22 @@ class SynModel:
             y *= q_in
             qi = y
 
+        if mode == 'observed':
+            # a polynomial model of a real inversion
+            z = np.array([-6.93795125e-30,  1.17673746e-26, -9.19940930e-24,
+                          4.39229128e-21, -1.43037875e-18,  3.36004438e-16,
+                          -5.87098984e-14,  7.75486512e-12, -7.79213224e-10,
+                          5.94657977e-08, -3.41657063e-06,  1.45392771e-04,
+                          -4.46901292e-03,  9.56540064e-02, -1.35189993e+00,
+                          1.16488040e+01, -5.37668791e+01,  1.05017651e+02,
+                          2.91772946e+01])
+            p = np.poly1d(z)
+            dates = pd.date_range(start='2018-4-1', end='2018-9-30',
+                                  periods=183)
+            t = np.r_[0, np.cumsum(np.diff(dates)/np.timedelta64(1, 'D'))]
+            qi = p(t)
+            nsteps = 183
+    
         y = np.zeros((nsteps, 3))
         prm = np.zeros((nsteps, 6))
         T = 15.
@@ -114,7 +130,7 @@ class SynModel:
         prm[i+1, 1] = Mo
         prm[i+1, 2] = ll
         prm[i+1, 3] = mevap
-        prm[i+1, 3] = solar
+        prm[i+1, 4] = solar
 
         # Prescripe errors
         factor = 1.
@@ -147,4 +163,10 @@ class SynModel:
         syn_data['W'] = np.ones(nsteps)*4.5
         syn_data['H'] = np.ones(nsteps)*6.0
         syn_data['dv'] = np.ones(nsteps)*1.0
-        return pd.DataFrame(syn_data, index=dates), prm
+        syn_data['Mc'] = prm[:, 0]
+        syn_data['Mo'] = prm[:, 1]
+        syn_data['ll'] = prm[:, 2]
+        syn_data['mevap'] = prm[:, 3]
+        syn_data['solar'] = prm[:, 4]
+        syn_data['qi'] = prm[:, 5]
+        return pd.DataFrame(syn_data, index=dates)
