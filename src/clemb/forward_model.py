@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 import numpy as np
 
 
@@ -149,7 +151,7 @@ class Forwardmodel:
         vol[idx2] /= 1000.
         return a, vol
 
-    def esol(self, ndays, a, month):
+    def esol(self, ndays, a, dtime):
         """
         Solar Incident Radiation based on yearly guess & month.
 
@@ -171,6 +173,7 @@ class Forwardmodel:
                 Total energy gain due to short wavelength radiation []
 
         """
+        month = dtime.month
         pesol = (ndays * a * 0.000015 *
                  (1 + 0.5 * np.cos(((month - 1) * 3.14) / 6.0)))
         return pesol
@@ -179,8 +182,9 @@ class Forwardmodel:
         """
         ODE integration with second-order Runge-Kutta
         """
-        k0 = dt * self.derivs(y, time, **kargs)
-        k1 = dt * self.derivs(y + 0.5 * k0, time + 0.5 * dt, **kargs)
+        k0 = dt * self.derivs(y, time, dt=dt, **kargs)
+        k1 = dt * self.derivs(y + 0.5 * k0, time + timedelta(days=0.5*dt),
+                              dt=dt, **kargs)
         y_next = y + k1
         return y_next
 
@@ -188,10 +192,13 @@ class Forwardmodel:
         """
         ODE integration with fourth-order Runge-Kutta
         """
-        k0 = dt * self.derivs(y, time, **kargs)
-        k1 = dt * self.derivs(y + 0.5 * k0, time + 0.5 * dt, **kargs)
-        k2 = dt * self.derivs(y + 0.5 * k1, time + 0.5 * dt, **kargs)
-        k3 = dt * self.derivs(y + k2, time + dt, **kargs)
+        k0 = dt * self.derivs(y, time, dt=dt, **kargs)
+        k1 = dt * self.derivs(y + 0.5 * k0, time + timedelta(days=0.5*dt),
+                              dt=0.5*dt, **kargs)
+        k2 = dt * self.derivs(y + 0.5 * k1, time + timedelta(days=0.5*dt),
+                              dt=0.5*dt, **kargs)
+        k3 = dt * self.derivs(y + k2, time + timedelta(days=dt),
+                              dt=dt, **kargs)
         y_next = y + 1./6.*(k0 + 2 * k1 + 2 * k2 + k3)
         return y_next
 
@@ -199,37 +206,51 @@ class Forwardmodel:
         """
         ODE integration with Euler's rule
         """
-        k0 = dt * self.derivs(y, time, **kargs)
+        k0 = dt * self.derivs(y, time, dt=dt, **kargs)
         y_next = y + k0
         return y_next
 
-    def derivs(self, state, time, dQi=0., datetime=0., surfacearea=0.,
-               volume=0., meltwater=0., outflow=0.,
-               solar=0., enthalpy=6.0, windspeed=4.5):
+    def derivs(self, state, time, dp=None, dt=None):
         """
         ODEs describing the change in temperature, mass, and ion concentration
+
+        Parameters
+        ----------
+        state : array_like
+                The state array has to have the following order
+                [temperature, lake mass, total ion amount,
+                 volcanic heat input rate, mass inflow rate,
+                 mass outflow rate, lake surface area,
+                 lake volume, enthalpy, wind speed]
+
+        time : datetime
+               Time at which the derivatives are computed. This is
+               only important for the solor incident radiation.
+        dp : array_like
+             The gradient of the model parameters in the following
+             order:
+             [volcanic heat input rate, mass inflow rate,
+              mass outflow rate, lake surface area,
+              lake volume, enthalpy, wind speed]
+        dt : float
+             Time step
         """
         cw = 0.0042
-        qe, me = self.surface_loss(state[0], windspeed, surfacearea)
-        qi = state[3] - meltwater*state[0]*cw
-        steam = state[3] / enthalpy
+        qe, me = self.surface_loss(state[0], state[9], state[6])
+        qi = state[3] - state[4] * state[0] * cw
+        steam = state[3] / state[8]
+        solar = self.esol(dt, state[6], time)
         self.steam = steam
         self.evap = (qe, me)
         # energy loss due to outflow
-        qo = outflow*state[0]*cw
+        qo = state[5]*state[0]*cw
         g0 = 1./(cw*state[1])*(-qe + solar + qi - qo)
-        g1 = meltwater + steam - me - outflow
+        g1 = state[4] + steam - me - state[5]
         # dX/dt = -M_out*(X_t/m_t)
         # X_t is the total amount of a chemical
         # species at time t
-        g2 = -outflow*state[2]/state[1]
-        return np.array([g0, g1, g2, dQi])
+        g2 = -state[5]*state[2]/state[1]
+        return np.r_[np.array([g0, g1, g2]), dp]
 
-    def integrate(self, y, dt, dQi, surfacearea, volume, 
-                  meltwater, outflow, solar, enthalpy, windspeed):
-        y_new = self.int_method(y, 0., dt, surfacearea=surfacearea,
-                                volume=volume, dQi=dQi,
-                                meltwater=meltwater, outflow=outflow,
-                                solar=solar, enthalpy=enthalpy,
-                                windspeed=windspeed)
-        return y_new
+    def integrate(self, y, time, dt, dp):
+        return self.int_method(y, time, dt, dp=dp)
