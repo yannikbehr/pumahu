@@ -4,7 +4,7 @@ import unittest
 import numpy as np
 
 from clemb.forward_model import Forwardmodel
-
+from clemb.syn_model import SynModel
 
 
 class ForwardModelTestCase(unittest.TestCase):
@@ -136,6 +136,69 @@ class ForwardModelTestCase(unittest.TestCase):
         self.assertAlmostEqual(fw2.get_evap()[0], 15.53, places=2)
         self.assertAlmostEqual(fw2.get_evap()[1], 3.44, places=2)
 
+    def test_synthetic_model(self):
+        """
+        Test generating synthetic observations.
+        """
+        # Test with Euler
+        df = SynModel().run(1000., nsteps=21, mode='test')
+        np.testing.assert_array_almost_equal(df['T'].values,
+                                             np.array([15.000, 14.953,
+                                                       15.374, 16.717]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['M'].values,
+                                             np.array([8782.84, 8783.277,
+                                                       8786.092, 8789.457]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['X'].values,
+                                             np.array([2., 1.998,
+                                                       1.996, 1.993]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['Mo'].values,
+                                             np.array([8.72, 9.225,
+                                                       14.395, 14.395]),
+                                             decimal=3)
+
+        # Test with 4th order Runge-Kutta
+        df = SynModel().run(1000., nsteps=21, mode='test',
+                            integration_method='rk4')
+        np.testing.assert_array_almost_equal(df['T'].values,
+                                             np.array([15.000, 14.914,
+                                                       15.294, 16.588]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['M'].values,
+                                             np.array([8782.84, 8783.281,
+                                                       8786.262, 8789.637]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['X'].values,
+                                             np.array([2., 1.998,
+                                                       1.996, 1.993]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['Mo'].values,
+                                             np.array([8.72, 9.045,
+                                                       14.328, 14.328]),
+                                             decimal=3)
+
+        # Test with 4th order Runge-Kutta and Qi gradient
+        s = SynModel()
+        df = s.run(1000., nsteps=21, mode='test',
+                   integration_method='rk4', gradient=True)
+        np.testing.assert_array_almost_equal(df['T'].values,
+                                             np.array([15.000, 15.147,
+                                                       15.984, 17.727]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['M'].values,
+                                             np.array([8782.84, 8784.713,
+                                                       8787.516, 8790.579]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['X'].values,
+                                             np.array([2., 1.998,
+                                                       1.995, 1.991]),
+                                             decimal=3)
+        np.testing.assert_array_almost_equal(df['Mo'].values,
+                                             np.array([8.72, 12.066,
+                                                       17.432, 17.432]),
+                                             decimal=3)
 
 if __name__ == '__main__':
     unittest.main()

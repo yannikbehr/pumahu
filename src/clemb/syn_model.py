@@ -2,15 +2,25 @@ import numpy as np
 import pandas as pd
 from scipy.signal import tukey
 from scipy.stats import gamma
-from clemb.forward_model import forward_model, esol
+from clemb.forward_model import Forwardmodel
 
 
 class SynModel:
+    """
+    Compute synthetic observations
 
-    def __init__(self, area=194162):
+    Compute synthetic observations by assuming a time series of
+    input parameters for the mass and energy balance model. We further
+    assume that the lake has a cylindrical shape with a give area and
+    an outflow at 45.31 m. The outflow rate is computed using Bernoulli's
+    equation.
+    """
+
+    def __init__(self, area=194162, T0=15.):
         self.f = 1/15.
         self.tmax = 30.
         self.a = area
+        self.T0 = T0
 
     def outflow(self, level, area=0.2):
         """
@@ -49,11 +59,14 @@ class SynModel:
         return volume * 1e3 / lakearea
 
     def synth_fullness(self, level):
-        print('synth_fullness called')
         vol = self.a * level
         return self.a, vol/1e3
 
-    def run(self, q_in, mode='gamma', nsteps=100):
+    def run(self, q_in, mode='gamma', nsteps=100, gradient=False,
+            integration_method='euler'):
+        """
+        Produce synthetic observations.
+        """
         dates = pd.date_range(start='1/1/2017', end='21/1/2017',
                               periods=nsteps)
         t = np.linspace(0, self.tmax, nsteps)
@@ -95,42 +108,46 @@ class SynModel:
             t = np.r_[0, np.cumsum(np.diff(dates)/np.timedelta64(1, 'D'))]
             qi = p(t)
             nsteps = 183
-    
-        y = np.zeros((nsteps, 3))
-        prm = np.zeros((nsteps, 6))
-        T = 15.
+
+        if mode == 'test':
+            qi = np.array([0., .2, .6, 1.])*q_in
+            dates = pd.date_range(start='2017-01-01', end='2017-01-04',
+                                  freq='D')
+            nsteps = 4
+
+        y = np.zeros((nsteps, 10))
+        prm = np.zeros((nsteps, 2))
         V = 8800
         A = self.a
-        Mc = 10.
+        Mi = 10.
         H = 6.0
-        WS = 4.5
+        ws = 4.5
         X = 2.
-        M = self.mass(V, T)
-        y[0, :] = [T, M, X]
+        M = self.mass(V, self.T0)
         ll = self.level(V, A)
         Mo = self.outflow(ll)
-
+        y[0, :] = [self.T0, M, X, qi[0]*0.0864,
+                   Mi, Mo, self.a, V, H, ws]
+        fm = Forwardmodel(method=integration_method)
         for i in range(nsteps-1):
-            prm[i, 0] = Mc
-            prm[i, 1] = Mo
-            prm[i, 2] = ll
+            prm[i, 0] = ll
             dt = (dates[i+1] - dates[i])/pd.Timedelta('1D')
-            solar = esol(1., A, dates[i].month)
-            y_new, steam, mevap = forward_model(y[i], dt, A, V, qi[i]*0.0864,
-                                                Mc, Mo, solar, H, WS,
-                                                method='euler')
-            prm[i, 3] = mevap
-            prm[i, 4] = solar
-            prm[i, 5] = qi[i]
+            if not gradient:
+                dp = [0.] * 7
+                y[i, 3] = qi[i]*0.0864
+                y[i, 5] = Mo
+            else:
+                dp = [0.] * 7
+                dp[0] = (qi[i+1] - qi[i])*0.0864/dt
+                y[i, 5] = Mo
+            y_new = fm.integrate(y[i], dates[i], dt, dp)
+            prm[i, 1] = fm.get_evap()[1]
             V = self.volume(y_new[1], y_new[0])
             ll = self.level(V, A)
             Mo = self.outflow(ll)
-            y[i+1, :] = y_new[:]
-        prm[i+1, 0] = Mc
-        prm[i+1, 1] = Mo
-        prm[i+1, 2] = ll
-        prm[i+1, 3] = mevap
-        prm[i+1, 4] = solar
+            y[i+1, :] = y_new.copy()
+        prm[i+1, 0] = ll
+        prm[i+1, 1] = fm.get_evap()[1]
 
         # Prescripe errors
         factor = 1.
@@ -148,7 +165,7 @@ class SynModel:
         syn_data['T_err'] = np.ones(nsteps)*T_err
         syn_data['p_mean'] = 1.003 - 0.00033 * syn_data['T']
         syn_data['p_err'] = 0.00033*np.random.normal(scale=T_err, size=nsteps)
-        syn_data['a'] = np.ones(nsteps)*A
+        syn_data['a'] = y[:, 6]
         syn_data['a_err'] = np.ones(nsteps)*A_err
         syn_data['M'] = y[:, 1]
         syn_data['M_err'] = np.ones(nsteps)*M_err
@@ -158,15 +175,13 @@ class SynModel:
         syn_data['X_err'] = np.ones(nsteps)*X_err
         syn_data['Mg'] = syn_data['X']/syn_data['M']*1e6
         syn_data['Mg_err'] = Mg_err
-        syn_data['z'] = prm[:, 2]
+        syn_data['z'] = prm[:, 0]
         syn_data['z_err'] = np.ones(nsteps)*z_err
         syn_data['W'] = np.ones(nsteps)*4.5
         syn_data['H'] = np.ones(nsteps)*6.0
         syn_data['dv'] = np.ones(nsteps)*1.0
-        syn_data['Mc'] = prm[:, 0]
-        syn_data['Mo'] = prm[:, 1]
-        syn_data['ll'] = prm[:, 2]
-        syn_data['mevap'] = prm[:, 3]
-        syn_data['solar'] = prm[:, 4]
-        syn_data['qi'] = prm[:, 5]
+        syn_data['Mi'] = y[:, 4]
+        syn_data['Mo'] = y[:, 5]
+        syn_data['mevap'] = prm[:, 1]
+        syn_data['qi'] = y[:, 3]/0.0864
         return pd.DataFrame(syn_data, index=dates)
