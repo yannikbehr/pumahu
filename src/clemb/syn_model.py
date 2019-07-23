@@ -62,6 +62,13 @@ class SynModel:
         vol = self.a * level
         return self.a, vol/1e3
 
+    def mass2area(self, mass, temp):
+        """
+        Compute the lake surface area from the mass and temperature.
+        """
+        v = self.volume(mass, temp)
+        return self.a, v
+
     def run(self, q_in, mode='gamma', nsteps=100, gradient=False,
             integration_method='euler'):
         """
@@ -128,7 +135,8 @@ class SynModel:
         Mo = self.outflow(ll)
         y[0, :] = [self.T0, M, X, qi[0]*0.0864,
                    Mi, Mo, H, ws]
-        fm = Forwardmodel(method=integration_method)
+        fm = Forwardmodel(method=integration_method,
+                          mass2area=self.mass2area)
         for i in range(nsteps-1):
             prm[i, 0] = ll
             dt = (dates[i+1] - dates[i])/pd.Timedelta('1D')

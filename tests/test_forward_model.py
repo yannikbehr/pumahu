@@ -137,16 +137,16 @@ class ForwardModelTestCase(unittest.TestCase):
                                                        15.374, 16.717]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['M'].values,
-                                             np.array([8782.84, 8783.273,
-                                                       8786.091, 8789.453]),
+                                             np.array([8782.84, 8783.277,
+                                                       8786.092, 8789.457]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['X'].values,
                                              np.array([2., 1.998,
                                                        1.996, 1.993]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['Mo'].values,
-                                             np.array([8.72, 9.218,
-                                                       14.394, 14.394]),
+                                             np.array([8.72, 9.225,
+                                                       14.395, 14.395]),
                                              decimal=3)
 
         # Test with 4th order Runge-Kutta
@@ -157,16 +157,16 @@ class ForwardModelTestCase(unittest.TestCase):
                                                        15.294, 16.588]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['M'].values,
-                                             np.array([8782.84, 8783.277,
-                                                       8786.262, 8789.633]),
+                                             np.array([8782.84, 8783.281,
+                                                       8786.262, 8789.637]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['X'].values,
                                              np.array([2., 1.998,
                                                        1.996, 1.993]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['Mo'].values,
-                                             np.array([8.72, 9.037,
-                                                       14.326, 14.326]),
+                                             np.array([8.72, 9.045,
+                                                       14.328, 14.328]),
                                              decimal=3)
 
         # Test with 4th order Runge-Kutta and Qi gradient
@@ -178,16 +178,16 @@ class ForwardModelTestCase(unittest.TestCase):
                                                        15.984, 17.727]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['M'].values,
-                                             np.array([8782.84, 8784.709,
-                                                       8787.513, 8790.574]),
+                                             np.array([8782.84, 8784.713,
+                                                       8787.516, 8790.579]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['X'].values,
                                              np.array([2., 1.998,
                                                        1.995, 1.991]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(df['Mo'].values,
-                                             np.array([8.72, 12.06,
-                                                       17.428, 17.428]),
+                                             np.array([8.72, 12.066,
+                                                       17.432, 17.432]),
                                              decimal=3)
 
 if __name__ == '__main__':

@@ -6,7 +6,32 @@ from scipy.optimize import brentq
 
 class Forwardmodel:
 
-    def __init__(self, method='euler'):
+    def __init__(self, method='euler', level2volume=None, mass2area=None):
+        """
+        Physical model of the crater lake energy and mass balance.
+
+        Besides the physical model this class also provides different methods
+        to integrate the ODEs using either Eulers method, 2nd order Runge-Kutta
+        or 4th order Runge-Kutta.
+
+        Parameters
+        ----------
+        method : string
+                 The integration method. Can be either 'euler'
+                 (Euler's method), 'rk2' (2nd order Runge-Kutta),
+                 or 'rk4' (4th order Runge-Kutta)
+
+        level2volume : function
+                       A function to compute lake volume and surface area from
+                       the lake level. Takes the lake level as input and return
+                       lake surface area and volume (in that order).
+
+        mass2area : function
+                    A function to compute lake surface area from the lake mass
+                    and temperature. Takes the mass and temperature as input
+                    and return surface area and volume (in that order).
+        """
+
         self.steam = None
         self.evap = None
         if method == 'euler':
@@ -19,6 +44,16 @@ class Forwardmodel:
             msg = 'Please choose one of the following'
             msg += 'integration methods: euler, rk2, rk4.'
             raise ValueError(msg)
+
+        if level2volume is None:
+            self.level2volume = self.fullness
+        else:
+            self.level2volume = level2volume
+
+        if mass2area is None:
+            self.mass2area = self.inverse_fullness
+        else:
+            self.mass2area = mass2area
 
     def get_evap(self):
         return self.evap
@@ -267,7 +302,7 @@ class Forwardmodel:
              Time step
         """
         cw = 0.0042
-        a, v = self.inverse_fullness(state[1], state[0])
+        a, v = self.mass2area(state[1], state[0])
         qe, me = self.surface_loss(state[0], state[7], a)
         qi = state[3] - state[4] * state[0] * cw
         steam = state[3] / state[6]
