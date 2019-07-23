@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 
 import numpy as np
+from scipy.optimize import brentq
 
 
 class Forwardmodel:
@@ -151,6 +152,38 @@ class Forwardmodel:
         vol[idx2] /= 1000.
         return a, vol
 
+    def inverse_fullness(self, mass, temperature):
+        """
+        Infer lake level, volume, and lake area from mass and temperature.
+
+        Parameters
+        ----------
+        mass : float
+               Mass of the lake [1e6kg]
+        temperature : float
+               Water temperature of the lake [degC]
+
+        Returns
+        -------
+        area : float
+               Lake surface area [m^2]
+        volume : float
+                 Volume of the lake [1e3m^3]
+        """
+        p = 1.003 - 0.00033 * temperature
+        v = mass / p
+
+        def f(h, v):
+            return ((4.747475*np.power(h, 3)-34533.8*np.power(h, 2)
+                    + 83773360.*h-67772125000.)/1000. - v)
+        z = brentq(f, 2400, 2600, args=v)
+        if z >= 2400.:
+            v1 = f(z+1., 0.)
+            a = (v1 - v) * 1000.
+            return (a, v)
+        else:
+            return (193400., v)
+
     def esol(self, ndays, a, dtime):
         """
         Solar Incident Radiation based on yearly guess & month.
@@ -220,8 +253,7 @@ class Forwardmodel:
                 The state array has to have the following order
                 [temperature, lake mass, total ion amount,
                  volcanic heat input rate, mass inflow rate,
-                 mass outflow rate, lake surface area,
-                 lake volume, enthalpy, wind speed]
+                 mass outflow rate, enthalpy, wind speed]
 
         time : datetime
                Time at which the derivatives are computed. This is
@@ -230,16 +262,16 @@ class Forwardmodel:
              The gradient of the model parameters in the following
              order:
              [volcanic heat input rate, mass inflow rate,
-              mass outflow rate, lake surface area,
-              lake volume, enthalpy, wind speed]
+              mass outflow rate, enthalpy, wind speed]
         dt : float
              Time step
         """
         cw = 0.0042
-        qe, me = self.surface_loss(state[0], state[9], state[6])
+        a, v = self.inverse_fullness(state[1], state[0])
+        qe, me = self.surface_loss(state[0], state[7], a)
         qi = state[3] - state[4] * state[0] * cw
-        steam = state[3] / state[8]
-        solar = self.esol(dt, state[6], time)
+        steam = state[3] / state[6]
+        solar = self.esol(dt, a, time)
         self.steam = steam
         self.evap = (qe, me)
         # energy loss due to outflow

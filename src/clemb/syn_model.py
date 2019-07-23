@@ -115,7 +115,7 @@ class SynModel:
                                   freq='D')
             nsteps = 4
 
-        y = np.zeros((nsteps, 10))
+        y = np.zeros((nsteps, 8))
         prm = np.zeros((nsteps, 2))
         V = 8800
         A = self.a
@@ -127,17 +127,17 @@ class SynModel:
         ll = self.level(V, A)
         Mo = self.outflow(ll)
         y[0, :] = [self.T0, M, X, qi[0]*0.0864,
-                   Mi, Mo, self.a, V, H, ws]
+                   Mi, Mo, H, ws]
         fm = Forwardmodel(method=integration_method)
         for i in range(nsteps-1):
             prm[i, 0] = ll
             dt = (dates[i+1] - dates[i])/pd.Timedelta('1D')
             if not gradient:
-                dp = [0.] * 7
+                dp = [0.] * 5
                 y[i, 3] = qi[i]*0.0864
                 y[i, 5] = Mo
             else:
-                dp = [0.] * 7
+                dp = [0.] * 5
                 dp[0] = (qi[i+1] - qi[i])*0.0864/dt
                 y[i, 5] = Mo
             y_new = fm.integrate(y[i], dates[i], dt, dp)
