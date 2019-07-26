@@ -70,7 +70,8 @@ class SynModel:
         return self.a, v
 
     def run(self, q_in, mode='gamma', nsteps=100, gradient=False,
-            integration_method='euler'):
+            integration_method='euler', addnoise=False, 
+            estimatenoise=False):
         """
         Produce synthetic observations.
         """
@@ -192,4 +193,19 @@ class SynModel:
         syn_data['Mo'] = y[:, 5]
         syn_data['mevap'] = prm[:, 1]
         syn_data['qi'] = y[:, 3]/0.0864
-        return pd.DataFrame(syn_data, index=dates)
+
+        if addnoise:
+            syn_data['T'] += np.random.normal(scale=T_err, size=nsteps)
+            syn_data['M'] += np.random.normal(scale=M_err, size=nsteps)
+            syn_data['X'] += np.random.normal(scale=X_err, size=nsteps)
+
+        df = pd.DataFrame(syn_data, index=dates)
+        if estimatenoise:
+            df_mean = df.groupby(pd.Grouper(freq='D')).mean()
+            df_std = df.groupby(pd.Grouper(freq='D')).std()
+            df_mean['T_err'] = df_std['T']
+            df_mean['M_err'] = df_std['M']
+            df_mean['X_err'] = df_std['X']
+            return df_mean
+
+        return df
