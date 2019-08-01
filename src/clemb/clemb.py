@@ -5,18 +5,21 @@ temperature, wind speed and chemical dilution.
 
 from collections import defaultdict
 import datetime
-from functools import partial
+from functools import partial, lru_cache
 import os
 
 import numpy as np
-from numpy.ma import masked_equal
+from numpy.ma import (masked_equal, masked_less_equal,
+                      masked_invalid, masked_less)
 import pandas as pd
 import pkg_resources
 from scipy.interpolate import interp1d
+from scipy.stats import gaussian_kde, uniform
+from scipy.integrate import trapz, cumtrapz
 import xarray as xr
 
 from nsampling import (NestedSampling, Uniform,
-                       Normal, Constant)
+                       Normal, InvCDF, Constant)
 
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 from filterpy.kalman import KalmanFilter as KF
@@ -25,37 +28,53 @@ from filterpy.common import Q_continuous_white_noise
 
 import progressbar
 
-from clemb.forward_model import forward_model, fullness, esol, es
+from clemb.forward_model import Forwardmodel 
 
 
-def likelihood(vals, y1, cov, month, dt, ws):
-    """
-    Callback function to compute the log-likelihood for nested sampling.
-    """
-    try:
+class LikeliHood:
+
+    def __init__(self, data, month, dt, ws, cov, Mvar):
+        self.data = data
+        self.month = month
+        self.dt = dt
+        self.ws = ws
+        self.Mvar = np.eye(3)*Mvar
         # the precision matrix is the inverse of the
         # covariance matrix
-        prec = np.linalg.inv(cov)
-        factor = -np.log(np.power(2.*np.pi, cov.shape[0])
-                         + np.sqrt(np.linalg.det(cov)))
-        Q_in = vals[0]*0.0864
-        M_melt = vals[1]
-        Mout = vals[2]
-        H = vals[3]
-        T = vals[4]
-        M = vals[5]
-        X = vals[6]
-        a = vals[7]
-        v = vals[8]
-        y0 = np.array([T, M, X])
-        solar = esol(dt, a, month)
-        y_new, steam, mevap = forward_model(y0, dt, a, v, Q_in,
-                                            M_melt, Mout, solar,
-                                            H, ws, method='euler')
-        lh = factor - 0.5*np.dot(y_new-y1, np.dot(prec, y_new-y1))
-    except:
-        raise Exception("Oh no, a SamplingException!")
-    return lh
+        self.prec = np.linalg.inv(cov)
+        self.factor = -np.log(np.power(2.*np.pi, cov.shape[0])
+                              + np.sqrt(np.linalg.det(cov)))
+        self.samples = []
+
+    def get_samples(self):
+        return np.array(self.samples)
+
+    def run_lh(self, vals, sid):
+        """
+        Callback function to compute the log-likelihood for nested sampling.
+        """
+        try:
+            Q_in = vals[0]*0.0864
+            M_melt = vals[1]
+            Mout = vals[2]
+            H = vals[3]
+            T = vals[4]
+            M = vals[5]
+            X = vals[6]
+            a = vals[7]
+            v = vals[8]
+            y0 = np.array([T, M, X])
+            solar = esol(self.dt, a, self.month)
+            y_new, steam, mevap = forward_model(y0, self.dt, a, v, Q_in,
+                                                M_melt, Mout, solar,
+                                                H, self.ws, method='euler')
+            y_new += np.random.multivariate_normal(np.zeros(3), self.Mvar)
+            lh = self.factor - 0.5*np.dot(y_new-self.data,
+                                          np.dot(self.prec, y_new-self.data))
+            self.samples.append([y_new, steam, mevap, lh, sid])
+        except:
+            raise Exception("Oh no, a SamplingException!")
+        return lh
 
 
 def df_resample(df):
@@ -82,6 +101,83 @@ def common_date(date):
                        month=date.month,
                        day=date.day)
     return ndt
+
+
+@lru_cache(maxsize=4)
+def FITS_request(obs, lake='RCL'):
+    """
+    Request measurements from FITS.
+
+    Parameter
+    ---------
+    obs : string
+          The observation type to request. Can be either 'T' for
+          temperature, 'L' for water level, or 'Mg' for Mg++
+          concentration.
+    lake : string
+           The lake for which to request the data. Currently the
+           only option is 'RCL' for Ruapehu Crater Lake.
+
+    Returns
+    -------
+    df : pandas.DataFrame
+         Returns a dataframe with columns 'obs' and 'obs_err' and
+         the date-time of the observation as the index.
+    """
+    if lake == 'RCL':
+        if obs == 'T':
+            # Temperature has been recorded by 3 different sensors so
+            # 3 individual requests have to be made
+            url = "https://fits.geonet.org.nz/observation?"
+            url += "siteID=RU001&typeID=t&methodID={}"
+            names = ['obs', 'obs_err']
+            tdf1 = pd.read_csv(url.format('therm'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            tdf2 = pd.read_csv(url.format('thermcoup'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            tdf3 = pd.read_csv(url.format('logic'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            tdf3 = tdf3.combine_first(tdf2)
+            tdf3 = tdf3.combine_first(tdf1)
+            return tdf3
+
+        if obs == 'L':
+            # Get lake level
+            # The lake level data is stored with respect to the overflow level
+            # of the lake. Unfortunately, that level has changed over time so
+            # to get the absolute lake level altitude, data from different
+            # periods have to be corrected differently. Also, lake level data
+            # has been measured by different methods requiring several
+            # requests.
+            url = "https://fits.geonet.org.nz/observation?siteID={}&typeID=z"
+            names = ['obs', 'obs_err']
+            ldf = pd.read_csv(url.format('RU001'),
+                              index_col=0, names=names, skiprows=1,
+                              parse_dates=True)
+            ldf1 = pd.read_csv(url.format('RU001A'),
+                               index_col=0, names=names, skiprows=1,
+                               parse_dates=True)
+            ll_df = ldf.combine_first(ldf1)
+            t1 = '1997-01-01'
+            t2 = '2012-12-31'
+            t3 = '2016-01-01'
+            ll_df.loc[ll_df.index < t1, 'obs'] = 2530. + \
+                ll_df.loc[ll_df.index < t1, 'obs']
+            ll_df.loc[(ll_df.index > t1) & (ll_df.index < t2), 'obs'] = 2529.5 + (ll_df.loc[(ll_df.index > t1) & (ll_df.index < t2), 'obs'] - 1.3)
+            ll_df.loc[ll_df.index > t3, 'obs'] = 2529.35 + (ll_df.loc[ll_df.index > t3, 'obs'] - 2.0)
+            return ll_df
+
+        if obs == 'Mg':
+            # Get Mg++ concentration
+            url = "https://fits.geonet.org.nz/observation?"
+            url += "siteID=RU003&typeID=Mg-w"
+            names = ['obs', 'obs_err']
+            mg_df = pd.read_csv(url, index_col=0, names=names, skiprows=1,
+                                parse_dates=True)
+            return mg_df
 
 
 def interpolate_mg(df, dt=1):
@@ -115,7 +211,7 @@ def interpolate_mg(df, dt=1):
 
     dts = np.r_[0, np.cumsum(np.diff(df.index).astype(int)/(86400*1e9))]
     dts = dts[:, np.newaxis]
-    ny = df['obs'].values
+    ny = df['Mg'].values
     ny = np.where(np.isnan(ny), None, ny)
 
     points = MerweScaledSigmaPoints(n=2, alpha=.01, beta=2., kappa=1.)
@@ -135,33 +231,71 @@ def interpolate_mg(df, dt=1):
     Ms, P, K = kf.rts_smoother(means, covariances)
     y_new = np.r_[ny[0], Ms[:, 0]]
     y_std = np.r_[50, np.sqrt(P[:, 0, 0])]
-    return pd.DataFrame({'obs': y_new,
-                         'obs_err': y_std,
-                         'orig': df['obs'].values},
+    return pd.DataFrame({'Mg': y_new,
+                         'Mg_err': y_std,
+                         'Mg_orig': df['Mg'].values},
                         index=df.index)
 
 
-def get_mg_data(tstart=None,
-                tend=datetime.datetime.utcnow().strftime("%Y-%m-%d")):
-    # Get Mg++ concentration
-    url = "https://fits.geonet.org.nz/observation?siteID=RU003&typeID=Mg-w"
-    names = ['obs', 'obs_err']
-    mg_df = pd.read_csv(url, index_col=0, names=names, skiprows=1,
-                        parse_dates=True)
+def get_Mg(tstart=None, tend=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+           smoothing='kf'):
+    """
+    Get Mg++ measurements and estimate the measurement error.
+
+    Parameters
+    ----------
+    tstart : string
+             The start date of the time series following the format
+             'yyyy-mm-dd'. The effective start of the time series will be
+             either tstart or the first non-NAN entry after tstart.
+    tend : string
+           The end date of the time series following the same format as tstart.
+    smoothing : string
+                Defines the smoothing method to estimate the mean and
+                uncertainty. This can be either 'kf' for Kalman filter or
+                'dv' for daily variation. The latter computes the daily mean
+                and standard deviation.
+    """
+    df = FITS_request('Mg')
     if tstart is not None:
         # Find the sampling date that is closest to the requested
         # start time
-        idx = np.abs((mg_df.index - pd.Timestamp(tstart))).argmin()
-        _tstart = mg_df.index[idx]
+        idx = np.abs((df.index - pd.Timestamp(tstart))).argmin()
+        _tstart = df.index[idx]
     else:
-        _tstart = mg_df.index.min()
-    mg_df = mg_df.loc[(mg_df.index >= _tstart) & (mg_df.index <= tend)]
-
-    mg_df = mg_df.groupby(common_date, axis=0).mean()
+        _tstart = df.index.min()
+    df = df.loc[(df.index >= _tstart) & (df.index <= tend)]
+    df.rename(columns={'obs': 'Mg', 'obs_err': 'Mg_err'}, inplace=True)
     new_dates = pd.date_range(start=_tstart, end=tend, freq='D')
-    mg_df = mg_df.reindex(index=new_dates)
-    img_df = interpolate_mg(mg_df)
-    return img_df.loc[(img_df.index >= tstart) & (img_df.index <= tend)]
+    if smoothing == 'kf':
+        mg_df = df.groupby(pd.Grouper(freq='D')).mean()
+        mg_df = mg_df.reindex(index=new_dates)
+        img_df = interpolate_mg(mg_df)
+        return img_df.loc[(img_df.index >= _tstart) & (img_df.index <= tend)]
+    elif smoothing == 'dv':
+        # First compute the expected variance from the days
+        # when we had two samples taken
+        dates = []
+        stds = {}
+        for i in range(1, df.shape[0]):
+            d0 = df.iloc[i-1].name.date()
+            d1 = df.iloc[i].name.date()
+            if d1 == d0:
+                stds[d1] = np.std([df.iloc[i-1]['Mg'],
+                                   df.iloc[i]['Mg']])
+                dates.append(d1)
+        stds_mean = np.mean(list(stds.values()))
+        mg_df = df.groupby(common_date, axis=0).mean()
+        for d in mg_df.index:
+            dt = d.date()
+            if dt in dates:
+                mg_df.loc[dt]['Mg_err'] = stds[dt]
+            else:
+                mg_df.loc[dt]['Mg_err'] = stds_mean
+        mg_df = mg_df.reindex(index=new_dates)
+        return mg_df
+    else:
+        raise ValueError('smoothing has to be either "kf" or "dv".')
 
 
 def interpolate_T(df, dt=1):
@@ -190,29 +324,35 @@ def interpolate_T(df, dt=1):
                         index=df.index)
 
 
-def get_T(tstart=None, tend=datetime.datetime.utcnow().strftime("%Y-%m-%d")):
-    # Get temperature
-    # Temperature has been recorded by 3 different sensors so 3 individual
-    # requests have to be made
-    url = "https://fits.geonet.org.nz/observation?"
-    url += "siteID=RU001&typeID=t&methodID={}"
-    names = ['t', 't_err']
-    tdf1 = pd.read_csv(url.format('therm'),
-                       index_col=0, names=names, skiprows=1,
-                       parse_dates=True)
-    tdf2 = pd.read_csv(url.format('thermcoup'),
-                       index_col=0, names=names, skiprows=1,
-                       parse_dates=True)
-    tdf3 = pd.read_csv(url.format('logic'),
-                       index_col=0, names=names, skiprows=1,
-                       parse_dates=True)
-    tdf3 = tdf3.combine_first(tdf2)
-    t_df = tdf3.combine_first(tdf1)
+def get_T(tstart=None, tend=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+          smoothing='kf'):
+    """
+    Get temperature measurements from FITS and estimate the measurement error.
+
+    Parameters
+    ----------
+    tstart : string
+             The start date of the time series following the format
+             'yyyy-mm-dd'. The effective start of the time series will be
+             either tstart or the first non-NAN entry after tstart.
+    tend : string
+           The end date of the time series following the same format as tstart.
+    smoothing : string
+                Defines the smoothing method to estimate the mean and
+                uncertainty. This can be either 'kf' for Kalman filter or
+                'dv' for daily variation. The latter computes the daily mean
+                and standard deviation.
+    """
+    df = FITS_request('T')
     if tstart is not None:
-        tstart = max(t_df.index.min(), pd.Timestamp(tstart))
+        tstart = max(df.index.min(), pd.Timestamp(tstart))
     else:
-        tstart = t_df.index.min()
-    t_df = t_df.groupby(common_date, axis=0).mean()
+        tstart = df.index.min()
+    df.rename(columns={'obs': 't', 'obs_err': 't_err'}, inplace=True)
+    t_df = df.groupby(pd.Grouper(freq='D')).mean()
+    t_df_std = df.groupby(pd.Grouper(freq='D')).std()
+    t_df['t_err'] = t_df_std['t']
+    t_df['t_orig'] = t_df['t']
     t_df = t_df.loc[(t_df.index >= tstart) & (t_df.index <= tend)]
     new_dates = pd.date_range(start=tstart, end=tend, freq='D')
     t_df = t_df.reindex(index=new_dates)
@@ -220,7 +360,12 @@ def get_T(tstart=None, tend=datetime.datetime.utcnow().strftime("%Y-%m-%d")):
     tstart_min = t_df.loc[~t_df['t'].isnull()].index[0]
     # Ensure the time series starts with a non-NaN value
     t_df = t_df.loc[t_df.index >= tstart_min]
-    return interpolate_T(t_df)
+    if smoothing == 'kf':
+        return interpolate_T(t_df)
+    elif smoothing == 'dv':
+        return t_df
+    else:
+        raise ValueError('smoothing has to be either "kf" or "dv".')
 
 
 def interpolate_ll(df, dt=1):
@@ -231,10 +376,6 @@ def interpolate_ll(df, dt=1):
     kf = KF(dim_x=1, dim_z=1)
     kf.F = np.array([[1.]])
     kf.H = np.array([[1.]])
-    if ny[1] is not None:
-        dT0 = ny[1] - ny[0]
-    else:
-        dT0 = 0.
     kf.x = np.array([ny[0]])
     kf.Q = 1e-2**2
     kf.P = 0.03**2
@@ -249,33 +390,35 @@ def interpolate_ll(df, dt=1):
                         index=df.index)
 
 
-def get_ll(tstart=None, tend=datetime.datetime.utcnow().strftime("%Y-%m-%d")):
-    # Get lake level
-    # The lake level data is stored with respect to the overflow level of
-    # the lake. Unfortunately, that level has changed over time so to get
-    # the absolute lake level altitude, data from different periods have to
-    # be corrected differently. Also, lake level data has been measured by
-    # different methods requiring several requests.
-    url = "https://fits.geonet.org.nz/observation?siteID={}&typeID=z"
-    names = ['h', 'h_err']
-    ldf = pd.read_csv(url.format('RU001'),
-                      index_col=0, names=names, skiprows=1,
-                      parse_dates=True)
-    ldf1 = pd.read_csv(url.format('RU001A'),
-                       index_col=0, names=names, skiprows=1,
-                       parse_dates=True)
-    ll_df = ldf.combine_first(ldf1)
-    ll_df.loc[ll_df.index < '1997-01-01', 'h'] = 2530. + \
-        ll_df.loc[ll_df.index < '1997-01-01', 'h']
-    ll_df.loc[(ll_df.index > '1997-01-01') & (ll_df.index < '2012-12-31'), 'h'] = 2529.5 + \
-              (ll_df.loc[(ll_df.index > '1997-01-01') & (ll_df.index < '2012-12-31'), 'h'] - 1.3)
-    ll_df.loc[ll_df.index > '2016-01-01', 'h'] = 2529.35 + (ll_df.loc[ll_df.index > '2016-01-01', 'h'] - 2.0)
-    
+def get_ll(tstart=None, tend=datetime.datetime.utcnow().strftime("%Y-%m-%d"),
+           smoothing='kf'):
+    """
+    Get lake level measurements from FITS and estimate the measurement error.
+
+    Parameters
+    ----------
+    tstart : string
+             The start date of the time series following the format
+             'yyyy-mm-dd'. The effective start of the time series will be
+             either tstart or the first non-NAN entry after tstart.
+    tend : string
+           The end date of the time series following the same format as tstart.
+    smoothing : string
+                Defines the smoothing method to estimate the mean and
+                uncertainty. This can be either 'kf' for Kalman filter or
+                'dv' for daily variation. The latter computes the daily mean
+                and standard deviation.
+    """
+    df = FITS_request('L')
+    df.rename(columns={'obs': 'h', 'obs_err': 'h_err'}, inplace=True)
     if tstart is not None:
-        tstart = max(ll_df.index.min(), pd.Timestamp(tstart))
+        tstart = max(df.index.min(), pd.Timestamp(tstart))
     else:
-        tstart = ll_df.index.min()
-    ll_df = ll_df.groupby(common_date, axis=0).mean()
+        tstart = df.index.min()
+    ll_df = df.groupby(common_date, axis=0).mean()
+    ll_df_std = df.groupby(common_date, axis=0).std()
+    ll_df['h_err'] = ll_df_std['h']
+    ll_df['h_orig'] = ll_df['h']
     ll_df = ll_df.loc[(ll_df.index >= tstart) & (ll_df.index <= tend)]
     new_dates = pd.date_range(start=tstart, end=tend, freq='D')
     ll_df = ll_df.reindex(index=new_dates)
@@ -283,7 +426,12 @@ def get_ll(tstart=None, tend=datetime.datetime.utcnow().strftime("%Y-%m-%d")):
     tstart_min = ll_df.loc[~ll_df['h'].isnull()].index[0]
     # Ensure the time series starts with a non-NaN value
     ll_df = ll_df.loc[ll_df.index >= tstart_min]
-    return interpolate_ll(ll_df)
+    if smoothing == 'kf':
+        return interpolate_ll(ll_df)
+    elif smoothing == 'dv':
+        return ll_df
+    else:
+        raise ValueError('smoothing has to be either "kf" or "dv".')
 
 
 class LakeDataCSV:
@@ -345,18 +493,23 @@ def derived_obs(df1, df2, df3, nsamples=100):
     water density and lake mass using Monte Carlo sampling
     """
     rn1 = np.random.randn(df1['obs'].size, nsamples)
-    rn1 = rn1*np.tile(df1['obs_err'].values, (nsamples,1)).T + np.tile(df1['obs'].values, (nsamples,1)).T
+    rn1 = rn1*np.tile(df1['obs_err'].values,
+                      (nsamples, 1)).T + np.tile(df1['obs'].values,
+                                                 (nsamples, 1)).T
 
     rn2 = np.random.randn(df3['h'].size, nsamples)
-    rn2 = rn2*np.tile(df3['h_err'].values, (nsamples, 1)).T + np.tile(df3['h'].values, (nsamples,1)).T
+    rn2 = rn2*np.tile(df3['h_err'].values,
+                      (nsamples, 1)).T + np.tile(df3['h'].values,
+                                                 (nsamples, 1)).T
     a, vol = fullness(rn2)
     X = rn1*vol*1.e-6
-    
+
     p_mean = 1.003 - 0.00033 * df2['t'].values
     p_std = 0.00033*df2['t_err'].values
-    
+
     rn3 = np.random.randn(p_mean.size, nsamples)
-    rn3 = rn3*np.tile(p_std, (nsamples, 1)).T + np.tile(p_mean, (nsamples,1)).T
+    rn3 = rn3*np.tile(p_std, (nsamples, 1)).T + np.tile(p_mean,
+                                                        (nsamples, 1)).T
     M = rn3*vol
     return (X.mean(axis=1), X.std(axis=1), vol.mean(axis=1), vol.std(axis=1),
             p_mean, p_std, M.mean(axis=1), M.std(axis=1),
@@ -481,7 +634,8 @@ class Clemb:
     magnesium and chloride ions.
     """
 
-    def __init__(self, lakedata, winddata, start, end, h=6., pre_txt=None):
+    def __init__(self, lakedata, winddata, start, end, h=6.,
+                 pre_txt=None, resultsd='./', save_results=True):
         """
         Load the lake data (temperature, lake level, concentration of Mg++,
         Cl-, O18 and deuterium) and the wind data.
@@ -499,9 +653,10 @@ class Clemb:
         self.use_drmg = False
         # Specific heat for water
         self.cw = 0.0042
-        self.results_dir = './'
+        self.results_dir = resultsd
+        self.save_results = save_results 
         self.fullness = fullness
-        
+
     def get_variable(self, key):
         if key in self._ld:
             return self._ld[key]
@@ -547,7 +702,8 @@ class Clemb:
     def run_backward(self, new=False):
         """
         Compute the amount of steam and energy that has to be put into a crater
-        lake to cause an observed temperature change.
+        lake to cause an observed temperature change. This computation runs
+        the model backward using a finite difference approach.
         """
         tstart = self._dates[0]
         tend = self._dates[-1]
@@ -638,13 +794,25 @@ class Clemb:
                           'wind': (('dates'), self._df['W'][:-1].values),
                           'llvl': (('dates'), self._df['z'][:-1].values)},
                          {'dates': self._dates[:-1]})
-        res.to_netcdf(res_fn)
+        if self.save_results:
+            res.to_netcdf(res_fn)
         return res
 
     def run_forward(self, nsamples=10000, nresample=500, q_in_min=0.,
-                    q_in_max=1000., m_in_min=0., m_in_max=20., 
+                    q_in_max=1000., m_in_min=0., m_in_max=20.,
                     m_out_min=0., m_out_max=20., new=False,
-                    m_out_prior=None, tolZ=1e-3, lh_fun=None):
+                    m_out_prior=None, tolZ=1e-3, lh_fun=None,
+                    prior_sampling=True, prior_resample=1000,
+                    Q_scale=100., dQdT=1e3, tolH=3., ws=4.5,
+                    Mvar=np.zeros((3, 3)), seed=-1):
+        """
+        Compute the amount of steam and energy that has to be put into a crater
+        lake to cause an observed temperature change. This computation runs
+        the model forward, optimising the input parameters using MCMC sampling.
+        The scheme tries to optimise the misfit between the observed and
+        predicted temperature, water level, and chemical concentration
+        assuming normally distributed observation errors.
+        """
         tstart = self._dates[0]
         tend = self._dates[-1]
         res_fn = 'forward_{:s}_{:s}.nc'
@@ -669,28 +837,34 @@ class Clemb:
         if m_out_prior is not None:
             a = np.load(m_out_prior)
             z, m_out_min, m_out_max = a['z'], a['o_min'], a['o_max']
-            f_m_out_min = interp1d(z, m_out_min, fill_value='interpolate') 
+            f_m_out_min = interp1d(z, m_out_min, fill_value='interpolate')
             f_m_out_max = interp1d(z, m_out_max, fill_value='interpolate')
         else:
             m_out = Uniform('m_out', m_out_min, m_out_max)
-        ws = 4.5
+
+        if nresample < 0:
+            nrsp = nsamples
+        else:
+            nrsp = nresample
 
         # return values
-        qin_samples = np.zeros((nsteps, nresample))
-        m_in_samples = np.zeros((nsteps, nresample))
-        m_out_samples = np.zeros((nsteps, nresample))
-        h_samples = np.zeros((nsteps, nresample))
-        lh = np.zeros((nsteps, nresample))
-        wt = np.zeros((nsteps, nresample))
-        exp = np.zeros((nsteps, nparams))
-        var = np.zeros((nsteps, nparams))
-        mx = np.zeros((nsteps, nparams+1))
-        ig = np.zeros((nsteps))
-        z = np.zeros((nsteps, 2))
-        model_data = np.zeros((nsteps, nresample, 3))
-        steam = np.zeros((nsteps, nresample))
-        mevap = np.zeros((nsteps, nresample))
-
+        qin_samples = np.zeros((nsteps, nrsp))*np.nan
+        m_in_samples = np.zeros((nsteps, nrsp))*np.nan
+        m_out_samples = np.zeros((nsteps, nrsp))*np.nan
+        h_samples = np.zeros((nsteps, nrsp))*np.nan
+        lh = np.zeros((nsteps, nrsp))*np.nan
+        wt = np.zeros((nsteps, nrsp))*np.nan
+        exp = np.zeros((nsteps, nparams))*np.nan
+        var = np.zeros((nsteps, nparams))*np.nan
+        mx = np.zeros((nsteps, nparams+1))*np.nan
+        ig = np.zeros((nsteps))*np.nan
+        z = np.zeros((nsteps, 2))*np.nan
+        zs = np.zeros((nsteps, nrsp))*np.nan
+        hs = np.zeros((nsteps, nrsp))*np.nan
+        model_data = np.zeros((nsteps, nrsp, 3))*np.nan
+        steam = np.zeros((nsteps, nrsp))*np.nan
+        mevap = np.zeros((nsteps, nrsp))*np.nan
+        priors = np.zeros((nsteps, prior_resample))*np.nan
 
         with progressbar.ProgressBar(max_value=nsteps-1) as bar:
             for i in range(nsteps):
@@ -703,7 +877,8 @@ class Clemb:
                 if m_out_prior is not None:
                     m_out_min = f_m_out_min(self._df['z'][i])
                     m_out_max = f_m_out_max(self._df['z'][i])
-                    m_out = Uniform('m_out', float(m_out_min), float(m_out_max))       
+                    m_out = Uniform('m_out', float(m_out_min),
+                                    float(m_out_max))
                 T_sigma = self._df['T_err'][i+1]
                 M_sigma = self._df['M_err'][i+1]
                 X_sigma = self._df['X_err'][i+1]
@@ -717,26 +892,34 @@ class Clemb:
                 y = np.array([T, M, X])
                 y_next = np.array([T_next, M_next, X_next])
                 dt = (self._dates[i+1] - self._dates[i])/pd.Timedelta('1D')
-                ns = NestedSampling()
+                ns = NestedSampling(seed=seed)
+                _lh = LikeliHood(data=y_next, dt=dt, ws=ws, cov=cov,
+                                 month=self._dates[i].month,
+                                 Mvar=Mvar)
                 if lh_fun is None:
-                    lh_fun = likelihood
-                _lh = partial(lh_fun, y1=y_next, cov=cov,
-                              month=self._dates[i].month, dt=dt, ws=ws)
+                    _lh_fun = _lh.run_lh
+                else:
+                    _lh_fun = lh_fun
                 rs = ns.explore([qin, m_in, m_out, h, T, M, X, a, v], 100,
-                                nsamples, _lh, 20, 0.1, tolZ)
+                                nsamples, _lh_fun, 40, 0.1, tolZ, tolH)
                 del T, M, X, v, a
-                smp = rs.resample_posterior(nresample)
+
+                if nresample > 0:
+                    smp = rs.resample_posterior(nresample)
+                else:
+                    smp = rs.get_samples()
+
                 exp[i, :] = rs.getexpt()
                 var[i, :] = rs.getvar()
                 mx[i, :] = rs.getmax()
                 ig[i] = rs.getH()
                 z[i, :] = rs.getZ()
+                lh_samples = _lh.get_samples()
                 for j, _s in enumerate(smp):
                     Q_in, M_in, M_out, H, T, M, X, a, v = _s.get_value()
                     y = np.array([T, M, X])
-                    solar = esol(dt, a, self._dates[i].month)
-                    y_mod, st, me = forward_model(y, dt, a, v, Q_in*0.0864,
-                                                  M_in, M_out, solar, H, ws)
+                    sid = np.where(lh_samples[:, -1] == _s.get_id())
+                    y_mod, st, me, _, _ = lh_samples[sid][0]
                     steam[i, j] = st
                     mevap[i, j] = me
                     model_data[i, j, :] = y_mod
@@ -746,38 +929,58 @@ class Clemb:
                     h_samples[i, j] = H
                     lh[i, j] = np.exp(_s.get_logL())
                     wt[i, j] = np.exp(_s.get_logWt())
+                    zs[i, j] = _s.get_logZ()
+                    hs[i, j] = _s.get_H()
 
                 del smp, ns, rs
+                if prior_sampling:
+                    # Construct a smoothed cdf as prior for the
+                    # next step
+                    x_dnsty_Q = np.linspace(q_in_min, q_in_max, prior_resample)
+                    if True:
+                        y = qin_samples[i, :].copy()
+                        ym = masked_invalid(y)
+                        y = ym.compressed()
+                        dT = exp[i, 4] - T
+                        y += np.random.normal(scale=Q_scale, loc=dT*dQdT,
+                                              size=y.size)
+                        # get rid of negativ values
+                        msk = masked_less(y, 0.).mask
+                        y = y[~msk]
+                        kernel = gaussian_kde(y)
+                        dnsty = kernel(x_dnsty_Q)
+                        fact = trapz(dnsty, x_dnsty_Q)
+                        dnsty /= fact
+                        cdf_Q = cumtrapz(dnsty, x_dnsty_Q, initial=0)
+
+                    priors[i, :] = cdf_Q
+                    qin = InvCDF('qin', x_dnsty_Q, cdf_Q)
                 bar.update(i)
         res = xr.Dataset({'exp': (('dates', 'parameters'), exp),
                           'var': (('dates', 'parameters'), var),
-                          'max': (('dates', 'parameters'), mx[:,:-1]),
-                          'z': (('dates', 'val_std' ), z),
+                          'max': (('dates', 'parameters'), mx[:, :-1]),
+                          'z': (('dates', 'val_std'), z),
                           'ig': (('dates'), ig),
-                          'q_in': (('dates', 'sampleidx'),
-                                   masked_equal(qin_samples, 0)),
-                          'h': (('dates', 'sampleidx'),
-                                masked_equal(h_samples, 0)),
-                          'lh': (('dates', 'sampleidx'),
-                                 masked_equal(lh, 0)),
-                          'wt': (('dates', 'sampleidx'),
-                                 masked_equal(wt, 0)),
-                          'm_in': (('dates', 'sampleidx'),
-                                   masked_equal(m_in_samples, 0)),
-                          'm_out': (('dates', 'sampleidx'),
-                                    masked_equal(m_out_samples, 0)),
-                          'steam': (('dates', 'sampleidx'),
-                                    masked_equal(steam, 0)),
-                          'mevap': (('dates', 'sampleidx'),
-                                    masked_equal(mevap, 0)),
+                          'priors': (('dates', 'rs_prior'), priors),
+                          'q_in': (('dates', 'sampleidx'), qin_samples),
+                          'h': (('dates', 'sampleidx'), h_samples),
+                          'lh': (('dates', 'sampleidx'), lh),
+                          'wt': (('dates', 'sampleidx'), wt),
+                          'zs': (('dates', 'sampleidx'), zs),
+                          'hs': (('dates', 'sampleidx'), hs),
+                          'm_in': (('dates', 'sampleidx'), m_in_samples),
+                          'm_out': (('dates', 'sampleidx'), m_out_samples),
+                          'steam': (('dates', 'sampleidx'), steam),
+                          'mevap': (('dates', 'sampleidx'), mevap),
                           'model': (('dates', 'sampleidx', 'obs'),
-                                    masked_equal(model_data, 0))},
+                                    model_data)},
                          {'dates': self._dates[:-1],
                           'parameters': ['q_in', 'm_in', 'm_out',
                                          'h', 'T', 'M', 'X', 'a', 'v'],
                           'obs': ['T', 'M', 'X'],
                           'val_std': ['val', 'std']})
-        res.to_netcdf(res_fn)
+        if self.save_results:
+            res.to_netcdf(res_fn)
         return res
 
     def el(self, t1, t2, vol):

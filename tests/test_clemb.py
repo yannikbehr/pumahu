@@ -7,7 +7,10 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from clemb import LakeDataCSV, LakeDataFITS, WindDataCSV, Clemb, get_data
+from clemb import (LakeDataCSV, LakeDataFITS, WindDataCSV,
+                   Clemb, get_data, get_T, get_Mg, get_ll,
+                   FITS_request)
+from clemb.syn_model import SynModel
 
 
 class ClembTestCase(unittest.TestCase):
@@ -98,6 +101,85 @@ class ClembTestCase(unittest.TestCase):
         self.data_dir = os.path.join(os.path.dirname(os.path.abspath(
             inspect.getfile(inspect.currentframe()))), "data")
 
+    def test_FITS_request(self):
+        self.assertAlmostEqual(FITS_request('Mg').iloc[0]['obs'],
+                               3050.0)
+        self.assertAlmostEqual(FITS_request('L').iloc[0]['obs'],
+                               2503.0)
+        self.assertAlmostEqual(FITS_request('T').iloc[0]['obs'],
+                               24.4)
+
+    def test_get_T(self):
+        """
+        Test different ways of receiving and smoothing temperature readings.
+        """
+        index = pd.date_range('2019-01-01', '2019-01-03')
+        kf_test_frame = pd.DataFrame({'t': np.array([31.93833333,
+                                                     31.84910086,
+                                                     31.78383591]),
+                                      't_err': np.array([0.3, 0.08860859,
+                                                         0.24334404]),
+                                      't_orig': np.array([31.93833333,
+                                                          31.82958333,
+                                                          31.98681818])},
+                                     index=index)
+        dv_test_frame = pd.DataFrame({'t': np.array([31.93833333,
+                                                     31.82958333,
+                                                     31.98681818]),
+                                      't_err': np.array([0.35497295,
+                                                         0.66342641,
+                                                         0.3821915]),
+                                      't_orig': np.array([31.93833333,
+                                                          31.82958333,
+                                                          31.98681818])},
+                                     index=index)
+        dkf = get_T(tstart='2019-01-01', tend='2019-01-03', smoothing='kf')
+        ddv = get_T(tstart='2019-01-01', tend='2019-01-03', smoothing='dv')
+        pd.testing.assert_frame_equal(kf_test_frame, dkf)
+        pd.testing.assert_frame_equal(dv_test_frame, ddv)
+
+    def test_get_Mg(self):
+        """
+        Test different ways of receiving and smoothing temperature readings.
+        """
+        df = get_Mg(tend='2019-07-31', smoothing='dv')
+        nans = np.where(df['Mg'].isna().values, 1, 0).sum()
+        no_nans = np.where(df['Mg'].isna().values, 0, 1).sum()
+        self.assertEqual(no_nans, 137)
+        self.assertEqual(nans, 7670)
+        dkf = get_Mg(tstart='2019-01-01', tend='2019-01-03', smoothing='kf')
+        ddv = get_Mg(tstart='2019-01-01', tend='2019-01-03', smoothing='dv')
+        self.assertAlmostEqual(ddv.iloc[0]['Mg'], 373.0)
+        self.assertAlmostEqual(dkf.iloc[0]['Mg'], 373.0)
+        self.assertAlmostEqual(dkf.iloc[0]['Mg_err'], 50.0)
+
+    def test_get_ll(self):
+        index = pd.date_range('2019-01-01', '2019-01-03')
+        kf_test_frame = pd.DataFrame({'h': np.array([2529.32191667,
+                                                     2529.33634745,
+                                                     2529.33609614]),
+                                      'h_err': np.array([0.03,
+                                                         0.013484,
+                                                         0.01401298]),
+                                      'h_orig': np.array([2529.32191667,
+                                                          2529.343125,
+                                                          2529.33509091])},
+                                     index=index)
+        dv_test_frame = pd.DataFrame({'h': np.array([2529.32191667,
+                                                     2529.343125,
+                                                     2529.33509091]),
+                                      'h_err': np.array([0.00672385,
+                                                         0.01236163,
+                                                         0.01548243]),
+                                      'h_orig': np.array([2529.32191667,
+                                                          2529.343125,
+                                                          2529.33509091])},
+                                     index=index)
+        dkf = get_ll(tstart='2019-01-01', tend='2019-01-03', smoothing='kf')
+        ddv = get_ll(tstart='2019-01-01', tend='2019-01-03', smoothing='dv')
+        pd.testing.assert_frame_equal(kf_test_frame, dkf)
+        pd.testing.assert_frame_equal(dv_test_frame, ddv)
+
     def test_lake_data_fits(self):
         dl = LakeDataFITS()
         tic = time.time()
@@ -105,14 +187,12 @@ class ClembTestCase(unittest.TestCase):
         toc = time.time()
         td1 = toc - tic
         ti = self.load_fits_input()
-        np.testing.assert_array_almost_equal(df['t'].data,
+        np.testing.assert_array_almost_equal(df['T'].data,
                                              ti['temp'], 1)
-        np.testing.assert_array_almost_equal(df['h'].data,
+        np.testing.assert_array_almost_equal(df['z'].data,
                                              ti['hgt'], 1)
-        np.testing.assert_array_almost_equal(df['m'].data,
+        np.testing.assert_array_almost_equal(df['Mg'].data,
                                              ti['mg'], 0)
-        np.testing.assert_array_almost_equal(df['c'].data,
-                                             ti['cl'], 0)
         # Make sure that a second request gets the data from the cache
         # instead of requesting it again
         tic = time.time()
@@ -120,14 +200,12 @@ class ClembTestCase(unittest.TestCase):
         toc = time.time()
         td2 = toc - tic
         self.assertTrue(td2 / td1 * 100. < 0.1)
-        np.testing.assert_array_almost_equal(df1['t'].data,
+        np.testing.assert_array_almost_equal(df1['T'].data,
                                              ti['temp'], 1)
-        np.testing.assert_array_almost_equal(df1['h'].data,
+        np.testing.assert_array_almost_equal(df1['z'].data,
                                              ti['hgt'], 1)
-        np.testing.assert_array_almost_equal(df1['m'].data,
+        np.testing.assert_array_almost_equal(df1['Mg'].data,
                                              ti['mg'], 0)
-        np.testing.assert_array_almost_equal(df1['c'].data,
-                                             ti['cl'], 0)
 
     def test_lake_data_csv(self):
         ti = self.load_input()
@@ -182,6 +260,7 @@ class ClembTestCase(unittest.TestCase):
             c = Clemb(LakeDataCSV(lb), WindDataCSV(wb, default=0.0),
                       start='2003-01-16', end='2010-01-29')
             a, vol = c.fullness(pd.Series(np.ones(10) * 2529.4))
+
             fvol = np.ones(10) * 8880.29883
             diffvol = abs(vol - fvol) / fvol * 100.
             fa = np.ones(10) * 196370.188
@@ -252,9 +331,42 @@ class ClembTestCase(unittest.TestCase):
             c.update_data(start='2003-01-16', end='2003-01-20')
             self.assertTrue(np.all(c.get_variable('dv').data < 1.0))
 
+    def test_with_dq(self):
+        s = SynModel()
+        df = s.run(1000., mode='test')
+        print(df)
+
+    def test_clemb_synthetic(self):
+        c = Clemb(None, None, None, None, pre_txt='syn1',
+                  resultsd='./data', save_results=False)
+        df = SynModel().run(1000., nsteps=21)
+        df = df[(df.index >= '2017-01-03') & (df.index <= '2017-01-05')]
+        c._df = df
+        c._dates = df.index
+        rs = c.run_forward(nsamples=2000, nresample=-1, m_out_max=40.,
+                           m_in_max=40., q_in_max=1500., new=True,
+                           prior_sampling=False, tolZ=1e-3,
+                           prior_resample=10000, Q_scale=300.,
+                           dQdT=3e3, tolH=3e30, seed=42)
+        np.testing.assert_array_almost_equal(rs['exp'].loc[:, 'q_in'].data,
+                                             np.array([189.551592,
+                                                       314.575052]),
+                                             decimal=6)
+        np.testing.assert_array_almost_equal(rs['var'].loc[:, 'q_in'].data,
+                                             np.array([24437.03193914,
+                                                       38166.63362941]),
+                                             decimal=6)
+        np.testing.assert_array_almost_equal(rs['z'].data,
+                                             np.array([[-9.968557,  0.175137],
+                                                       [-9.567256,  0.164118]]),
+                                             decimal=6)
+
+
+
 
 def suite():
     return unittest.makeSuite(ClembTestCase, 'test')
+
 
 if __name__ == '__main__':
     unittest.main(defaultTest='suite')
