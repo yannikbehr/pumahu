@@ -9,6 +9,29 @@ from clemb.syn_model import SynModel
 
 class ForwardModelTestCase(unittest.TestCase):
 
+    def test_esol(self):
+        fm = Forwardmodel()
+        e = fm.esol(1, 2e5, datetime(2003,1,19,0,0,0))
+        self.assertEqual(e, 4.5)
+
+    def test_surface_loss(self):
+        fm = Forwardmodel()
+        loss, ev = fm.surface_loss(35.0, 5.0, 200000)
+        self.assertAlmostEqual(loss, 20.61027, 5)
+        self.assertAlmostEqual(ev, 4.87546, 5)
+    
+    def test_fullness(self):
+        fm = Forwardmodel()
+        a, vol = fm.fullness(np.ones(10) * 2529.4)
+        fvol = np.ones(10) * 8880.29883
+        diffvol = abs(vol - fvol) / fvol * 100.
+        fa = np.ones(10) * 196370.188
+        diffa = abs(a - fa) / fa * 100.
+        # Probably due to different precisions the numbers between the
+        # original Fortran code and the Python code differ slightly
+        self.assertTrue(np.all(diffvol < 0.0318))
+        self.assertTrue(np.all(diffa < 0.000722))
+
     def test_without_q_gradient(self):
         """
         Test forward model assuming no gradient

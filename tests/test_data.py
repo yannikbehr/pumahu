@@ -1,13 +1,14 @@
 from collections import defaultdict
 import inspect
 import os
-import time
 import unittest
+import warnings
 
 import numpy as np
 import pandas as pd
 
-from clemb.data import LakeData, WindDataCSV
+from clemb import get_data
+from clemb.data import LakeData, WindData
 
 
 class DataTestCase(unittest.TestCase):
@@ -74,10 +75,6 @@ class DataTestCase(unittest.TestCase):
         self.data_dir = os.path.join(os.path.dirname(os.path.abspath(
             inspect.getfile(inspect.currentframe()))), "data")
 
-    def get_test_data(self, filename):
-        fh = open(os.path.join(self.data_dir, filename))
-        return fh
-
     def test_FITS_request(self):
         ld = LakeData()
         self.assertAlmostEqual(ld.FITS_request('Mg').iloc[0]['obs'],
@@ -127,10 +124,10 @@ class DataTestCase(unittest.TestCase):
         no_nans = np.where(df['Mg'].isna().values, 0, 1).sum()
         self.assertEqual(no_nans, 137)
         self.assertEqual(nans, 7670)
-        dkf = ld.get_Mg(tstart='2019-01-01', tend='2019-01-03', smoothing='kf')
-        ddv = ld.get_Mg(tstart='2019-01-01', tend='2019-01-03', smoothing='dv')
-        self.assertAlmostEqual(ddv.iloc[0]['Mg'], 373.0)
-        self.assertAlmostEqual(dkf.iloc[0]['Mg'], 373.0)
+        dkf = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03', smoothing='kf')
+        ddv = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03', smoothing='dv')
+        self.assertAlmostEqual(ddv.iloc[0]['Mg'], 344.0)
+        self.assertAlmostEqual(dkf.iloc[0]['Mg'], 344.0)
         self.assertAlmostEqual(dkf.iloc[0]['Mg_err'], 50.0)
 
     def test_get_ll(self):
@@ -162,10 +159,13 @@ class DataTestCase(unittest.TestCase):
         pd.testing.assert_frame_equal(dv_test_frame, ddv)
 
     def test_lake_data_fits(self):
+        # import ipdb
+        # ipdb.set_trace()
+        warnings.filterwarnings("ignore", message="numpy.dtype size changed")
+        warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+        warnings.filterwarnings("ignore", message="can't resolve package from")
         ld = LakeData()
-        tic = time.time()
         df = ld.get_data_fits('20160603', '20161231')
-        toc = time.time()
         tdf = pd.read_hdf(os.path.join(self.data_dir,
                                        'measurements_20160603_20161231.h5'),
                           'table')
@@ -176,15 +176,15 @@ class DataTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(df['Mg'],
                                              tdf['Mg'], 0)
 
-    @unittest.skip("CSV reading needs to be fixed")
+    # @unittest.skip("CSV reading needs to be fixed")
     def test_lake_data_csv(self):
         ti = self.load_input()
-        with self.get_test_data('data.dat') as lb:
+        with get_data('data/data.dat') as lb:
             ld = LakeData()
             vd = ld.get_data_csv(start='2003-01-16', end='2010-01-29', buf=lb)
-            temp = [t for d, t in vd['t'].iteritems()]
-            hgt = [h for d, h in vd['h'].iteritems()]
-            mg = [m for d, m in vd['m'].iteritems()]
+            temp = [t for d, t in vd['T'].iteritems()]
+            hgt = [h for d, h in vd['z'].iteritems()]
+            mg = [m for d, m in vd['Mg'].iteritems()]
             cl = [c for d, c in vd['c'].iteritems()]
             o18 = [o for d, o in vd['o18'].iteritems()]
             h2 = [h for d, h in vd['h2'].iteritems()]
@@ -202,26 +202,26 @@ class DataTestCase(unittest.TestCase):
 
         ld1 = LakeData()
         vd = ld1.get_data_csv(start='2003-01-16', end='2010-01-29')
-        np.testing.assert_array_almost_equal(vd['t'].data, ti['temp'], 1)
-        np.testing.assert_array_equal(vd['nd'].data, ti['nd'])
-        np.testing.assert_array_almost_equal(vd['h'].data, ti['hgt'], 2)
-        np.testing.assert_array_almost_equal(vd['m'].data, ti['mg'], 3)
-        np.testing.assert_array_almost_equal(vd['c'].data, ti['cl'], 3)
-        np.testing.assert_array_almost_equal(vd['o18'].data, ti['o18'], 2)
-        np.testing.assert_array_almost_equal(vd['h2'].data, ti['h2'], 2)
+        np.testing.assert_array_almost_equal(vd['T'], ti['temp'], 1)
+        np.testing.assert_array_equal(vd['nd'], ti['nd'])
+        np.testing.assert_array_almost_equal(vd['z'], ti['hgt'], 2)
+        np.testing.assert_array_almost_equal(vd['Mg'], ti['mg'], 3)
+        np.testing.assert_array_almost_equal(vd['c'], ti['cl'], 3)
+        np.testing.assert_array_almost_equal(vd['o18'], ti['o18'], 2)
+        np.testing.assert_array_almost_equal(vd['h2'], ti['h2'], 2)
         np.testing.assert_array_equal(
-            np.array(vd['date'].data.index, dtype='datetime64[ns]'),
+            np.array(vd['date'].index, dtype='datetime64[ns]'),
             ti['date'])
 
     def test_wind_data_csv(self):
         ti = self.load_input()
-        with self.get_test_data('wind.dat') as wb:
-            dl = WindDataCSV(wb, default=0.0)
+        with get_data('data/wind.dat') as wb:
+            dl = WindData(wb, default=0.0)
             df = dl.get_data(start='2003-01-16', end='2010-01-29')
             ws = [w for d, w in df.iteritems()]
             np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
-        dl1 = WindDataCSV(default=0.0)
+        dl1 = WindData(get_data('data/wind.dat'), default=0.0)
         df1 = dl1.get_data(start='2003-01-16', end='2010-01-29')
         ws = [w for d, w in df1.iteritems()]
         np.testing.assert_array_almost_equal(ws, ti['wind'], 1)

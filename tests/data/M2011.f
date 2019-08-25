@@ -176,7 +176,7 @@
 	DO N = NSTART+1,NFINISH
 
 !-- Calculate Year, Month, Day for Printout
-	    CALL DATEF(YR,MO,DY,ND(N))
+	    CALL DATEF(YR,MO,DY,ND(N-1))
 !	    print *, 'More Dates  ', yr, mo, dy, nd(n)
 !	    YR=YR-1900
 	    TIMEM =.0864*(ND(N)-ND(N-1))	! Time Interval in Megaseconds
@@ -222,7 +222,7 @@
 !   both terms can apply
 
 !-- Energy balances in TJ; ES = Surface heat loss, EL = change in stored energy
-            CALL ES(T(N),W(N),LOSS,EV )
+            CALL ES(T(N-1),W(N-1),LOSS,EV )
 	    E= LOSS + EL(T(N-1),T(N))
 
 !-- NEW FEATURE Solar Incident Radiation Based on yearly guess & month
@@ -231,16 +231,16 @@
 
 
 !-- Steam input (in KT) to provide this Energy
-	    STEAM = E/(ENTHAL-0.0042*T(N))! Energy = Mass * Enthalpy
+	    STEAM = E/(ENTHAL-0.0042*T(N-1))! Energy = Mass * Enthalpy
 	    EVAP  = EV			 ! Evaporation loss
 	    MELTF = INF + EVAP - STEAM	 ! Conservation of mass
 
 !-- Correction for energy to heat incoming meltwater
 !-- FACTOR is ratio: Mass of steam/Mass of meltwater (0 degrees C)
-	    FACTOR=T(N)*0.0042/(ENTHAL-T(N)*0.0042)
+	    FACTOR=T(N-1)*0.0042/(ENTHAL-T(N-1)*0.0042)
 	    MELTF = MELTF/(1.0+FACTOR)		! Therefore less meltwater
 	    STEAM =STEAM+MELTF*FACTOR		! and more steam
-	    E=E+MELTF*T(N)*.0042			! Correct energy input also
+	    E=E+MELTF*T(N-1)*.0042			! Correct energy input also
 
 !	Stable Isotopes calculated now
 !	H2 (meltf) now -75, not -57.5 (typo?)	
@@ -257,7 +257,7 @@
 	    EVTOT = EVTOT + EVAP 
 	    MTTOT = MTTOT + MELTF 
 	    STTOT = STTOT + STEAM
-	    TTTOT = TTTOT + T(N)*(ND(N)-ND(N-1))  ! Average Temp Calculation
+	    TTTOT = TTTOT + T(N-1)*(ND(N)-ND(N-1))  ! Average Temp Calculation
 	    CLDAY = CLDAY + ND(N) - ND(N-1)
 	    IF(DY .EQ. 1) THEN
 		NCLAV = NCLAV + 1

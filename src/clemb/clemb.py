@@ -88,11 +88,12 @@ class Clemb:
         self.h = h
         self.pre_txt = pre_txt
         if lakedata is not None:
-            self._df = lakedata.get_data(start, end)
+            self._df = lakedata.get_data(start, end).copy()
             self._dates = self._df.index
         if winddata is not None:
-            self._df['W'] = winddata.get_data(self._dates[0], self._dates[-1])
-            self._df['H'] = np.ones(self._dates.size) * self.h
+            self._df.loc[:, 'W'] = winddata.get_data(self._dates[0],
+                                                     self._dates[-1]).copy()
+            self._df.loc[:, 'H'] = np.ones(self._dates.size) * self.h
         self.use_drmg = False
         # Specific heat for water
         self.cw = 0.0042
@@ -102,12 +103,12 @@ class Clemb:
         self.fullness = self.fm.fullness
 
     def get_variable(self, key):
-        if key in self._ld:
-            return self._ld[key]
+        if key in self._df:
+            return self._df[key]
         elif key.lower() == 'wind':
-            return self._wd
+            return self._df['W']
         elif key.lower() == 'enthalpy':
-            return self._enthalpy
+            return self._df['H']
         else:
             raise AttributeError('Unknown variable name.')
 
@@ -116,11 +117,13 @@ class Clemb:
         Update the timeframe to analyse.
         """
         # allow for tinkering with the dilution factor
-        old_dv = self._df['dv'].data
+        old_dv = self._df['dv'].copy()
 
-        self._ld = self.lakedata.get_data(start, end)
-        self._wd = self.winddata.get_data(start, end)
-        self._dates = self._ld.index
+        self._df = self.lakedata.get_data(start, end).copy()
+        self._dates = self._df.index
+        self._df.loc[:, 'W'] = self.winddata.get_data(self._dates[0],
+                                                      self._dates[-1]).copy()
+        self._df.loc[:, 'H'] = np.ones(self._dates.size) * self.h
 
         # See if old dilution values overlap with new; if not discard
         old_start = old_dv.index.min()
@@ -133,7 +136,7 @@ class Clemb:
             end = min(old_end, new_end)
             new_dv = self._df['dv'].copy()
             new_dv[start:end] = old_dv[start:end]
-            self._df['dv'] = new_dv
+            self._df.loc[:, 'dv'] = new_dv
 
     @property
     def drmg(self):
@@ -198,8 +201,8 @@ class Clemb:
         # Net mass input to lake [kT]
         inf = massp * (dr - 1.0)  # input to replace outflow
         inf = inf + mass - massp  # input to change total mass
-        loss, ev = self.fm.es(self._df['T'][:-1].values,
-                              self._df['W'][:-1].values, a[:-1])
+        loss, ev = self.fm.surface_loss(self._df['T'][:-1].values,
+                                        self._df['W'][:-1].values, a[:-1])
         loss *= nd
         # Energy balances [TJ];
         # es = Surface heat loss, el = change in stored energy
@@ -207,7 +210,7 @@ class Clemb:
                            self._df['T'][1:].values, vol[:-1])
 
         # e is energy required from steam, so is reduced by sun energy
-        e -= self.fm.esol(nd, a[:-1], self._dates[:-1].month)
+        e -= self.fm.esol(nd, a[:-1], self._dates[:-1])
         # Energy = Mass * Enthalpy
         steam = e / (self._df['H'][:-1].values -
                      0.0042 * self._df['T'][:-1].values)

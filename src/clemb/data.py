@@ -19,9 +19,15 @@ class LakeData:
     Load the lake measurements from the FITS database.
     """
 
-    def __init__(self, url="https://fits.geonet.org.nz/observation"):
+    def __init__(self, url="https://fits.geonet.org.nz/observation",
+                 csvfile=None):
         self.base_url = url
         self.df = None
+        if csvfile is None:
+            self.get_data = self.get_data_fits
+        else:
+            self.csvfile = csvfile
+            self.get_data = self.get_data_csv
 
     def get_data_fits(self, start, end, outdir='/tmp',
                       smoothing='kf'):
@@ -64,7 +70,7 @@ class LakeData:
                                     'M': M,
                                     'M_err': M_err})
             self.df = self.df.loc[tstart_max:tend_min]
-            self.df['dv'] = np.ones(self.df.index.size)
+            self.df.loc[:, 'dv'] = np.ones(self.df.index.size)
             self.df.to_hdf(fn_out, 'table')
         return self.df
 
@@ -268,6 +274,7 @@ class LakeData:
                     mean and standard deviation.
         """
         df = self.FITS_request('Mg')
+        df.rename(columns={'obs': 'Mg', 'obs_err': 'Mg_err'}, inplace=True)
         if tstart is not None:
             # Find the sampling date that is closest to the requested
             # start time
@@ -276,7 +283,6 @@ class LakeData:
         else:
             _tstart = df.index.min()
         df = df.loc[(df.index >= _tstart) & (df.index <= tend)]
-        df.rename(columns={'obs': 'Mg', 'obs_err': 'Mg_err'}, inplace=True)
         new_dates = pd.date_range(start=_tstart, end=tend, freq='D')
         if smoothing == 'kf':
             mg_df = df.groupby(pd.Grouper(freq='D')).mean()
@@ -301,9 +307,9 @@ class LakeData:
             for d in mg_df.index:
                 dt = d.date()
                 if dt in dates:
-                    mg_df.loc[dt]['Mg_err'] = stds[dt]
+                    mg_df.loc[dt, 'Mg_err'] = stds[dt]
                 else:
-                    mg_df.loc[dt]['Mg_err'] = stds_mean
+                    mg_df.loc[dt, 'Mg_err'] = stds_mean
             mg_df = mg_df.reindex(index=new_dates)
             return mg_df
         else:
@@ -463,7 +469,7 @@ class LakeData:
                     if not l:
                         break
                     # ignore commented lines
-                    # l = l.decode()
+                    l = l.decode()
                     if not l.startswith(' '):
                         continue
                     a = l.split()
@@ -473,14 +479,14 @@ class LakeData:
                     no = (dt - t0).astype(int) - 1
                     rd['date'].append(dt)
                     rd['nd'].append(no)
-                    rd['t'].append(te)
-                    rd['h'].append(hgt)
+                    rd['T'].append(te)
+                    rd['z'].append(hgt)
                     rd['f'].append(fl)
                     rd['o18'].append(oheavy)
                     rd['h2'].append(deut)
                     rd['o18m'].append(oheavy)
                     rd['h2m'].append(deut)
-                    rd['m'].append(img / 1000.)
+                    rd['Mg'].append(img / 1000.)
                     rd['c'].append(icl / 1000.)
                     rd['dv'].append(1.0)
             self.df = pd.DataFrame(rd, index=rd['date'])
@@ -522,21 +528,25 @@ class LakeData:
                 M.std(axis=1), a.mean(axis=1), a.std(axis=1))
 
 
-class WindDataCSV:
+class WindData:
     """
     Load wind speed data from a CSV file.
     """
 
-    def __init__(self, buf=None, default=4.5):
-        if buf is not None:
-            self._buf = buf
-        else:
-            self._buf = pkg_resources.resource_stream(
-                __name__, 'data/wind.dat')
+    def __init__(self, csvfile, default=4.5):
+        self.csvfile = csvfile
+        # check whether file has already been opened
+        try:
+            self.csvfile.tell()
+            self._buf = csvfile
+        except AttributeError:
+            self._buf = open(csvfile)
+
         self._default = default
         self.sr = None
+        self.get_data = self.get_data_csv
 
-    def get_data(self, start, end):
+    def get_data_csv(self, start, end):
         if self.sr is None:
             with self._buf:
                 windspeed = []
