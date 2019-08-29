@@ -6,6 +6,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from clemb.data import LakeData, WindData
 from clemb import Clemb, get_data
@@ -146,8 +147,9 @@ class ClembTestCase(unittest.TestCase):
     def test_with_dq(self):
         s = SynModel()
         df = s.run(1000., mode='test')
-
-    def test_clemb_synthetic(self):
+    
+    @pytest.mark.slow
+    def test_clemb_synthetic_rk4(self):
         c = Clemb(None, None, None, None, pre_txt='syn1',
                   resultsd='./data', save_results=False)
         df = SynModel().run(1000., mode='test')
@@ -157,7 +159,7 @@ class ClembTestCase(unittest.TestCase):
                            m_in_max=40., q_in_max=1500., new=True,
                            prior_sampling=False, tolZ=1e-3,
                            prior_resample=10000, Q_scale=300.,
-                           dQdT=3e3, tolH=3e30, seed=42)
+                           dQdT=3e3, tolH=3e30, seed=42, intmethod='rk4')
         np.testing.assert_array_almost_equal(rs['exp'].loc[:, 'q_in'].data,
                                              np.array([201.444228,
                                                        302.327733,
@@ -172,6 +174,34 @@ class ClembTestCase(unittest.TestCase):
                                              np.array([[-9.533294, 0.170592],
                                                        [-9.724431, 0.171948],
                                                        [-9.191915, 0.156072]]),
+                                             decimal=6)
+
+    @pytest.mark.slow
+    def test_clemb_synthetic_euler(self):
+        c = Clemb(None, None, None, None, pre_txt='syn1',
+                  resultsd='./data', save_results=False)
+        df = SynModel().run(1000., mode='test')
+        c._df = df
+        c._dates = df.index
+        rs = c.run_forward(nsamples=2000, nresample=-1, m_out_max=40.,
+                           m_in_max=40., q_in_max=1500., new=True,
+                           prior_sampling=False, tolZ=1e-3,
+                           prior_resample=10000, Q_scale=300.,
+                           dQdT=3e3, tolH=3e30, seed=42, intmethod='euler')
+        np.testing.assert_array_almost_equal(rs['exp'].loc[:, 'q_in'].data,
+                                             np.array([186.169695,
+                                                       308.423467,
+                                                       626.165709]),
+                                             decimal=6)
+        np.testing.assert_array_almost_equal(rs['var'].loc[:, 'q_in'].data,
+                                             np.array([21867.208907,
+                                                       39601.258501,
+                                                       54910.758894]),
+                                             decimal=6)
+        np.testing.assert_array_almost_equal(rs['z'].data,
+                                             np.array([[-10.011447, 0.175481],
+                                                       [-9.925883, 0.174717],
+                                                       [-9.334939, 0.157328]]),
                                              decimal=6)
 
 
