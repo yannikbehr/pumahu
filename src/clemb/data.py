@@ -11,7 +11,7 @@ from filterpy.kalman import KalmanFilter as KF
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.common import Q_continuous_white_noise
 
-from clemb import Forwardmodel
+from clemb import Forwardmodel, get_data
 
 
 class LakeData:
@@ -533,8 +533,11 @@ class WindData:
     Load wind speed data from a CSV file.
     """
 
-    def __init__(self, csvfile, default=4.5):
-        self.csvfile = csvfile
+    def __init__(self, csvfile=None, default=4.5):
+        if csvfile is None:
+            self.csvfile = get_data('data/wind.dat')
+        else:
+            self.csvfile = csvfile
         # check whether file has already been opened
         try:
             self.csvfile.tell()
