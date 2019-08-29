@@ -27,7 +27,8 @@ from clemb.forward_model import Forwardmodel
 
 class LikeliHood:
 
-    def __init__(self, data, date, dt, ws, cov, Q=None):
+    def __init__(self, data, date, dt, ws, cov, intmethod='rk4',
+                 Q=None):
         self.data = data
         self.date = date
         self.dt = dt
@@ -39,7 +40,7 @@ class LikeliHood:
         self.factor = -np.log(np.power(2.*np.pi, cov.shape[0])
                               + np.sqrt(np.linalg.det(cov)))
         self.samples = []
-        self.fm = Forwardmodel(method='rk4')
+        self.fm = Forwardmodel(method=intmethod)
 
     def get_samples(self):
         return np.array(self.samples)
@@ -77,7 +78,7 @@ class Clemb:
     magnesium and chloride ions.
     """
 
-    def __init__(self, lakedata, winddata, start, end, h=6.,
+    def __init__(self, lakedata, winddata, start, end, h=6., ws=4.5,
                  pre_txt=None, resultsd='./', save_results=True):
         """
         Load the lake data (temperature, lake level, concentration of Mg++,
@@ -86,6 +87,7 @@ class Clemb:
         self.lakedata = lakedata
         self.winddata = winddata
         self.h = h
+        self.ws = ws
         self.pre_txt = pre_txt
         if lakedata is not None:
             self._df = lakedata.get_data(start, end).copy()
@@ -249,9 +251,9 @@ class Clemb:
                     q_in_max=1000., m_in_min=0., m_in_max=20.,
                     m_out_min=0., m_out_max=20., new=False,
                     m_out_prior=None, tolZ=1e-3, lh_fun=None,
-                    prior_sampling=True, prior_resample=1000,
+                    prior_sampling=False, prior_resample=1000,
                     Q_scale=100., dQdT=1e3, tolH=3., ws=4.5,
-                    Mvar=np.zeros((3, 3)), seed=-1):
+                    Mvar=np.zeros((3, 3)), seed=-1, intmethod='rk4'):
         """
         Compute the amount of steam and energy that has to be put into a crater
         lake to cause an observed temperature change. This computation runs
@@ -284,8 +286,8 @@ class Clemb:
         if m_out_prior is not None:
             a = np.load(m_out_prior)
             z, m_out_min, m_out_max = a['z'], a['o_min'], a['o_max']
-            f_m_out_min = interp1d(z, m_out_min, fill_value='interpolate')
-            f_m_out_max = interp1d(z, m_out_max, fill_value='interpolate')
+            f_m_out_min = interp1d(z, m_out_min, fill_value='extrapolate')
+            f_m_out_max = interp1d(z, m_out_max, fill_value='extrapolate')
         else:
             m_out = Uniform('m_out', m_out_min, m_out_max)
 
@@ -338,7 +340,7 @@ class Clemb:
                 dt = (self._dates[i+1] - self._dates[i])/pd.Timedelta('1D')
                 ns = NestedSampling(seed=seed)
                 _lh = LikeliHood(data=y_next, dt=dt, ws=ws, cov=cov,
-                                 date=self._dates[i])
+                                 date=self._dates[i], intmethod=intmethod)
                 if lh_fun is None:
                     _lh_fun = _lh.run_lh
                 else:
