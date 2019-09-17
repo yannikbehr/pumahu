@@ -16,11 +16,13 @@ class SynModel:
     equation.
     """
 
-    def __init__(self, area=194162, T0=15.):
+    def __init__(self, area=194162, T0=15., seed=None):
         self.f = 1/15.
         self.tmax = 30.
         self.a = area
         self.T0 = T0
+        if seed is not None:
+            np.random.seed(seed)
 
     def outflow(self, level, area=0.2):
         """
