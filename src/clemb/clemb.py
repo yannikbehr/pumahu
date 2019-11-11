@@ -57,7 +57,9 @@ class LikeliHood:
             T = vals[4]
             M = vals[5]
             X = vals[6]
+            dq = vals[7]
             dp = np.zeros(5)
+            dp[0] = dq*0.0864
             y0 = np.array([T, M, X, qi, Mi, Mo, H, self.ws])
             y_new = self.fm.integrate(y0, self.date, self.dt, dp)
             if self.Q is not None:
@@ -252,8 +254,8 @@ class Clemb:
                     m_out_min=0., m_out_max=20., new=False,
                     m_out_prior=None, tolZ=1e-3, lh_fun=None,
                     prior_sampling=False, prior_resample=1000,
-                    Q_scale=100., dQdT=1e3, tolH=3., ws=4.5,
-                    Mvar=np.zeros((3, 3)), seed=-1, intmethod='rk4'):
+                    tolH=3., ws=4.5, Mvar=np.zeros((3, 3)),
+                    seed=-1, intmethod='rk4', gradient=False):
         """
         Compute the amount of steam and energy that has to be put into a crater
         lake to cause an observed temperature change. This computation runs
@@ -262,6 +264,7 @@ class Clemb:
         predicted temperature, water level, and chemical concentration
         assuming normally distributed observation errors.
         """
+        # Setup path for results file
         tstart = self._dates[0]
         tend = self._dates[-1]
         res_fn = 'forward_{:s}_{:s}.nc'
@@ -275,9 +278,13 @@ class Clemb:
             res.close()
             return res
 
+        # setup model parameters
         nsteps = self._df.shape[0] - 1
-        nparams = 7 
-
+        nparams = 8
+        if gradient:
+            dq = Uniform('dq', -2e3, 2e3)
+        else:
+            dq = Constant('dq', 0.)
         qin = Uniform('qin', q_in_min, q_in_max)
         m_in = Uniform('m_in', m_in_min, m_in_max)
         h = Constant('h', self.h)
@@ -298,6 +305,7 @@ class Clemb:
 
         # return values
         qin_samples = np.zeros((nsteps, nrsp))*np.nan
+        dqin_samples = np.zeros((nsteps, nrsp))*np.nan
         m_in_samples = np.zeros((nsteps, nrsp))*np.nan
         m_out_samples = np.zeros((nsteps, nrsp))*np.nan
         h_samples = np.zeros((nsteps, nrsp))*np.nan
@@ -310,7 +318,7 @@ class Clemb:
         z = np.zeros((nsteps, 2))*np.nan
         zs = np.zeros((nsteps, nrsp))*np.nan
         hs = np.zeros((nsteps, nrsp))*np.nan
-        model_data = np.zeros((nsteps, nrsp, 3))*np.nan
+        model_data = np.zeros((nsteps, nrsp, nparams))*np.nan
         mevap = np.zeros((nsteps, nrsp))*np.nan
         priors = np.zeros((nsteps, prior_resample))*np.nan
 
@@ -345,7 +353,7 @@ class Clemb:
                     _lh_fun = _lh.run_lh
                 else:
                     _lh_fun = lh_fun
-                rs = ns.explore([qin, m_in, m_out, h, T, M, X], 100,
+                rs = ns.explore([qin, m_in, m_out, h, T, M, X, dq], 100,
                                 nsamples, _lh_fun, 40, 0.1, tolZ, tolH)
                 del T, M, X
 
@@ -361,13 +369,14 @@ class Clemb:
                 z[i, :] = rs.getZ()
                 lh_samples = _lh.get_samples()
                 for j, _s in enumerate(smp):
-                    Q_in, M_in, M_out, H, T, M, X = _s.get_value()
+                    Q_in, M_in, M_out, H, T, M, X, dQ_in = _s.get_value()
                     y = np.array([T, M, X])
                     sid = np.where(lh_samples[:, -1] == _s.get_id())
                     y_mod, me, _, _ = lh_samples[sid][0]
                     mevap[i, j] = me
-                    model_data[i, j, :] = y_mod[0:3]
+                    model_data[i, j, :] = y_mod[:]
                     qin_samples[i, j] = Q_in
+                    dqin_samples[i, j] = dQ_in
                     m_in_samples[i, j] = M_in
                     m_out_samples[i, j] = M_out
                     h_samples[i, j] = H
@@ -382,12 +391,10 @@ class Clemb:
                     # next step
                     x_dnsty_Q = np.linspace(q_in_min, q_in_max, prior_resample)
                     if True:
-                        y = qin_samples[i, :].copy()
+                        y = model_data[i, :, 3].copy()
+                        y /= 0.0864
                         ym = masked_invalid(y)
                         y = ym.compressed()
-                        dT = exp[i, 4] - T
-                        y += np.random.normal(scale=Q_scale, loc=dT*dQdT,
-                                              size=y.size)
                         # get rid of negativ values
                         msk = masked_less(y, 0.).mask
                         y = y[~msk]
@@ -407,6 +414,7 @@ class Clemb:
                           'ig': (('dates'), ig),
                           'priors': (('dates', 'rs_prior'), priors),
                           'q_in': (('dates', 'sampleidx'), qin_samples),
+                          'dq_in': (('dates', 'sampleidx'), dqin_samples),
                           'h': (('dates', 'sampleidx'), h_samples),
                           'lh': (('dates', 'sampleidx'), lh),
                           'wt': (('dates', 'sampleidx'), wt),
@@ -415,12 +423,14 @@ class Clemb:
                           'm_in': (('dates', 'sampleidx'), m_in_samples),
                           'm_out': (('dates', 'sampleidx'), m_out_samples),
                           'mevap': (('dates', 'sampleidx'), mevap),
-                          'model': (('dates', 'sampleidx', 'obs'),
+                          'model': (('dates_p', 'sampleidx', 'obs'),
                                     model_data)},
                          {'dates': self._dates[:-1],
+                          'dates_p': self._dates[1:],
                           'parameters': ['q_in', 'm_in', 'm_out',
-                                         'h', 'T', 'M', 'X'],
-                          'obs': ['T', 'M', 'X'],
+                                         'h', 'T', 'M', 'X', 'dq_in'],
+                          'obs': ['T', 'M', 'X', 'q_in', 'm_in',
+                                  'm_out', 'h', 'ws'],
                           'val_std': ['val', 'std']})
         if self.save_results:
             res.to_netcdf(res_fn)
