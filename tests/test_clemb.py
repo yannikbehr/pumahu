@@ -123,11 +123,9 @@ class ClembTestCase(unittest.TestCase):
         # Test the update function with the FITS interface
         c1 = Clemb(LakeData(), WindData(get_data('data/wind.dat')),
                    start='2019-01-01', end='2019-02-01')
-        t1 = c1.get_variable('T')
         h1 = c1.get_variable('z')
         wd1 = c1.get_variable('wind')
         c1.update_data('2019-10-01', '2019-01-29')
-        t2 = c1.get_variable('T')
         h2 = c1.get_variable('z')
         wd2 = c1.get_variable('wind')
         self.assertEqual(h1['20190128'], h2['20190128'])
@@ -144,9 +142,36 @@ class ClembTestCase(unittest.TestCase):
             c.update_data(start='2003-01-16', end='2003-01-20')
             self.assertTrue(np.all(c.get_variable('dv') < 1.0))
 
+    @pytest.mark.slow
     def test_with_dq(self):
         s = SynModel()
-        df = s.run(1000., mode='test')
+        df = s.run(1000., mode='test', gradient=True)
+        c = Clemb(None, None, None, None, pre_txt='syn1',
+                  resultsd='./data', save_results=False)
+        c._df = df
+        c._dates = df.index
+        rs = c.run_forward(nsamples=2000, nresample=-1, m_out_max=40.,
+                           m_in_max=40., q_in_max=1500., new=True,
+                           prior_sampling=True, tolZ=1e-3,
+                           prior_resample=10000, Q_scale=300.,
+                           dQdT=3e3, tolH=3e30, seed=42, intmethod='rk4',
+                           gradient=True)
+        np.testing.assert_array_almost_equal(rs['exp'].loc[:, 'q_in'].data,
+                                             np.array([201.444228,
+                                                       302.327733,
+                                                       608.507819]),
+                                             decimal=6)
+        np.testing.assert_array_almost_equal(rs['var'].loc[:, 'q_in'].data,
+                                             np.array([21113.987569,
+                                                       38603.58335,
+                                                       54191.758414]),
+                                             decimal=6)
+        np.testing.assert_array_almost_equal(rs['z'].data,
+                                             np.array([[-9.533294, 0.170592],
+                                                       [-9.724431, 0.171948],
+                                                       [-9.191915, 0.156072]]),
+                                             decimal=6)
+
     
     @pytest.mark.slow
     def test_clemb_synthetic_rk4(self):
