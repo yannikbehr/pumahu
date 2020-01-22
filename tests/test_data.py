@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import timezone
 import inspect
 import os
 import unittest
@@ -130,6 +131,10 @@ class DataTestCase(unittest.TestCase):
         self.assertAlmostEqual(dkf.iloc[0]['Mg'], 344.0)
         self.assertAlmostEqual(dkf.iloc[0]['Mg_err'], 50.0)
 
+        dkf1 = ld.get_Mg(tstart='2018-11-01', tend='2019-01-03',
+                         smoothing='kf')
+        self.assertAlmostEqual(dkf1.iloc[0]['Mg'], 383.5)
+
     def test_get_ll(self):
         index = pd.date_range('2019-01-01', '2019-01-03')
         kf_test_frame = pd.DataFrame({'h': np.array([2529.32191667,
@@ -153,8 +158,8 @@ class DataTestCase(unittest.TestCase):
                                                           2529.33509091])},
                                      index=index)
         ld = LakeData()
-        dkf = ld.get_ll(tstart='2019-01-01', tend='2019-01-03', smoothing='kf')
-        ddv = ld.get_ll(tstart='2019-01-01', tend='2019-01-03', smoothing='dv')
+        dkf = ld.get_ll(tstart=index[0], tend=index[-1], smoothing='kf')
+        ddv = ld.get_ll(tstart=index[0], tend=index[-1], smoothing='dv')
         pd.testing.assert_frame_equal(kf_test_frame, dkf)
         pd.testing.assert_frame_equal(dv_test_frame, ddv)
 
