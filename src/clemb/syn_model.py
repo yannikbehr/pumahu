@@ -2,6 +2,8 @@ import numpy as np
 import pandas as pd
 from scipy.signal import tukey
 from scipy.stats import gamma
+import xarray as xr
+
 from clemb.forward_model import Forwardmodel
 
 
@@ -97,6 +99,8 @@ class SynModel:
             qi_tmp = np.zeros(nsteps)
             qi_tmp[0:nsteps-tail] = qi
             qi = qi_tmp
+        if mode == 'constant':
+            qi = np.ones(nsteps)*q_in
         if mode == 'gamma':
             y = gamma.pdf(t, 3., loc=4)
             y /= y.max()
@@ -208,6 +212,8 @@ class SynModel:
             df_mean['T_err'] = df_std['T']
             df_mean['M_err'] = df_std['M']
             df_mean['X_err'] = df_std['X']
-            return df_mean
-
-        return df
+            df = df_mean
+        
+        xds = xr.Dataset(df)
+        xds = xds.rename({'dim_0': 'dates'})
+        return xds
