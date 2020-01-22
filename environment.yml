@@ -17,6 +17,7 @@ dependencies:
     - bokeh
     - pip
     - ipykernel
+    - pytest
     - pip:
         - filterpy
         - progressbar2
