@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import lru_cache
 import os
 import pkg_resources
@@ -40,7 +40,8 @@ class LakeData:
             self.df = pd.read_hdf(fn_out, 'table')
 
         if self.df is None:
-            df1 = self.get_Mg(tstart=start, tend=end, smoothing='kf')
+            df1 = self.get_Mg(tstart=start, tend=end,
+                              smoothing=smoothing)
             # Get temperature
             df2 = self.get_T(tstart=df1.index[0], tend=df1.index[-1],
                              smoothing=smoothing)
@@ -162,6 +163,7 @@ class LakeData:
                                    parse_dates=True)
                 tdf3 = tdf3.combine_first(tdf2)
                 tdf3 = tdf3.combine_first(tdf1)
+                tdf3 = tdf3.tz_localize(None)
                 return tdf3
 
             if obs == 'L':
@@ -180,6 +182,7 @@ class LakeData:
                                    index_col=0, names=names, skiprows=1,
                                    parse_dates=True)
                 ll_df = ldf.combine_first(ldf1)
+                ll_df = ll_df.tz_localize(None)
                 t1 = '1997-01-01'
                 t2 = '2012-12-31'
                 t3 = '2016-01-01'
@@ -195,6 +198,7 @@ class LakeData:
                 names = ['obs', 'obs_err']
                 mg_df = pd.read_csv(url, index_col=0, names=names, skiprows=1,
                                     parse_dates=True)
+                mg_df = mg_df.tz_localize(None)
                 return mg_df
 
     def interpolate_mg(self, df, dt=1):
@@ -253,7 +257,7 @@ class LakeData:
                              'Mg_orig': df['Mg'].values},
                             index=df.index)
 
-    def get_Mg(self, tstart=None, tend=datetime.utcnow().strftime("%Y-%m-%d"),
+    def get_Mg(self, tstart=None, tend=datetime.utcnow(),
                smoothing='kf'):
         """
         Get Mg++ measurements and estimate the measurement error.
@@ -282,6 +286,11 @@ class LakeData:
             _tstart = df.index[idx]
         else:
             _tstart = df.index.min()
+
+        # make sure the start time is at midnight
+        _tstart = pd.Timestamp(year=_tstart.year,
+                               month=_tstart.month,
+                               day=_tstart.day)
         df = df.loc[(df.index >= _tstart) & (df.index <= tend)]
         new_dates = pd.date_range(start=_tstart, end=tend, freq='D')
         if smoothing == 'kf':
@@ -340,7 +349,7 @@ class LakeData:
                              't_orig': df['t'].values},
                             index=df.index)
 
-    def get_T(self, tstart=None, tend=datetime.utcnow().strftime("%Y-%m-%d"),
+    def get_T(self, tstart=None, tend=datetime.utcnow(),
               smoothing='kf'):
         """
         Get temperature measurements from FITS and estimate measurement errors.
@@ -405,7 +414,7 @@ class LakeData:
                              'h_orig': df['h'].values},
                             index=df.index)
 
-    def get_ll(self, tstart=None, tend=datetime.utcnow().strftime("%Y-%m-%d"),
+    def get_ll(self, tstart=None, tend=datetime.utcnow(),
                smoothing='kf'):
         """
         Get lake level measurements from FITS and estimate measurement errors.
