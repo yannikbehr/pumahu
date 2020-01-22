@@ -1,0 +1,23 @@
+name: pumahu
+channels:
+    - pyviz
+    - conda-forge
+dependencies:
+    - python=3.6
+    - bqplot
+    - numpy
+    - scipy
+    - matplotlib
+    - pandas
+    - netcdf4
+    - xarray
+    - holoviz
+    - panel
+    - param
+    - bokeh
+    - pip
+    - ipykernel
+    - pip:
+        - filterpy
+        - progressbar2
+        - git+https://github.com/yannikbehr/nsampling.git
