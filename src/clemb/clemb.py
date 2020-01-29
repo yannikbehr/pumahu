@@ -390,22 +390,21 @@ class Clemb:
                     # Construct a smoothed cdf as prior for the
                     # next step
                     x_dnsty_Q = np.linspace(q_in_min, q_in_max, prior_resample)
-                    if True:
-                        y = model_data[i, :, 3].copy()
-                        y /= 0.0864
-                        ym = masked_invalid(y)
-                        y = ym.compressed()
-                        # get rid of negativ values
-                        msk = masked_less(y, 0.).mask
-                        y = y[~msk]
-                        kernel = gaussian_kde(y)
-                        dnsty = kernel(x_dnsty_Q)
-                        fact = trapz(dnsty, x_dnsty_Q)
-                        dnsty /= fact
-                        cdf_Q = cumtrapz(dnsty, x_dnsty_Q, initial=0)
-
+                    y = model_data[i, :, 3].copy()
+                    y /= 0.0864
+                    ym = masked_invalid(y)
+                    y = ym.compressed()
+                    # get rid of negativ values
+                    msk = masked_less(y, 0.).mask
+                    y = y[~msk]
+                    kernel = gaussian_kde(y)
+                    dnsty = kernel(x_dnsty_Q)
+                    fact = trapz(dnsty, x_dnsty_Q)
+                    dnsty /= fact
+                    cdf_Q = cumtrapz(dnsty, x_dnsty_Q, initial=0)
                     priors[i, :] = cdf_Q
                     qin = InvCDF('qin', x_dnsty_Q, cdf_Q)
+
                 bar.update(i)
         res = xr.Dataset({'exp': (('dates', 'parameters'), exp),
                           'var': (('dates', 'parameters'), var),
@@ -425,8 +424,8 @@ class Clemb:
                           'mevap': (('dates', 'sampleidx'), mevap),
                           'model': (('dates_p', 'sampleidx', 'obs'),
                                     model_data)},
-                         {'dates': self._dates[:-1],
-                          'dates_p': self._dates[1:],
+                         {'dates': self._dates[:-1].values,
+                          'dates_p': self._dates[1:].values,
                           'parameters': ['q_in', 'm_in', 'm_out',
                                          'h', 'T', 'M', 'X', 'dq_in'],
                           'obs': ['T', 'M', 'X', 'q_in', 'm_in',
