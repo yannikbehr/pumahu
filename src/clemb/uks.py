@@ -45,9 +45,7 @@ def h_x(x):
     """
     Measurement function
     """
-    # if observations contain NaNs, only return
-    # those values with no NaNs
-    return [x[0], x[1], x[2]]
+    return [x[0], x[1], x[2], x[5]]
 
 
 class UnscentedKalmanSmoother:
@@ -70,17 +68,16 @@ class UnscentedKalmanSmoother:
         F = Fx(test=test)
         kf = UnscentedKalmanFilter(dim_x=nvar, dim_z=3, dt=self.dt, fx=F.run,
                                    hx=h_x, points=points)
-        T_err, M_err, X_err = self.data.iloc[0][['T_err', 'M_err', 'X_err']]
         kf.x = X0
         kf.Q = Q
         kf.P = P0
-        kf.R = np.eye(3)*[T_err*T_err, M_err*M_err, X_err*X_err]*self.dt**2
         nperiods = self.data.shape[0]-1
         Xs = np.zeros((nperiods, nvar))
         Ps = np.zeros((nperiods, nvar, nvar))
         kf.residual_z = self.residual_nan
 
         # Filtering
+        log_lh = 0
         for i in range(nperiods):
             _fx = partial(F.run, h=6.0, ws=4.5, date=self.data.index[i])
             kf.fx = _fx
@@ -105,11 +102,13 @@ class UnscentedKalmanSmoother:
             # save prior
             kf.x_prior = np.copy(kf.x)
             kf.P_prior = np.copy(kf.P)
-            z = self.data.iloc[i+1][['T', 'M', 'X']]
-            T_err, M_err, X_err = self.data.iloc[i+1][['T_err',
-                                                       'M_err',
-                                                       'X_err']]
-            kf.R = np.eye(3)*[T_err*T_err, M_err*M_err, X_err*X_err]*self.dt**2
+            z = self.data.iloc[i+1][['T', 'M', 'X', 'Mo']]
+            T_err, M_err, X_err, Mo_err = self.data.iloc[i+1][['T_err',
+                                                               'M_err',
+                                                               'X_err',
+                                                               'Mo_err']]
+            kf.R = np.eye(4)*[T_err*T_err, M_err*M_err, X_err*X_err,
+                              Mo_err*Mo_err]*self.dt**2
             # if measurements or measurement error are all
             # NaN, don't update
 
@@ -128,9 +127,12 @@ class UnscentedKalmanSmoother:
 
                 # mean and covariance of prediction passed through
                 # unscented transform
-                zp, Pz = unscented_transform(kf.sigmas_h[:, z_mask], kf.Wm, kf.Wc,
-                                             kf.R[R_mask].reshape(rmdim, rmdim))
+                zp, Pz = unscented_transform(kf.sigmas_h[:, z_mask], kf.Wm,
+                                             kf.Wc,
+                                             kf.R[R_mask].reshape(rmdim,
+                                                                  rmdim))
 
+                kf.S = Pz
                 # compute cross variance of the state and the measurements
                 Pxz = kf.cross_variance(kf.x, zp, kf.sigmas_f,
                                         kf.sigmas_h[:, z_mask])
@@ -142,22 +144,21 @@ class UnscentedKalmanSmoother:
                 kf.x = kf.x + np.dot(kf.K, kf.y)
                 kf.P = kf.P - np.dot(kf.K, np.dot(Pz, kf.K.T))
 
-            kf._log_likelihood = None
-            kf._likelihood = None
+                kf._log_likelihood = None
+                kf._likelihood = None
+                # update likelihood
+                log_lh += kf.log_likelihood
 
             Xs[i, :] = kf.x
             Ps[i, :, :] = kf.P
 
         # Smoothing
         xs, ps = Xs.copy(), Ps.copy()
-        log_lh = 0
         if True:
             n, dim_x = xs.shape
-            dim_z = 3
             num_sigmas = kf._num_sigmas
             dts = [kf._dt] * n
             sigmas_f = np.zeros((num_sigmas, dim_x))
-            Ks = np.zeros((n, dim_x, dim_x))
             res = np.zeros((n, dim_x))
 
             for k in reversed(range(n-1)):
@@ -183,37 +184,6 @@ class UnscentedKalmanSmoother:
                 xs[k] += np.dot(K, kf.residual_x(xs[k+1], xb))
                 res[k] = kf.residual_x(xs[k+1], xb)
                 ps[k] += np.dot(K, ps[k+1] - Pb).dot(K.T)
-
-                # recompute S based on the smoothed state values
-                sigmas_h = np.zeros((num_sigmas, dim_z))
-                sigmas = kf.points_fn.sigma_points(xs[k], ps[k])
-                z = self.data.iloc[k][['T', 'M', 'X']].values
-                T_err, M_err, X_err = self.data.iloc[k][['T_err',
-                                                         'M_err',
-                                                         'X_err']]
-                kf.R = np.eye(3)*[T_err*T_err,
-                                  M_err*M_err,
-                                  X_err*X_err]*self.dt**2
-
-                # Handle NaNs
-                z_mask = ~np.isnan(z)
-                R_mask = np.outer(z_mask, z_mask)
-                rmdim = np.sum(z_mask)
-
-                for i in range(num_sigmas):
-                    sigmas_h[i] = kf.hx(sigmas[i])
-
-                # mean and covariance of prediction passed
-                # through unscented transform
-                R_masked = kf.R[R_mask].reshape(rmdim, rmdim)
-                zp, kf.S = unscented_transform(sigmas_h[:, z_mask],
-                                               kf.Wm, kf.Wc, R_masked)
-
-                # recompute residual
-                kf.y = kf.residual_z(z[z_mask], zp)
-                Ks[k] = K
-                # update likelihood
-                log_lh += kf.log_likelihood
 
         # Append smoothed values
         self.data['T_uks'] = np.r_[X0[0], xs[:, 0]]
@@ -261,10 +231,14 @@ class UnscentedKalmanSmoother:
         dqi0 = var[12]
         dMi0 = var[13]
         dMo0 = var[14]
-        P0 = np.eye(9)*var[15]
+        efact1 = var[15]
+        efact2 = var[16]
+        T0, M0, X0 = self.data.iloc[0][['T', 'M', 'X']]
+        P0 = np.eye(9)*[T0*efact1, M0*efact1, X0*efact1,
+                        qi0*efact2, Mi0*efact2, Mo0*efact2,
+                        dqi0*efact2, dMi0*efact2, dMo0*efact2]
         Q = np.eye(9)*[T_Q, M_Q, X_Q, qi_Q, Mi_Q, Mo_Q,
                        dqi_Q, dMi_Q, dMo_Q]*self.dt**2
-        T0, M0, X0 = self.data.iloc[0][['T', 'M', 'X']]
         X0 = [T0, M0, X0, qi0*0.0864, Mi0, Mo0,
               dqi0, dMi0, dMo0]
         try:
