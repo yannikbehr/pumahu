@@ -27,13 +27,11 @@ from clemb.forward_model import Forwardmodel
 
 class LikeliHood:
 
-    def __init__(self, data, date, dt, ws, cov, intmethod='rk4',
-                 Q=None):
+    def __init__(self, data, date, dt, ws, cov, intmethod='rk4'):
         self.data = data
         self.date = date
         self.dt = dt
         self.ws = ws
-        self.Q = Q
         # the precision matrix is the inverse of the
         # covariance matrix
         self.prec = np.linalg.inv(cov)
@@ -62,8 +60,6 @@ class LikeliHood:
             dp[0] = dq*0.0864
             y0 = np.array([T, M, X, qi, Mi, Mo, H, self.ws])
             y_new = self.fm.integrate(y0, self.date, self.dt, dp)
-            if self.Q is not None:
-                y_new += np.random.multivariate_normal(np.zeros(8), self.Q)
             lh = self.factor - 0.5*np.dot(y_new[0:3]-self.data,
                                           np.dot(self.prec,
                                                  y_new[0:3]-self.data))
@@ -253,9 +249,8 @@ class Clemb:
                     q_in_max=1000., m_in_min=0., m_in_max=20.,
                     m_out_min=0., m_out_max=20., new=False,
                     m_out_prior=None, tolZ=1e-3, lh_fun=None,
-                    prior_sampling=False, prior_resample=1000,
-                    tolH=3., ws=4.5, Mvar=np.zeros((3, 3)),
-                    seed=-1, intmethod='rk4', gradient=False):
+                    tolH=3., ws=4.5, seed=-1, intmethod='rk4',
+                    gradient=False):
         """
         Compute the amount of steam and energy that has to be put into a crater
         lake to cause an observed temperature change. This computation runs
@@ -320,7 +315,6 @@ class Clemb:
         hs = np.zeros((nsteps, nrsp))*np.nan
         model_data = np.zeros((nsteps, nrsp, nparams))*np.nan
         mevap = np.zeros((nsteps, nrsp))*np.nan
-        priors = np.zeros((nsteps, prior_resample))*np.nan
 
         with progressbar.ProgressBar(max_value=nsteps-1) as bar:
             for i in range(nsteps):
@@ -343,7 +337,6 @@ class Clemb:
                 M_next = self._df['M'][i+1]
                 X_next = self._df['X'][i+1]
 
-                y = np.array([T, M, X])
                 y_next = np.array([T_next, M_next, X_next])
                 dt = (self._dates[i+1] - self._dates[i])/pd.Timedelta('1D')
                 ns = NestedSampling(seed=seed)
@@ -370,7 +363,6 @@ class Clemb:
                 lh_samples = _lh.get_samples()
                 for j, _s in enumerate(smp):
                     Q_in, M_in, M_out, H, T, M, X, dQ_in = _s.get_value()
-                    y = np.array([T, M, X])
                     sid = np.where(lh_samples[:, -1] == _s.get_id())
                     y_mod, me, _, _ = lh_samples[sid][0]
                     mevap[i, j] = me
@@ -386,32 +378,13 @@ class Clemb:
                     hs[i, j] = _s.get_H()
 
                 del smp, ns, rs
-                if prior_sampling:
-                    # Construct a smoothed cdf as prior for the
-                    # next step
-                    x_dnsty_Q = np.linspace(q_in_min, q_in_max, prior_resample)
-                    y = model_data[i, :, 3].copy()
-                    y /= 0.0864
-                    ym = masked_invalid(y)
-                    y = ym.compressed()
-                    # get rid of negativ values
-                    msk = masked_less(y, 0.).mask
-                    y = y[~msk]
-                    kernel = gaussian_kde(y)
-                    dnsty = kernel(x_dnsty_Q)
-                    fact = trapz(dnsty, x_dnsty_Q)
-                    dnsty /= fact
-                    cdf_Q = cumtrapz(dnsty, x_dnsty_Q, initial=0)
-                    priors[i, :] = cdf_Q
-                    qin = InvCDF('qin', x_dnsty_Q, cdf_Q)
-
                 bar.update(i)
+
         res = xr.Dataset({'exp': (('dates', 'parameters'), exp),
                           'var': (('dates', 'parameters'), var),
                           'max': (('dates', 'parameters'), mx[:, :-1]),
                           'z': (('dates', 'val_std'), z),
                           'ig': (('dates'), ig),
-                          'priors': (('dates', 'rs_prior'), priors),
                           'q_in': (('dates', 'sampleidx'), qin_samples),
                           'dq_in': (('dates', 'sampleidx'), dqin_samples),
                           'h': (('dates', 'sampleidx'), h_samples),
