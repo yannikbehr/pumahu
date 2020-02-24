@@ -1,6 +1,7 @@
 from collections import defaultdict
 from datetime import datetime, timezone
 from functools import lru_cache
+import inspect
 import os
 import pkg_resources
 
@@ -535,6 +536,40 @@ class LakeData:
         return (X.mean(axis=1), X.std(axis=1), vol.mean(axis=1),
                 vol.std(axis=1), p_mean, p_std, M.mean(axis=1),
                 M.std(axis=1), a.mean(axis=1), a.std(axis=1))
+
+    def get_outflow(self, tstart=None, tend=datetime.utcnow(),
+                    smoothing='kf'):
+        """
+        Get lake outflow data from CSV file.
+        """
+        data_dir = os.path.join(os.path.dirname(os.path.abspath(
+                                inspect.getfile(inspect.currentframe()))),
+                                "data")
+        df = pd.read_csv(os.path.join(data_dir, 'outflow.csv'),
+                         index_col=0, parse_dates=True,
+                         names=['Mo'], skiprows=[0])
+        # convert from l/s to kt/day
+        df['Mo'] *= 0.0864
+        df['Mo_err'] = df['Mo']*0.3
+        
+        dfn = df.reindex(index=self.df.index)
+        
+        # from field observations we assume that there is no
+        # outflow below 1.9 m which is 10 cm below the
+        # assumed reference level
+        H_0 = 2529.25
+
+        # Set the outflow below H0 to 0.
+        dfn['Mo'].loc[self.df['z'] < H_0] = 0.0
+
+        # for lake levels below 1.9 m assign an linearly increasing error
+        # to the outflow; we arbitrarily assume an error of 25 l/s at
+        # at H_0
+        h_tmp = self.df['z'].loc[self.df['z'] < H_0]
+        h_min = h_tmp.min()
+        dfn['Mo_err'].loc[self.df['z'] < H_0] = 25*0.0864*(h_tmp - h_min)/(H_0 - h_min)
+        self.df['Mo'] = dfn['Mo']
+        self.df['Mo_err'] = dfn['Mo_err']
 
 
 class WindData:
