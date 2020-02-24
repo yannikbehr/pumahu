@@ -79,7 +79,8 @@ class SynModel:
         """
         Produce synthetic observations.
         """
-        dates = pd.date_range(start='1/1/2017', end='21/1/2017',
+        np.random.seed(42)
+        dates = pd.date_range(start='2017-01-01', end='2017-01-21',
                               periods=nsteps)
         t = np.linspace(0, self.tmax, nsteps)
         dt = (dates[1] - dates[0])/pd.Timedelta('1D')
@@ -128,7 +129,17 @@ class SynModel:
             dates = pd.date_range(start='2017-01-01', end='2017-01-04',
                                   freq='D')
             nsteps = 4
-
+            
+        if mode == 'gamma+sin':
+            y = gamma.pdf(t, 3., loc=4)
+            y /= y.max()
+            y *= q_in
+            npts = y.size
+            t1 = t[npts//2::]
+            t1 = np.arange(t1.size)
+            y[npts//2:] = np.sin(2.*np.pi*self.f*t1 + 2*np.pi)*q_in/4.+q_in/4.
+            y[npts//2:] *= tukey(t1.size, 0.9)
+            qi = y
         y = np.zeros((nsteps, 8))
         prm = np.zeros((nsteps, 2))
         V = 8800
@@ -173,6 +184,8 @@ class SynModel:
         A_err = factor*30.*dt
         V_err = factor*2.0*dt
         Mg_err = factor*50*dt
+        Mo_err = factor*.25
+        W_err = factor*.5
 
         # Design dataset
         syn_data = {}
@@ -193,10 +206,12 @@ class SynModel:
         syn_data['z'] = prm[:, 0]
         syn_data['z_err'] = np.ones(nsteps)*z_err
         syn_data['W'] = np.ones(nsteps)*4.5
+        syn_data['W_err'] = np.ones(nsteps)*W_err
         syn_data['H'] = np.ones(nsteps)*6.0
         syn_data['dv'] = np.ones(nsteps)*1.0
         syn_data['Mi'] = y[:, 4]
         syn_data['Mo'] = y[:, 5]
+        syn_data['Mo_err'] = Mo_err*y[:, 5]
         syn_data['mevap'] = prm[:, 1]
         syn_data['qi'] = y[:, 3]/0.0864
 
@@ -213,7 +228,7 @@ class SynModel:
             df_mean['M_err'] = df_std['M']
             df_mean['X_err'] = df_std['X']
             df = df_mean
-        
+
         xds = xr.Dataset(df)
         xds = xds.rename({'dim_0': 'dates'})
         return xds
