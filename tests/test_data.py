@@ -228,6 +228,17 @@ class DataTestCase(unittest.TestCase):
         ws = [w for d, w in df1.iteritems()]
         np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
+    def test_outflow_csv(self):
+        """
+        Test retrieving and interpolating outflow data.
+        """
+        warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+        ld = LakeData()
+        ld.get_data_fits('20190101', '20191231')
+        ld.get_outflow()
+        Mo = ld.df['Mo'].loc[ld.df['z'] < 2529.25]
+        self.assertTrue(np.all(Mo.values == 0))
+
 
 def suite():
     return unittest.makeSuite(DataTestCase, 'test')
