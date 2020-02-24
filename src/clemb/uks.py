@@ -24,28 +24,28 @@ class Fx:
         else:
             self.fm = Forwardmodel(method='rk4')
 
-    def run(self, x, dt, date, h=6.0, ws=4.5):
+    def run(self, x, dt, date):
         """
         Forward model lake temperature
         """
         y = np.zeros(8)
-        y[0:6] = x[0:6]
-        y[6] = h
-        y[7] = ws
+        y[0:8] = x[0:8]
         dp = [0.] * 5
-        dp[0] = x[6]
-        if len(x) == 9:
-            dp[1] = x[7]
-            dp[2] = x[8]
+        dp[0] = x[8]
+        if len(x) == 13:
+            dp[1] = x[9]
+            dp[2] = x[10]
+            dp[3] = x[11]
+            dp[4] = x[12]
         y_next = self.fm.integrate(y, date, dt, dp)
-        return np.r_[y_next[0:6], x[6:]]
+        return np.r_[y_next[0:8], x[8:]]
 
 
 def h_x(x):
     """
     Measurement function
     """
-    return [x[0], x[1], x[2], x[5]]
+    return [x[0], x[1], x[2], x[5], x[6]]
 
 
 class UnscentedKalmanSmoother:
@@ -62,15 +62,16 @@ class UnscentedKalmanSmoother:
         rs = np.subtract(x, y)
         return rs[~np.isnan(rs)]
 
-    def __call__(self, Q, X0, P0, test=False):
+    def __call__(self, Q, X0, P0, test=False, alpha=1e-1, beta=2., kappa=0.):
         nvar = len(X0)
-        points = MerweScaledSigmaPoints(n=nvar, alpha=1e-1, beta=2., kappa=0.)
+        points = MerweScaledSigmaPoints(n=nvar, alpha=alpha, beta=beta,
+                                        kappa=kappa)
         F = Fx(test=test)
-        kf = UnscentedKalmanFilter(dim_x=nvar, dim_z=3, dt=self.dt, fx=F.run,
+        kf = UnscentedKalmanFilter(dim_x=nvar, dim_z=5, dt=self.dt, fx=F.run,
                                    hx=h_x, points=points)
-        kf.x = X0
-        kf.Q = Q
-        kf.P = P0
+        kf.x = X0.values
+        kf.Q = Q.values*self.dt*self.dt
+        kf.P = P0.values
         nperiods = self.data.shape[0]-1
         Xs = np.zeros((nperiods, nvar))
         Ps = np.zeros((nperiods, nvar, nvar))
@@ -79,7 +80,7 @@ class UnscentedKalmanSmoother:
         # Filtering
         log_lh = 0
         for i in range(nperiods):
-            _fx = partial(F.run, h=6.0, ws=4.5, date=self.data.index[i])
+            _fx = partial(F.run, date=self.data.index[i])
             kf.fx = _fx
 
             try:
@@ -87,8 +88,8 @@ class UnscentedKalmanSmoother:
             except Exception as e:
                 raise e
             if True:
-                sigmas[:, 0:6] = np.where(sigmas[:, 0:6] < 0., 0.,
-                                          sigmas[:, 0:6])
+                sigmas[:, 0:8] = np.where(sigmas[:, 0:8] < 0., 0.,
+                                          sigmas[:, 0:8])
             for k, s in enumerate(sigmas):
                 try:
                     kf.sigmas_f[k] = kf.fx(s, self.dt)
@@ -102,13 +103,14 @@ class UnscentedKalmanSmoother:
             # save prior
             kf.x_prior = np.copy(kf.x)
             kf.P_prior = np.copy(kf.P)
-            z = self.data.iloc[i+1][['T', 'M', 'X', 'Mo']]
-            T_err, M_err, X_err, Mo_err = self.data.iloc[i+1][['T_err',
-                                                               'M_err',
-                                                               'X_err',
-                                                               'Mo_err']]
-            kf.R = np.eye(4)*[T_err*T_err, M_err*M_err, X_err*X_err,
-                              Mo_err*Mo_err]*self.dt**2
+            z = self.data.iloc[i+1][['T', 'M', 'X', 'Mo', 'W']]
+            T_err, M_err, X_err, Mo_err, W_err = self.data.iloc[i+1][['T_err',
+                                                                      'M_err',
+                                                                      'X_err',
+                                                                      'Mo_err',
+                                                                      'W_err']]
+            kf.R = np.eye(5)*[T_err*T_err, M_err*M_err, X_err*X_err,
+                              Mo_err*Mo_err, W_err*W_err]*self.dt**2
             # if measurements or measurement error are all
             # NaN, don't update
 
@@ -198,6 +200,10 @@ class UnscentedKalmanSmoother:
         self.data['Mi_uks_err'] = np.r_[P0[4, 4], ps[:, 4, 4]]
         self.data['Mo_uks'] = np.r_[X0[5], xs[:, 5]]
         self.data['Mo_uks_err'] = np.r_[P0[5, 5], ps[:, 5, 5]]
+        self.data['H_uks'] = np.r_[X0[6], xs[:, 6]]
+        self.data['H_uks_err'] = np.r_[P0[6, 6], ps[:, 6, 6]]
+        self.data['W_uks'] = np.r_[X0[7], xs[:, 7]]
+        self.data['W_uks_err'] = np.r_[P0[7, 7], ps[:, 7, 7]]
 
         # Append filtered values
         self.data['T_ukf'] = np.r_[X0[0], Xs[:, 0]]
@@ -212,6 +218,10 @@ class UnscentedKalmanSmoother:
         self.data['Mi_ukf_err'] = np.r_[P0[4, 4], Ps[:, 4, 4]]
         self.data['Mo_ukf'] = np.r_[X0[5], Xs[:, 5]]
         self.data['Mo_ukf_err'] = np.r_[P0[5, 5], Ps[:, 5, 5]]
+        self.data['H_ukf'] = np.r_[X0[6], Xs[:, 6]]
+        self.data['H_ukf_err'] = np.r_[P0[6, 6], Ps[:, 6, 6]]
+        self.data['W_ukf'] = np.r_[X0[7], Xs[:, 7]]
+        self.data['W_ukf_err'] = np.r_[P0[7, 7], Ps[:, 7, 7]]
         return log_lh
 
     def likelihood(self, var, sid):
