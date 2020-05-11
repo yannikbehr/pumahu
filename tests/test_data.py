@@ -11,6 +11,8 @@ import pandas as pd
 from clemb import get_data
 from clemb.data import LakeData, WindData
 
+from metservicewind.windquery import WindQuery
+
 
 class DataTestCase(unittest.TestCase):
 
@@ -238,6 +240,15 @@ class DataTestCase(unittest.TestCase):
         ld.get_outflow()
         Mo = ld.df['Mo'].loc[ld.df['z'] < 2529.25]
         self.assertTrue(np.all(Mo.values == 0))
+
+    def test_metservice_wind(self):
+        """
+        Test retrieving wind data from MetService wind model.
+        """
+        warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
+        ld = LakeData()
+        ld.get_data_fits('20190101', '20191231')
+        ld.get_MetService_wind('/home/yannik/GeoNet/wind')
 
 
 def suite():
