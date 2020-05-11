@@ -5,6 +5,8 @@ channels:
 dependencies:
     - python=3.6
     - bqplot
+    - cartopy
+    - scikit-learn
     - numpy
     - scipy
     - matplotlib
@@ -21,4 +23,4 @@ dependencies:
     - pip:
         - filterpy
         - progressbar2
-        - git+https://github.com/yannikbehr/nsampling.git
+        - git+ssh://git@github.com/yannikbehr/nsampling.git
