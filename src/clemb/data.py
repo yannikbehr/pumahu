@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from functools import lru_cache
 import inspect
 import os
@@ -13,6 +13,8 @@ from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.common import Q_continuous_white_noise
 
 from clemb import Forwardmodel, get_data
+
+from metservicewind.windquery import WindQuery
 
 
 class LakeData:
@@ -29,6 +31,7 @@ class LakeData:
         else:
             self.csvfile = csvfile
             self.get_data = self.get_data_csv
+
 
     def get_data_fits(self, start, end, outdir='/tmp',
                       smoothing='kf'):
@@ -537,11 +540,13 @@ class LakeData:
                 vol.std(axis=1), p_mean, p_std, M.mean(axis=1),
                 M.std(axis=1), a.mean(axis=1), a.std(axis=1))
 
-    def get_outflow(self, tstart=None, tend=datetime.utcnow(),
-                    smoothing='kf'):
+    def get_outflow(self):
         """
         Get lake outflow data from CSV file.
         """
+        if self.df is None:
+            msg = "First run self.get_data before running this."
+            raise TypeError(msg)
         data_dir = os.path.join(os.path.dirname(os.path.abspath(
                                 inspect.getfile(inspect.currentframe()))),
                                 "data")
@@ -570,6 +575,36 @@ class LakeData:
         dfn['Mo_err'].loc[self.df['z'] < H_0] = 25*0.0864*(h_tmp - h_min)/(H_0 - h_min)
         self.df['Mo'] = dfn['Mo']
         self.df['Mo_err'] = dfn['Mo_err']
+
+    def get_MetService_wind(self, wdata, elev=3000, volcano='Ruapehu',
+                            default=None):
+        """
+        Get wind data from MetService wind model files.
+        """
+        if self.df is None:
+            msg = "First run self.get_data before running this."
+            raise TypeError(msg)
+
+        if default is not None:
+            self.df['W'] = np.ones(self.df.shape[0])*default
+            self.df['W_err'] = np.ones(self.df.shape[0])*.1
+            return
+
+        datad = os.path.join(os.path.dirname(os.path.abspath(
+                             inspect.getfile(inspect.currentframe()))),
+                             "data")
+        wq = WindQuery(wdata, cache_dir=datad)
+        df = wq.query(self.df.index[0], self.df.index[-1], volcano, elev,
+                      cache=True)
+        mdf = df.groupby(pd.Grouper(freq='D')).mean()
+        sdf = df.groupby(pd.Grouper(freq='D')).std()
+        ndf = pd.DataFrame({'W': mdf['pmodel']['speed'],
+                            'W_err': sdf['pmodel']['speed']},
+                           index=mdf.index)
+        ndf.index = ndf.index.tz_convert(None)
+        ndf = ndf.reindex(self.df.index).interpolate()
+        self.df['W'] = ndf['W']
+        self.df['W_err'] = ndf['W_err']
 
 
 class WindData:
