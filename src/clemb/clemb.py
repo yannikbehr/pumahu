@@ -102,51 +102,7 @@ class Clemb:
         self.fm = Forwardmodel()
         self.fullness = self.fm.fullness
 
-    def get_variable(self, key):
-        if key in self._df:
-            return self._df[key]
-        elif key.lower() == 'wind':
-            return self._df['W']
-        elif key.lower() == 'enthalpy':
-            return self._df['H']
-        else:
-            raise AttributeError('Unknown variable name.')
-
-    def update_data(self, start, end):
-        """
-        Update the timeframe to analyse.
-        """
-        # allow for tinkering with the dilution factor
-        old_dv = self._df['dv'].copy()
-
-        self._df = self.lakedata.get_data(start, end).copy()
-        self._dates = self._df.index
-        self._df.loc[:, 'W'] = self.winddata.get_data(self._dates[0],
-                                                      self._dates[-1]).copy()
-        self._df.loc[:, 'H'] = np.ones(self._dates.size) * self.h
-
-        # See if old dilution values overlap with new; if not discard
-        old_start = old_dv.index.min()
-        old_end = old_dv.index.max()
-        new_start = self._dates.min()
-        new_end = self._dates.max()
-        if not old_start > new_end or not old_end < new_start:
-            # Find overlapping region
-            start = max(old_start, new_start)
-            end = min(old_end, new_end)
-            new_dv = self._df['dv'].copy()
-            new_dv[start:end] = old_dv[start:end]
-            self._df.loc[:, 'dv'] = new_dv
-
-    @property
-    def drmg(self):
-        return self.use_drmg
-
-    @drmg.setter
-    def drmg(self, val):
-        self.use_drmg = val
-
-    def run_backward(self, new=False):
+      def run_backward(self, new=False):
         """
         Compute the amount of steam and energy that has to be put into a crater
         lake to cause an observed temperature change. This computation runs
