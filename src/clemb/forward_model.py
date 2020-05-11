@@ -130,6 +130,7 @@ class Forwardmodel:
         # Evaporation (kg/s/m2) =
         # (0.00407 * W**0.8 / L**0.2 - 0.01107/L)(es-ea)/pa
 
+        w = max(0, w) # negative wind speeds break the model
         eforced = a * (0.00407 * w**0.8 / l**0.2 - 0.01107 / l) * \
             (vp - vp_air) / pa * lh  # W
 
