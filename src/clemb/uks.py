@@ -5,7 +5,6 @@ the Unscented Kalman Smoother.
 from functools import partial
 
 from filterpy.kalman import (UnscentedKalmanFilter,
-                             MerweScaledSigmaPoints,
                              unscented_transform)
 
 import numpy as np
@@ -13,6 +12,7 @@ import pandas as pd
 
 from clemb.syn_model import SynModel
 from clemb.forward_model import Forwardmodel
+from clemb.sigma_points import MerweScaledSigmaPoints
 
 
 class Fx:
@@ -45,7 +45,7 @@ def h_x(x):
     """
     Measurement function
     """
-    return [x[0], x[1], x[2], x[5], x[6]]
+    return [x[0], x[1], x[2], x[5], x[7]]
 
 
 class UnscentedKalmanSmoother:
@@ -61,6 +61,14 @@ class UnscentedKalmanSmoother:
         """
         rs = np.subtract(x, y)
         return rs[~np.isnan(rs)]
+    
+    def sigma_point_constraints(self, points):
+        idx = np.where(points[:,:8] < 0.)
+        points[idx] = 0.
+        dpidx = (idx[0], idx[1] + 5)
+        points[dpidx] = np.where(points[dpidx] < 0., 0., points[dpidx])
+        return points
+
 
     def __call__(self, Q, X0, P0, test=False, alpha=1e-1, beta=2., kappa=0.):
         nvar = len(X0)
@@ -84,12 +92,12 @@ class UnscentedKalmanSmoother:
             kf.fx = _fx
 
             try:
-                sigmas = kf.points_fn.sigma_points(kf.x, kf.P)
+                weights, sigmas = points.sigma_points(kf.x, kf.P)
+                sigmas = self.sigma_point_constraints(sigmas)
             except Exception as e:
+                import ipdb
+                ipdb.set_trace()
                 raise e
-            if True:
-                sigmas[:, 0:8] = np.where(sigmas[:, 0:8] < 0., 0.,
-                                          sigmas[:, 0:8])
             for k, s in enumerate(sigmas):
                 try:
                     kf.sigmas_f[k] = kf.fx(s, self.dt)
@@ -99,7 +107,8 @@ class UnscentedKalmanSmoother:
                     print(kf.fx)
                     raise ve
             kf.x, kf.P = unscented_transform(kf.sigmas_f,
-                                             kf.Wm, kf.Wc, kf.Q)
+                                             weights[0],
+                                             weights[1], kf.Q)
             # save prior
             kf.x_prior = np.copy(kf.x)
             kf.P_prior = np.copy(kf.P)
@@ -129,8 +138,8 @@ class UnscentedKalmanSmoother:
 
                 # mean and covariance of prediction passed through
                 # unscented transform
-                zp, Pz = unscented_transform(kf.sigmas_h[:, z_mask], kf.Wm,
-                                             kf.Wc,
+                zp, Pz = unscented_transform(kf.sigmas_h[:, z_mask],
+                                             weights[0], weights[1],
                                              kf.R[R_mask].reshape(rmdim,
                                                                   rmdim))
 
@@ -149,8 +158,11 @@ class UnscentedKalmanSmoother:
                 kf._log_likelihood = None
                 kf._likelihood = None
                 # update likelihood
-                log_lh += kf.log_likelihood
-
+                try:
+                    log_lh += kf.log_likelihood
+                except:
+                    import ipdb
+                    ipdb.set_trace()
             Xs[i, :] = kf.x
             Ps[i, :, :] = kf.P
 
@@ -166,11 +178,13 @@ class UnscentedKalmanSmoother:
             for k in reversed(range(n-1)):
                 # create sigma points from state estimate,
                 # pass through state func
-                sigmas = kf.points_fn.sigma_points(xs[k], ps[k])
+                weights, sigmas = points.sigma_points(xs[k], ps[k])
+                sigmas = self.sigma_point_constraints(sigmas)
                 for i in range(num_sigmas):
                     sigmas_f[i] = kf.fx(sigmas[i], dts[k],
                                         date=self.data.index[k])
-                xb, Pb = unscented_transform(sigmas_f, kf.Wm, kf.Wc, kf.Q)
+                xb, Pb = unscented_transform(sigmas_f, weights[0],
+                                             weights[1], kf.Q)
 
                 # compute cross variance
                 Pxb = 0
