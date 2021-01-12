@@ -11,11 +11,19 @@ from filterpy.kalman import UnscentedKalmanFilter as UKF
 from filterpy.kalman import KalmanFilter as KF
 from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.common import Q_continuous_white_noise
+import xarray as xr
 
 from clemb import Forwardmodel, get_data
 
 from metservicewind.windquery import WindQuery
 
+from macpyver.caching import Cache2Disk
+
+
+CACHEDIR=os.path.join(os.environ['HOME'],
+                      '.cache',
+                      'clemb_lakedata')
+c2d = Cache2Disk(cachedir=CACHEDIR, interface='xarray')
 
 class LakeData:
     """
@@ -25,7 +33,7 @@ class LakeData:
     def __init__(self, url="https://fits.geonet.org.nz/observation",
                  csvfile=None):
         self.base_url = url
-        self.df = None
+        self.xdf = None
         if csvfile is None:
             self.get_data = self.get_data_fits
         else:
@@ -33,51 +41,54 @@ class LakeData:
             self.get_data = self.get_data_csv
 
 
+    @c2d.cache
     def get_data_fits(self, start, end, outdir='/tmp',
                       smoothing='kf'):
         """
         Request data from the FITS database unless it has been already cached.
         """
-        fname = 'measurements_{:s}_{:s}_{:s}.h5'.format(start, end, smoothing)
-        fn_out = os.path.join(outdir, fname)
-        if os.path.isfile(fn_out):
-            self.df = pd.read_hdf(fn_out, 'table')
+        df1 = self.get_Mg(tstart=start, tend=end,
+                          smoothing=smoothing)
+        # Get temperature
+        df2 = self.get_T(tstart=df1.index[0], tend=df1.index[-1],
+                         smoothing=smoothing)
+        df3 = self.get_ll(tstart=df1.index[0], tend=df1.index[-1],
+                          smoothing=smoothing)
+        # Find the timespan for which all three datasets have data
+        tstart_max = max(max(df1.index[0], df2.index[0]), df3.index[0])
+        tend_min = min(min(df1.index[-1], df2.index[-1]), df3.index[-1])
+        (X, X_err, v, v_err, p, p_err,
+         M, M_err, a, a_err) = self.derived_obs(df1, df2, df3,
+                                                nsamples=20000)
+        dsize = X.size
+        parameters = ['T', 'z', 'Mg', 'X', 'v',
+                      'a', 'p', 'M', 'dv']
+        result = np.zeros((dsize, len(parameters), 2))*np.nan
+        result[:, 0, 0] = df2['t'].values
+        result[:, 0, 1] = df2['t_err'].values
+        result[:, 1, 0] = df3['h'].values
+        result[:, 1, 1] = df3['h_err'].values
+        result[:, 2, 0] = df1['Mg'].values
+        result[:, 2, 1] = df1['Mg_err'].values
+        result[:, 3, 0] = X
+        result[:, 3, 1] = X_err
+        result[:, 4, 0] = v
+        result[:, 4, 1] = v_err
+        result[:, 5, 0] = a
+        result[:, 5, 1] = a_err
+        result[:, 6, 0] = p
+        result[:, 6, 1] = p_err
+        result[:, 7, 0] = M
+        result[:, 7, 1] = M_err
+        result[:, 8, 0] = np.ones(dsize)
+        result[:, 8, 1] = np.ones(dsize)
 
-        if self.df is None:
-            df1 = self.get_Mg(tstart=start, tend=end,
-                              smoothing=smoothing)
-            # Get temperature
-            df2 = self.get_T(tstart=df1.index[0], tend=df1.index[-1],
-                             smoothing=smoothing)
-            df3 = self.get_ll(tstart=df1.index[0], tend=df1.index[-1],
-                              smoothing=smoothing)
-            # Find the timespan for which all three datasets have data
-            tstart_max = max(max(df1.index[0], df2.index[0]), df3.index[0])
-            tend_min = min(min(df1.index[-1], df2.index[-1]), df3.index[-1])
-            (X, X_err, v, v_err, p, p_err,
-             M, M_err, a, a_err) = self.derived_obs(df1, df2, df3,
-                                                    nsamples=20000)
-
-            self.df = pd.DataFrame({'T': df2['t'],
-                                    'T_err': df2['t_err'],
-                                    'z': df3['h'],
-                                    'z_err': df3['h_err'],
-                                    'Mg': df1['Mg'],
-                                    'Mg_err': df1['Mg_err'],
-                                    'X': X,
-                                    'X_err': X_err,
-                                    'v': v,
-                                    'v_err': v_err,
-                                    'a': a,
-                                    'a_err': a_err,
-                                    'p': p,
-                                    'p_err': p_err,
-                                    'M': M,
-                                    'M_err': M_err})
-            self.df = self.df.loc[tstart_max:tend_min]
-            self.df.loc[:, 'dv'] = np.ones(self.df.index.size)
-            self.df.to_hdf(fn_out, 'table')
-        return self.df
+        self.xdf = xr.DataArray(result,
+                                dims=('dates', 'i_parameters', 'val_std'),
+                                coords=(df1.index, parameters,
+                                        ['val', 'std']))
+        self.xdf = self.xdf.loc[tstart_max:tend_min]
+        return self.xdf
 
     def to_table(self, start, end, filename):
         """
