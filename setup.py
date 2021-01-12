@@ -18,5 +18,7 @@ setup(
     license="GPL v3",
     package_dir={'': 'src'},
     packages=['clemb'],
-    package_data={'clemb': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']}
+    package_data={'clemb': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']},
+    entry_points={'console_scripts':
+                  ['heat_mcmc=clemb.mcmc:main']}
 )
