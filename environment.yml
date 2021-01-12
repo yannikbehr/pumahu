@@ -1,26 +1,23 @@
 name: pumahu
 channels:
-    - pyviz
     - conda-forge
 dependencies:
     - python=3.6
     - bqplot
     - cartopy
     - scikit-learn
+    - tqdm
     - numpy
     - scipy
     - matplotlib
     - pandas
     - netcdf4
     - xarray
-    - holoviz
     - panel
     - param
-    - bokeh
     - pip
     - ipykernel
     - pytest
     - pip:
         - filterpy
-        - progressbar2
         - git+ssh://git@github.com/yannikbehr/nsampling.git
