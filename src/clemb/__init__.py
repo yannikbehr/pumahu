@@ -2,7 +2,7 @@ import pkg_resources
 
 
 def get_data(filename):
-    return pkg_resources.resource_stream(__name__, filename)
+    return pkg_resources.resource_filename(__name__, filename)
 
 from .forward_model import Forwardmodel
 from .mcmc import ns_sampling 
