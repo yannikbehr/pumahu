@@ -5,10 +5,10 @@ import xarray as xr
 
 from filterpy.kalman import unscented_transform
 
-from clemb.uks import UnscentedKalmanSmoother
-from clemb.syn_model import SynModel
-from clemb.data import LakeData
-from clemb.sigma_points import MerweScaledSigmaPoints
+from .uks import UnscentedKalmanSmoother
+from .syn_model import SynModel
+from .data import LakeData
+from .sigma_points import MerweScaledSigmaPoints
 
 
 class UKSTestCase(unittest.TestCase):

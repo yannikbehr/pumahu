@@ -10,9 +10,9 @@ from filterpy.kalman import (UnscentedKalmanFilter,
 import numpy as np
 import pandas as pd
 
-from clemb.syn_model import SynModel
-from clemb.forward_model import Forwardmodel
-from clemb.sigma_points import MerweScaledSigmaPoints
+from .syn_model import SynModel
+from .forward_model import Forwardmodel
+from .sigma_points import MerweScaledSigmaPoints
 
 
 class Fx:

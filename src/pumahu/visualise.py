@@ -16,9 +16,9 @@ import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import plotly.io as pio
-from sklearn.neighbors.kde import KernelDensity
+from sklearn.neighbors import KernelDensity
 
-from clemb import get_data
+from pumahu import get_data
 
 
 class TrellisPlot:
@@ -247,7 +247,7 @@ def heat_vs_rsam(data, filename=None):
                  '2020.MAVZ.10-HHZ.NZ.bp_1.00-4.00.rsam',
                  '2021.MAVZ.10-HHZ.NZ.bp_1.00-4.00.rsam']
     for _fn in rsamfiles:
-        outdir = os.path.join(os.environ['HOME'], '.cache', 'clemb_mcmc')
+        outdir = os.path.join(os.environ['HOME'], '.cache', 'pumahu_mcmc')
         st_tmp = read(get_rsam_data(_fn, outdir))
         tr = st_tmp[0]
         tr.stats.delta = 86400.0

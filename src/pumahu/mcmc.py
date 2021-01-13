@@ -16,11 +16,11 @@ import xarray as xr
 from nsampling import (NestedSampling, Uniform,
                        Normal, InvCDF, Constant)
 
-from clemb.forward_model import Forwardmodel
-from clemb.data import LakeData
-from clemb.visualise import (trellis_plot,
-                             mcmc_heat_input,
-                             heat_vs_rsam)
+from .forward_model import Forwardmodel
+from .data import LakeData
+from .visualise import (trellis_plot,
+                        mcmc_heat_input,
+                        heat_vs_rsam)
 
 
 class LikeliHood:

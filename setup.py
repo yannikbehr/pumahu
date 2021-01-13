@@ -8,8 +8,8 @@ from setuptools import setup
 
 # do the build/install
 setup(
-    name="clemb",
-    version="0.0.3",
+    name="pumahu",
+    version="0.0.4",
     description="Python package to compute crater lake energy and mass balance.",
     long_description="Python package to compute crater lake energy and mass balance.",
     author="Yannik Behr",
@@ -17,8 +17,8 @@ setup(
     url="",
     license="GPL v3",
     package_dir={'': 'src'},
-    packages=['clemb'],
-    package_data={'clemb': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']},
+    packages=['pumahu'],
+    package_data={'pumahu': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']},
     entry_points={'console_scripts':
-                  ['heat_mcmc=clemb.mcmc:main']}
+                  ['heat_mcmc=pumahu.mcmc:main']}
 )

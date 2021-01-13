@@ -3,8 +3,8 @@ import unittest
 
 import numpy as np
 
-from clemb.forward_model import Forwardmodel
-from clemb.syn_model import SynModel
+from .forward_model import Forwardmodel
+from .syn_model import SynModel
 
 
 class ForwardModelTestCase(unittest.TestCase):

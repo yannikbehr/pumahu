@@ -8,8 +8,8 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from clemb import get_data
-from clemb.data import LakeData, WindData
+from . import get_data
+from .data import LakeData, WindData
 
 from metservicewind.windquery import WindQuery
 

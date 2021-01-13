@@ -4,7 +4,7 @@ from scipy.signal import tukey
 from scipy.stats import gamma
 import xarray as xr
 
-from clemb.forward_model import Forwardmodel
+from .forward_model import Forwardmodel
 
 
 class SynModel:

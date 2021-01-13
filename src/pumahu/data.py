@@ -13,7 +13,7 @@ from filterpy.kalman import MerweScaledSigmaPoints
 from filterpy.common import Q_continuous_white_noise
 import xarray as xr
 
-from clemb import Forwardmodel, get_data
+from . import Forwardmodel, get_data
 
 from metservicewind.windquery import WindQuery
 
@@ -22,7 +22,7 @@ from macpyver.caching import Cache2Disk
 
 CACHEDIR=os.path.join(os.environ['HOME'],
                       '.cache',
-                      'clemb_lakedata')
+                      'pumahu_lakedata')
 c2d = Cache2Disk(cachedir=CACHEDIR, interface='xarray')
 
 class LakeData:
