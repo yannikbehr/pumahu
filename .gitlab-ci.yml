@@ -1,12 +1,3 @@
-image: tmaier/docker-compose:latest
-
-services:
-  - docker:dind
-
-before_script:
-  - docker info
-  - docker-compose --version
-
 stages:
   - build
 
@@ -14,5 +5,7 @@ build:
   tags:
     - linux
   stage: build
-  script: |
-    . ./buildnrun.sh -b
+  script:
+    - sudo apt-get install -y python-pip
+    - sudo pip install docker-compose
+    - ./buildnrun.sh -b
