@@ -1,41 +1,45 @@
-FROM jupyter/base-notebook
+FROM python:3.7 
 
 MAINTAINER Yannik Behr <y.behr@gns.cri.nz>
 
-USER root
+
 RUN apt-get update && \
-    apt-get install -y \
+    apt-get install -y --no-install-recommends \
+    python3-pip \
     git \
-    && apt-get clean
+    npm \
+    cmake && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* 
 
-# Grant NB_USER permission to /usr/local
-RUN sudo chgrp -R users /usr/local
-RUN sudo chmod -R g+w /usr/local
+RUN curl -sL https://deb.nodesource.com/setup_14.x | bash - && \
+    apt-get install -y nodejs
 
-USER $NB_USER
-# Install Python 3 packages
-RUN conda install --quiet --yes \
-    'ipywidgets=6.*' \
-    'pandas=0.19*' \
-    'scipy=0.18*' \
-    'bokeh=0.12*' \
-    'ipyparallel=6.*' \
-    'seaborn=0.7.1' \
-    'notebook=5.*' \
-    'ipympl=0.0.5' 
+RUN pip install numpy 
 
-USER root
-RUN pip install -I -U pip && \
-    pip install git+https://github.com/yannikbehr/pykalman.git@masked_arrays 
+# Setup user for jupyter
+ARG NB_USER="pumahu"
+ARG NB_UID="1000"
+ENV NB_USER=$NB_USER NB_UID=$NB_UID HOME=/home/$NB_USER
+ENV PATH="$HOME/.local/bin:${PATH}"
+RUN useradd -m -s /bin/bash -N -u $NB_UID $NB_USER 
+
+RUN mkdir -p /opt/data && \
+    chown -R $NB_USER /opt/data
 
 USER $NB_USER
-# Activate ipywidgets extension in the environment that runs the notebook server
-RUN jupyter nbextension enable --py widgetsnbextension --sys-prefix
-RUN ipcluster nbextension enable
+RUN mkdir -p $HOME/pumahu
+WORKDIR $HOME/pumahu
 
-WORKDIR /usr/local/src
-RUN git clone --depth=1 https://github.com/yannikbehr/clemb.git
-WORKDIR /usr/local/src/clemb
-RUN python3 setup.py install
+COPY --chown=$NB_USER:users ./requirements.txt .
+RUN pip install -r requirements.txt --user
 
-CMD jupyter notebook --no-browser --ip=* --notebook-dir=/usr/local/src/clemb/notebook --config=/usr/local/src/clemb/notebook/jupyter_notebook_config.py
+COPY --chown=$NB_USER:users . .
+RUN python setup.py develop --user 
+
+WORKDIR $HOME
+
+RUN jupyter labextension install jupyterlab-plotly@4.14.3 && \
+    jupyter labextension install @jupyter-widgets/jupyterlab-manager plotlywidget@4.14.3
+
+CMD jupyter lab --no-browser --ip=* --notebook-dir=$HOME/pumahu/ --config=$HOME/pumahu/src/pumahu/notebook/jupyter_notebook_config.py

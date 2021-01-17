@@ -13,6 +13,7 @@ dependencies:
     - pandas
     - netcdf4
     - xarray
+    - obspy
     - panel
     - param
     - pip
@@ -20,4 +21,5 @@ dependencies:
     - pytest
     - pip:
         - filterpy
+        - cachier
         - git+ssh://git@github.com/yannikbehr/nsampling.git
