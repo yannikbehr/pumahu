@@ -6,6 +6,5 @@ build:
     - linux
   stage: build
   script:
-    - sudo apt-get install -y python-pip
-    - sudo pip install docker-compose
+    - pip install docker-compose
     - ./buildnrun.sh -b
