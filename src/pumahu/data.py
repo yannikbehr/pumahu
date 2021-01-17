@@ -1,10 +1,11 @@
 from collections import defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 from functools import lru_cache
 import inspect
 import os
 import pkg_resources
 
+from cachier import cachier
 import numpy as np
 import pandas as pd
 from filterpy.kalman import UnscentedKalmanFilter as UKF
@@ -15,15 +16,6 @@ import xarray as xr
 
 from . import Forwardmodel, get_data
 
-from metservicewind.windquery import WindQuery
-
-from macpyver.caching import Cache2Disk
-
-
-CACHEDIR=os.path.join(os.environ['HOME'],
-                      '.cache',
-                      'pumahu_lakedata')
-c2d = Cache2Disk(cachedir=CACHEDIR, interface='xarray')
 
 class LakeData:
     """
@@ -41,9 +33,9 @@ class LakeData:
             self.get_data = self.get_data_csv
 
 
-    @c2d.cache
-    def get_data_fits(self, start, end, outdir='/tmp',
-                      smoothing='kf'):
+    @cachier(stale_after=timedelta(weeks=2),
+             cache_dir='~/.cache')
+    def get_data_fits(self, start, end, smoothing='kf'):
         """
         Request data from the FITS database unless it has been already cached.
         """
@@ -587,8 +579,7 @@ class LakeData:
         self.df['Mo'] = dfn['Mo']
         self.df['Mo_err'] = dfn['Mo_err']
 
-    def get_MetService_wind(self, wdata, elev=3000, volcano='Ruapehu',
-                            default=None):
+    def get_MetService_wind(self, elev=3000, volcano='Ruapehu', default=None):
         """
         Get wind data from MetService wind model files.
         """
@@ -601,12 +592,11 @@ class LakeData:
             self.df['W_err'] = np.ones(self.df.shape[0])*.1
             return
 
-        datad = os.path.join(os.path.dirname(os.path.abspath(
-                             inspect.getfile(inspect.currentframe()))),
-                             "data")
-        wq = WindQuery(wdata, cache_dir=datad)
-        df = wq.query(self.df.index[0], self.df.index[-1], volcano, elev,
-                      cache=True)
+        baseurl = 'http://vulkan.gns.cri.nz:9876/wind'
+        request = baseurl + '?starttime={}&endtime={}&volcano={}&elevation={}'
+        request = request.format(self.df.index[0], self.df.index[-1],
+                                 volcano, elev)
+        df = pd.read_csv(request, index_col=0, parse_dates=True)
         mdf = df.groupby(pd.Grouper(freq='D')).mean()
         sdf = df.groupby(pd.Grouper(freq='D')).std()
         ndf = pd.DataFrame({'W': mdf['pmodel']['speed'],
