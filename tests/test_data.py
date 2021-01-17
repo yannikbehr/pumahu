@@ -8,8 +8,8 @@ import warnings
 import numpy as np
 import pandas as pd
 
-from . import get_data
-from .data import LakeData, WindData
+from pumahu import get_data
+from pumahu.data import LakeData, WindData
 
 from metservicewind.windquery import WindQuery
 
@@ -184,7 +184,7 @@ class DataTestCase(unittest.TestCase):
     # @unittest.skip("CSV reading needs to be fixed")
     def test_lake_data_csv(self):
         ti = self.load_input()
-        with get_data('data/data.dat') as lb:
+        with open(get_data('data/data.dat')) as lb:
             ld = LakeData()
             vd = ld.get_data_csv(start='2003-01-16', end='2010-01-29', buf=lb)
             temp = [t for d, t in vd['T'].iteritems()]
@@ -219,7 +219,7 @@ class DataTestCase(unittest.TestCase):
 
     def test_wind_data_csv(self):
         ti = self.load_input()
-        with get_data('data/wind.dat') as wb:
+        with open(get_data('data/wind.dat')) as wb:
             dl = WindData(wb, default=0.0)
             df = dl.get_data(start='2003-01-16', end='2010-01-29')
             ws = [w for d, w in df.iteritems()]
