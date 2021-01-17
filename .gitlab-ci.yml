@@ -1,0 +1,9 @@
+stages:
+  - build
+
+build:
+  tags:
+    - linux
+  stage: build
+  script: |
+    . ./buildnrun.sh -b
