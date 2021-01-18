@@ -9,6 +9,7 @@ IMAGE=pumahu
 TAG=latest
 JUPYTER=false
 BUILD=false
+REGISTRY=false
 JPORT=8892
 
 function usage(){
@@ -34,6 +35,7 @@ do
         -j | --jupyter) JUPYTER=true;;
         --image) IMAGE="$2";shift;;
         --tag) TAG="$2";shift;;
+        --registry) REGISTRY="$2";shift;;
         -h) usage; exit 0;;
         -*) usage; exit 1;;
 esac
@@ -46,6 +48,13 @@ if [ "${BUILD}" == "true" ]; then
         --build-arg NB_UID=$(id -u) \
         -t "${IMAGE}:${TAG}" .
     docker build -t "${IMAGE}_nginx:${TAG}" -f Dockerfile.nginx .
+fi
+
+if [ "${REGISTRY}" != "false" ]; then
+    echo "push ${IMAGE} to ${REGISTRY}/yannik/${IMAGE}:${TAG}"
+    docker image push "${REGISTRY}/yannik/${IMAGE}:${TAG}"
+    echo "push ${IMAGE}_nginx to ${REGISTRY}/yannik/${IMAGE}_nginx:${TAG}"
+    docker image push "${REGISTRY}/yannik/${IMAGE}_nginx:${TAG}"
 fi
 
 if [ "${INTERACTIVE}" == "true" ]; then
