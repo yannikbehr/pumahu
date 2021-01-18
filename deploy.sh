@@ -53,12 +53,13 @@ then
   exit 1
 fi
 
-if [[ -z "$portainer_user" || -z "$portainer_auth" || -z "$artifactory_user" || -z "$jenkins_auth" ]]
+# Get the API auth token
+if [[ -z "$portainer_user" || -z "$portainer_auth" ]]
 then
   echo "Environment variables undefined"
   exit 2
 else
-  echo "Building as $artifactory_user and $portainer_user"
+  echo "Building as $portainer_user"
 fi
 
 TOKEN=$(http POST "$PORTAINER_HOST"/api/auth Username="$portainer_user" Password="$portainer_auth" --ignore-stdin  | jq .jwt -r)
@@ -68,7 +69,7 @@ then
   echo "unauthorised access"
   exit 3
 fi
-
+## Find the target server id
 SERVER_ID=$( http GET "$PORTAINER_HOST"/api/endpoints "Authorization: Bearer $TOKEN" --ignore-stdin  -b | jq --arg SERVER "$SERVER" '.[] | select(.Name == $SERVER) | .Id')
 
 if [[ -z "$SERVER_ID" ]]
@@ -77,6 +78,7 @@ then
   exit 4
 fi
 
+## Find the owning team id
 TEAM_ID=$(http GET "$PORTAINER_HOST"/api/teams "Authorization: Bearer $TOKEN" --ignore-stdin  -b | jq --arg TEAM "$TEAM" '.[] | select(.Name == $TEAM) | .Id')
 if [[ -z "$TEAM_ID" ]]
 then
@@ -165,6 +167,7 @@ else
   if [[ $RET -eq 0 ]]
   then
     echo "Starting $APP_NAME - $id on $SERVER"
+    ## Ensure the correct team can access the application in Portainer by updating the ownership
     RESOURCE_ID=$(echo "$CONTAINER_CREATE" | jq -r '.Portainer.ResourceControl.Id' )
     http PUT "$PORTAINER_HOST"/api/resource_controls/"$RESOURCE_ID" "Authorization: Bearer $TOKEN" Teams:=["$TEAM_ID"] --ignore-stdin -b &> /dev/null
   else
