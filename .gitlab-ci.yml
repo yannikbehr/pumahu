@@ -1,3 +1,6 @@
+variables:
+  - IMAGE: huta17-d:5000/yannik/pumahu
+  - TAG: 0.0.1
 stages:
   - build
 
@@ -6,5 +9,5 @@ build:
     - linux
   stage: build
   script:
-    - pip install docker-compose
-    - ./buildnrun.sh -b
+    - ./buildnrun.sh -b --image $IMAGE --tag $TAG
+    - docker image push "$IMAGE:$TAG"
