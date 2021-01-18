@@ -149,8 +149,8 @@ echo "Starting container $APP_NAME"
 CONTAINER_CREATE=$(http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/create "Authorization: Bearer $TOKEN" \
 name=="$APP_NAME" \
 Image="$IMAGE" \
-HostConfig:='{ "PortBindings": { "8080/tcp": [{ "HostPort": "9010" }] }, "RestartPolicy": {"Name":"always" } }' \
-ExposedPorts:='{ "8080/tcp": {} }' \
+HostConfig:='{ "PortBindings": { "7080/tcp": [{ "HostPort": "80" }] }, "RestartPolicy": {"Name":"always" } }' \
+ExposedPorts:='{ "7080/tcp": {} }' \
 Env:='["SPRING_PROFILES_ACTIVE=dev"]' \
  --ignore-stdin -b)
 
