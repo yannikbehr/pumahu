@@ -15,5 +15,5 @@ deploy-nginx:
     - linux
   stage: deploy
   script:
-    . ./deploy.sh -s vulkan
+    . ./deploy.sh -s Vulkan
 
