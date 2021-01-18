@@ -2,12 +2,17 @@
 
 #########################################
 # Build and run docker image            #
-# 01/21 Y. Behr <y.behr@gns.cri.nz>     #
+# 09/20 Y. Behr <y.behr@gns.cri.nz>     #
 #########################################
+##############################################
+IMAGE=pumahu
+##############################################
 
-SERVICE=pumahu
+IMAGENAME=pumahu
+TAG=latest
 JUPYTER=false
 BUILD=false
+NOCACHE=false
 JPORT=8892
 
 function usage(){
@@ -39,22 +44,24 @@ done
 
 
 if [ "${BUILD}" == "true" ]; then
-    docker-compose build --build-arg NB_USER=$(whoami) \
-        --build-arg NB_UID=$(id -u) 
+    docker build --build-arg NB_USER=$(whoami) \
+        --build-arg NB_UID=$(id -u) \
+        -t "${IMAGENAME}:${TAG}" .
 fi
 
 if [ "${INTERACTIVE}" == "true" ]; then
-    docker-compose run --rm -v $PWD:/home/$(whoami)/pumahu \
-        -u $(id -u):$(id -g) $SERVICE /bin/bash
+    docker run -it --rm -v $PWD:/home/$(whoami)/pumahu \
+        -u $(id -u):$(id -g) \
+        "$IMAGENAME:$TAG" /bin/bash
 fi
 
    
 if [ "$JUPYTER" == "true" ];then
-    docker-compose run --rm -v $PWD:/home/$(whoami)/pumahu \
+    docker run -it --rm -v $PWD:/home/$(whoami)/pumahu \
         -u $(id -u):$(id -g) \
         -p $JPORT:$JPORT \
         -w /home/$(whoami) \
-        ${SERVICE} \
+        "$IMAGENAME:$TAG" \
         jupyter-lab --ip 0.0.0.0 --no-browser --port $JPORT
 fi
 
