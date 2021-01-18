@@ -5,11 +5,11 @@
 # 09/20 Y. Behr <y.behr@gns.cri.nz>     #
 #########################################
 
-IMAGE=pumahu
-TAG=latest
+IMAGE="hut17-d:5000/yannik/pumahu"
+TAG=0.0.1
 JUPYTER=false
 BUILD=false
-REGISTRY=false
+PUSH=false
 JPORT=8892
 
 function usage(){
@@ -22,7 +22,10 @@ Optional Arguments:
     -b, --build             Rebuild the image.
     -i, --interactive       Start the container with a bash prompt.
     -j, --jupyter           Start jupyter lab.
-    
+    --image                 Provide alternative image name.
+    --tag                   Provide alternative tag
+    --push                  Push to registry. Note: the registry
+                            has to be part of the image name
 EOF
 }
 
@@ -35,7 +38,7 @@ do
         -j | --jupyter) JUPYTER=true;;
         --image) IMAGE="$2";shift;;
         --tag) TAG="$2";shift;;
-        --registry) REGISTRY="$2";shift;;
+        --push) PUSH=true;;
         -h) usage; exit 0;;
         -*) usage; exit 1;;
 esac
@@ -51,10 +54,8 @@ if [ "${BUILD}" == "true" ]; then
 fi
 
 if [ "${REGISTRY}" != "false" ]; then
-    echo "push ${IMAGE} to ${REGISTRY}/yannik/${IMAGE}:${TAG}"
-    docker image push "${REGISTRY}/yannik/${IMAGE}:${TAG}"
-    echo "push ${IMAGE}_nginx to ${REGISTRY}/yannik/${IMAGE}_nginx:${TAG}"
-    docker image push "${REGISTRY}/yannik/${IMAGE}_nginx:${TAG}"
+    docker image push "${IMAGE}:${TAG}"
+    docker image push "${IMAGE}_nginx:${TAG}"
 fi
 
 if [ "${INTERACTIVE}" == "true" ]; then
