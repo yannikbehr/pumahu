@@ -1,5 +1,6 @@
 stages:
   - build
+  - deploy
 
 build:
   tags:
@@ -8,3 +9,11 @@ build:
   script:
     - ./buildnrun.sh -b 
     - ./buildnrun.sh --push
+
+deploy-nginx:
+  tags:
+    - linux
+  stage: deploy
+  script:
+    . ./deploy.sh -s vulkan
+
