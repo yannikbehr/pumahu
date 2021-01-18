@@ -3,7 +3,7 @@
 set -e
 
 ######## Set up project variables #######
-IMAGE='huta17-d:5000/yannik/pumahu_nginx:0.0.1'
+IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu_nginx:0.0.1'
 APP_NAME=Pumahu-nginx
 #########################################
 
