@@ -4,15 +4,11 @@
 # Build and run docker image            #
 # 09/20 Y. Behr <y.behr@gns.cri.nz>     #
 #########################################
-##############################################
-IMAGE=pumahu
-##############################################
 
-IMAGENAME=pumahu
+IMAGE=pumahu
 TAG=latest
 JUPYTER=false
 BUILD=false
-NOCACHE=false
 JPORT=8892
 
 function usage(){
@@ -36,6 +32,8 @@ do
         -b | --build) BUILD=true;;
         -i | --interactive) INTERACTIVE=true;;
         -j | --jupyter) JUPYTER=true;;
+        --image) IMAGE="$2";shift;;
+        --tag) TAG="$2";shift;;
         -h) usage; exit 0;;
         -*) usage; exit 1;;
 esac
@@ -46,13 +44,14 @@ done
 if [ "${BUILD}" == "true" ]; then
     docker build --build-arg NB_USER=$(whoami) \
         --build-arg NB_UID=$(id -u) \
-        -t "${IMAGENAME}:${TAG}" .
+        -t "${IMAGE}:${TAG}" .
+    docker build -t "${IMAGE}_nginx:${TAG}" -f Dockerfile.nginx .
 fi
 
 if [ "${INTERACTIVE}" == "true" ]; then
     docker run -it --rm -v $PWD:/home/$(whoami)/pumahu \
         -u $(id -u):$(id -g) \
-        "$IMAGENAME:$TAG" /bin/bash
+        "${IMAGE}" /bin/bash
 fi
 
    
@@ -61,7 +60,7 @@ if [ "$JUPYTER" == "true" ];then
         -u $(id -u):$(id -g) \
         -p $JPORT:$JPORT \
         -w /home/$(whoami) \
-        "$IMAGENAME:$TAG" \
+        "${IMAGE}" \
         jupyter-lab --ip 0.0.0.0 --no-browser --port $JPORT
 fi
 
