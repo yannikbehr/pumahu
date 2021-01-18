@@ -68,6 +68,8 @@ if [[ -z "$TOKEN" ]]
 then
   echo "unauthorised access"
   exit 3
+else
+  echo "Building with token $TOKEN"
 fi
 ## Find the target server id
 SERVER_ID=$( http GET "$PORTAINER_HOST"/api/endpoints "Authorization: Bearer $TOKEN" --ignore-stdin  -b | jq --arg SERVER "$SERVER" '.[] | select(.Name == $SERVER) | .Id')
@@ -149,8 +151,8 @@ echo "Starting container $APP_NAME"
 CONTAINER_CREATE=$(http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/create "Authorization: Bearer $TOKEN" \
 name=="$APP_NAME" \
 Image="$IMAGE" \
-HostConfig:='{ "PortBindings": { "7080/tcp": [{ "HostPort": "80" }] }, "RestartPolicy": {"Name":"always" } }' \
-ExposedPorts:='{ "7080/tcp": {} }' \
+HostConfig:='{ "PortBindings": { "80/tcp": [{ "HostPort": "7080" }] }, "RestartPolicy": {"Name":"always" } }' \
+ExposedPorts:='{ "80/tcp": {} }' \
 Env:='["SPRING_PROFILES_ACTIVE=dev"]' \
  --ignore-stdin -b)
 
