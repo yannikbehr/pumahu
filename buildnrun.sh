@@ -5,7 +5,7 @@
 # 09/20 Y. Behr <y.behr@gns.cri.nz>     #
 #########################################
 
-IMAGE="hut17-d:5000/yannik/pumahu"
+IMAGE="huta17-d:5000/yannik/pumahu"
 TAG=0.0.1
 JUPYTER=false
 BUILD=false
