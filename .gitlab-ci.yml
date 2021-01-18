@@ -1,5 +1,5 @@
 stages:
-  - deploy
+  deploy
 
 build:
   tags:
