@@ -1,6 +1,6 @@
 variables:
-  - IMAGE: "huta17-d:5000/yannik/pumahu"
-  - TAG: "0.0.1"
+  IMAGE: "pumahu"
+  TAG: "0.0.1"
 stages:
   - build
 
@@ -10,4 +10,4 @@ build:
   stage: build
   script:
     - ./buildnrun.sh -b --image $IMAGE --tag $TAG
-    - docker image push "$IMAGE:$TAG"
+    - ./buildnrun.sh --registry "huta17-d:5000" --image $IMAGE --tag $TAG
