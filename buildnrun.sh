@@ -53,7 +53,7 @@ if [ "${BUILD}" == "true" ]; then
     docker build -t "${IMAGE}_nginx:${TAG}" -f Dockerfile.nginx .
 fi
 
-if [ "${REGISTRY}" != "false" ]; then
+if [ "${PUSH}" != "false" ]; then
     docker image push "${IMAGE}:${TAG}"
     docker image push "${IMAGE}_nginx:${TAG}"
 fi
