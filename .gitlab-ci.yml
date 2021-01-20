@@ -15,5 +15,12 @@ deploy-nginx:
     - linux
   stage: deploy
   script:
-    . ./deploy.sh -s Vulkan
+    . ./docker-deploy_nginx.sh
+
+deploy-main:
+  tags:
+    - linux
+  stage: deploy
+  script:
+    . ./docker-deploy.sh
 

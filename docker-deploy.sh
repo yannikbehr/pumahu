@@ -2,20 +2,24 @@
 
 set -e
 
-######## Set up project variables #######
-IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu_nginx:0.0.1'
+######## Set up default project variables #######
+IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu:0.0.1'
 APP_NAME=Pumahu-nginx
-#########################################
-
-PARAMS=""
 PORTAINER_HOST='huta17-d:9000'
-SERVER=""
+SERVER="Vulkan"
 TEAM="Volcano"
+#################################################
+####### Docker config ###########################
+DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } }')
+#################################################
+
+###### Standard section to deploy containers ####
+PARAMS=""
 
 while (( "$#" )); do
   case "$1" in
     -s|--server)
-      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+      if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
         SERVER=$2
         shift 2
       else
@@ -24,8 +28,26 @@ while (( "$#" )); do
       fi
       ;;
     -t|--team)
-      if [ -n "$2" ] && [ ${2:0:1} != "-" ]; then
+      if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
         TEAM=$2
+        shift 2
+      else
+        echo "Error: Argument for $1 is missing" >&2
+        exit 1
+      fi
+      ;;
+    -i|--image)
+      if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+        IMAGE=$2
+        shift 2
+      else
+        echo "Error: Argument for $1 is missing" >&2
+        exit 1
+      fi
+      ;;
+    -a|--appname)
+      if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+        APP_NAME=$2
         shift 2
       else
         echo "Error: Argument for $1 is missing" >&2
@@ -59,7 +81,7 @@ then
   echo "Environment variables undefined"
   exit 2
 else
-  echo "Building as $portainer_user"
+  echo "Building as $portainer_user and deploying to $SERVER"
 fi
 
 TOKEN=$(http POST "$PORTAINER_HOST"/api/auth Username="$portainer_user" Password="$portainer_auth" --ignore-stdin  | jq .jwt -r)
@@ -68,8 +90,6 @@ if [[ -z "$TOKEN" ]]
 then
   echo "unauthorised access"
   exit 3
-else
-  echo "Building with token $TOKEN"
 fi
 ## Find the target server id
 SERVER_ID=$( http GET "$PORTAINER_HOST"/api/endpoints "Authorization: Bearer $TOKEN" --ignore-stdin  -b | jq --arg SERVER "$SERVER" '.[] | select(.Name == $SERVER) | .Id')
@@ -87,20 +107,14 @@ then
   echo "Team $TEAM unavailable"
   exit 4
 fi
-#
-#echo "Building $IMAGE"
-#docker build . -t "$IMAGE"
-#
-#echo "Pushing $IMAGE"
-#docker image push "$IMAGE"
 
 echo "Cleaning up old versions of $APP_NAME"
 CONTAINERS=$(http GET "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/json?filters=\{\"name\":\{\""/$APP_NAME"\":true\}\} "Authorization: Bearer $TOKEN" --ignore-stdin  -b)
 echo "Found running containers $CONTAINERS"
 
-if [[ ! -z $(echo $CONTAINERS | jq .[]? ) ]]
+if [[ ! -z $(echo "$CONTAINERS" | jq .[]? ) ]]
 then
-  IDS=$(echo $CONTAINERS | jq -r '.[] | .Id')
+  IDS=$(echo "$CONTAINERS" | jq -r '.[] | .Id')
   for id in $IDS
   do
     echo "Stopping $id"
@@ -138,11 +152,12 @@ CREATE_RESP=$(http -f POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/i
 if [[ -z  "$CREATE_RESP" ]]
 then
   echo "No response when trying to create the image for $IMAGE"
+  exit 5
 else
   IFS=$'\n'
   for st in $CREATE_RESP
   do
-    echo $st | jq .status -r
+    echo "$st" | jq .status -r
   done
 fi
 
@@ -151,17 +166,14 @@ echo "Starting container $APP_NAME"
 CONTAINER_CREATE=$(http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/create "Authorization: Bearer $TOKEN" \
 name=="$APP_NAME" \
 Image="$IMAGE" \
-HostConfig:='{ "PortBindings": { "80/tcp": [{ "HostPort": "7080" }] }, "RestartPolicy": {"Name":"always" } }' \
-ExposedPorts:='{ "80/tcp": {} }' \
-Env:='["SPRING_PROFILES_ACTIVE=dev"]' \
- --ignore-stdin -b)
-
-echo "$CONTAINER_CREATE"
+"${DOCKER_CONFIG[@]}" \
+--ignore-stdin -b)
 
 if [[ -z $(echo "$CONTAINER_CREATE" | jq .Id ) ]]
 then
   echo "Could not create container $(jq -r .message)"
   echo "Could not create container $(jq -r .Warnings)"
+  exit 6
 else
   NEW_APP=$(echo "$CONTAINER_CREATE" | jq -r .Id)
   http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/"$NEW_APP"/start "Authorization: Bearer $TOKEN" --check-status --ignore-stdin &> /dev/null
@@ -179,5 +191,8 @@ else
         5) echo 'HTTP 5xx Server Error!' ;;
         *) echo 'Other Error!' ;;
       esac
+      exit 8
   fi
 fi
+
+exit 0
