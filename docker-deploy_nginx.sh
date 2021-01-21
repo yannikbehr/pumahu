@@ -10,7 +10,7 @@ SERVER="Vulkan"
 TEAM="Volcano"
 #################################################
 ####### Docker config ###########################
-DOCKER_CONFIG=(HostConfig:='{ "PortBindings": { "80/tcp": [{ "HostPort": "9080" }] }, "RestartPolicy": {"Name":"always" }, "Binds": [ "pumahu_data:/usr/share/nginx/html:ro" ] }' \
+DOCKER_CONFIG=(HostConfig:='{ "PortBindings": { "80/tcp": [{ "HostPort": "9085" }] }, "RestartPolicy": {"Name":"always" }, "Binds": [ "pumahu_data:/usr/share/nginx/html:ro" ] }' \
 ExposedPorts:='{ "80/tcp": {} }' )
 #################################################
 
