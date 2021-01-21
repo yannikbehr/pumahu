@@ -16,6 +16,7 @@ import xarray as xr
 from nsampling import (NestedSampling, Uniform,
                        Normal, InvCDF, Constant)
 
+from . import get_data 
 from .forward_model import Forwardmodel
 from .data import LakeData
 from .visualise import (trellis_plot,
@@ -229,7 +230,8 @@ def main(argv=None):
                         help='Run the MCMC sampling.')
     parser.add_argument('-p', '--plot', action='store_true',
                         help='Plot the results.')
-    parser.add_argument('--prior', type=str, default=None,
+    parser.add_argument('--prior', type=str,
+                        default=get_data('data/outflow_prior.npz'),
                         help='File containing priors.')
     args = parser.parse_args(argv)
     ld = LakeData()
