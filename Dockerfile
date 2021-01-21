@@ -17,7 +17,7 @@ ENV PATH=/root/.local/bin:$PATH
 
 # install dependencies to the local user directory (eg. /root/.local)
 RUN pip install --no-cache-dir --upgrade pip
-RUN pip install numpy 
+RUN pip install --user numpy 
 RUN pip install --user -r requirements.txt
 
 FROM python:3.7-slim
@@ -45,4 +45,4 @@ COPY --chown=$NB_USER:users . .
 RUN python setup.py develop --user 
 
 WORKDIR $HOME
-
+ENTRYPOINT ["heat_mcmc"]
