@@ -10,6 +10,8 @@ dependencies:
     - numpy
     - scipy
     - matplotlib
+    - plotly=4.14.3
+    - kaleido
     - pandas
     - netcdf4
     - xarray

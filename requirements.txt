@@ -9,6 +9,7 @@ netcdf4
 xarray
 ipykernel
 plotly==4.14.3
+kaleido
 ipywidgets>=7.5
 jupyterlab
 seaborn
