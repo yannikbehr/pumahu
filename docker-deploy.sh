@@ -4,7 +4,7 @@ set -e
 
 ######## Set up default project variables #######
 IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu:0.0.1'
-APP_NAME=Pumahu-nginx
+APP_NAME=Pumahu
 PORTAINER_HOST='huta17-d:9000'
 SERVER="Vulkan"
 TEAM="Volcano"
