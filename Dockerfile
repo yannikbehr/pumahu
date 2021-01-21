@@ -46,3 +46,4 @@ RUN python setup.py develop --user
 
 WORKDIR $HOME
 ENTRYPOINT ["heat_mcmc"]
+CMD ["--rdir", "/opt/data", "-f", "-p"]
