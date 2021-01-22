@@ -10,7 +10,7 @@ SERVER="Vulkan"
 TEAM="Volcano"
 #################################################
 ####### Docker config ###########################
-DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } }')
+DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
 #################################################
 
 ###### Standard section to deploy containers ####
