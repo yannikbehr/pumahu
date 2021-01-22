@@ -1,0 +1,1 @@
+0 14 * * * ${HOME}/.local/bin/heat_mcmc --rdir /opt/data -f -p >> ${HOME}/cron.log 2>&1 

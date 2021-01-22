@@ -22,6 +22,9 @@ RUN pip install --user -r requirements.txt
 
 FROM python:3.7-slim
 
+#Install Cron
+RUN apt-get -y update && apt-get -y install cron
+
 # Setup new user
 ARG NB_USER="pumahu"
 ARG NB_UID="1000"
@@ -38,6 +41,10 @@ WORKDIR $HOME
 # copy only the dependencies installation from the 1st stage image
 COPY --from=builder --chown=$NB_USER:users /root/.local /home/$NB_USER/.local
 
+# Add crontab file in the cron directory
+ADD crontab /tmp/crontab
+RUN crontab -u $NB_USER /tmp/crontab
+ 
 RUN mkdir -p $HOME/pumahu
 WORKDIR $HOME/pumahu
 
@@ -45,5 +52,6 @@ COPY --chown=$NB_USER:users . .
 RUN python setup.py develop --user 
 
 WORKDIR $HOME
-ENTRYPOINT ["heat_mcmc"]
-CMD ["--rdir", "/opt/data", "-f", "-p"]
+RUN touch $HOME/cron.log
+USER root
+CMD cron && tail -f $HOME/cron.log
