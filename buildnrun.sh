@@ -50,18 +50,16 @@ if [ "${BUILD}" == "true" ]; then
     docker build --build-arg NB_USER=$(whoami) \
         --build-arg NB_UID=$(id -u) \
         -t "${IMAGE}:${TAG}" .
-    docker build -t "${IMAGE}_nginx:${TAG}" -f Dockerfile.nginx .
 fi
 
 if [ "${PUSH}" != "false" ]; then
     docker image push "${IMAGE}:${TAG}"
-    docker image push "${IMAGE}_nginx:${TAG}"
 fi
 
 if [ "${INTERACTIVE}" == "true" ]; then
     docker run -it --rm -v $PWD:/home/$(whoami)/pumahu \
         -u $(id -u):$(id -g) \
-        "${IMAGE}" /bin/bash
+        "${IMAGE}:${TAG}" /bin/bash
 fi
 
    
@@ -70,7 +68,7 @@ if [ "$JUPYTER" == "true" ];then
         -u $(id -u):$(id -g) \
         -p $JPORT:$JPORT \
         -w /home/$(whoami) \
-        "${IMAGE}" \
+        "${IMAGE}:${TAG}" \
         jupyter-lab --ip 0.0.0.0 --no-browser --port $JPORT
 fi
 

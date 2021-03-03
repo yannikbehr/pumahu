@@ -227,14 +227,13 @@ def mcmc_heat_input(data, filename=None):
 
 
 def get_rsam_data(filename, outdir):
-    baseurl = 'http://vulkan.gns.cri.nz:9090/MAVZ.NZ/'
+    baseurl = 'https://volcanolab.gns.cri.nz:8082/rsam/MAVZ.NZ/'
     if not os.path.isdir(outdir):
         os.makedirs(outdir)
     fout = os.path.join(outdir, filename)
-    if not os.path.isfile(fout):
-        hr = urllib.request.urlopen(os.path.join(baseurl, filename))
-        with open(fout, 'wb') as fh:
-            fh.write(hr.read())
+    hr = urllib.request.urlopen(os.path.join(baseurl, filename))
+    with open(fout, 'wb') as fh:
+        fh.write(hr.read())
     return fout
 
 
