@@ -3,8 +3,7 @@ import unittest
 
 import numpy as np
 
-from .forward_model import Forwardmodel
-from .syn_model import SynModel
+from pumahu import Forwardmodel, SynModel
 
 
 class ForwardModelTestCase(unittest.TestCase):
@@ -173,8 +172,8 @@ class ForwardModelTestCase(unittest.TestCase):
                                              decimal=3)
 
         # Test with 4th order Runge-Kutta
-        df = SynModel().run(1000., nsteps=21, mode='test',
-                            integration_method='rk4')
+        df = SynModel(integration_method='rk4').run(1000., nsteps=21,
+                                                    mode='test')
         np.testing.assert_array_almost_equal(df['T'].values,
                                              np.array([15.000, 14.914,
                                                        15.294, 16.588]),
@@ -193,9 +192,8 @@ class ForwardModelTestCase(unittest.TestCase):
                                              decimal=3)
 
         # Test with 4th order Runge-Kutta and Qi gradient
-        s = SynModel()
-        df = s.run(1000., nsteps=21, mode='test',
-                   integration_method='rk4', gradient=True)
+        s = SynModel(integration_method='rk4')
+        df = s.run(1000., nsteps=21, mode='test', gradient=True)
         np.testing.assert_array_almost_equal(df['T'].values,
                                              np.array([15.000, 15.147,
                                                        15.984, 17.727]),
@@ -212,6 +210,7 @@ class ForwardModelTestCase(unittest.TestCase):
                                              np.array([8.72, 12.066,
                                                        17.432, 17.432]),
                                              decimal=3)
+
 
 if __name__ == '__main__':
     unittest.main()

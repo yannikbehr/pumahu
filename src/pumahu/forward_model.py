@@ -287,9 +287,10 @@ class Forwardmodel:
         ----------
         state : array_like
                 The state array has to have the following order
-                [temperature, lake mass, total ion amount,
-                 volcanic heat input rate, mass inflow rate,
-                 mass outflow rate, enthalpy, wind speed]
+                [temperature (C), lake mass (kt), total ion amount (kt),
+                 volcanic heat input rate (TJ/day), mass inflow rate (kt/day),
+                 mass outflow rate (kt/day), enthalpy (MJ/kg),
+                 wind speed (m/s)]
 
         time : datetime
                Time at which the derivatives are computed. This is
@@ -321,4 +322,4 @@ class Forwardmodel:
         return np.r_[np.array([g0, g1, g2]), dp]
 
     def integrate(self, y, time, dt, dp):
-        return self.int_method(y, time, dt, dp=dp)
+        return self.int_method(y, time, dt=dt, dp=dp)
