@@ -1,8 +1,12 @@
+from datetime import date, timedelta
+
+from cachier import cachier
 import numpy as np
 import pandas as pd
 from scipy.signal import tukey
 from scipy.stats import gamma
 import xarray as xr
+from tqdm import tqdm
 
 from .forward_model import Forwardmodel
 
@@ -13,18 +17,21 @@ class SynModel:
 
     Compute synthetic observations by assuming a time series of
     input parameters for the mass and energy balance model. We further
-    assume that the lake has a cylindrical shape with a give area and
+    assume that the lake has a cylindrical shape with a given area and
     an outflow at 45.31 m. The outflow rate is computed using Bernoulli's
     equation.
     """
 
-    def __init__(self, area=194162, T0=15., seed=None):
+    def __init__(self, area=194162, T0=15., integration_method='euler',
+                 seed=None):
         self.f = 1/15.
         self.tmax = 30.
         self.a = area
         self.T0 = T0
         if seed is not None:
             np.random.seed(seed)
+        self.fm = Forwardmodel(method=integration_method,
+                               mass2area=self.mass2area)
 
     def outflow(self, level, area=0.2):
         """
@@ -74,7 +81,7 @@ class SynModel:
         return self.a, v
 
     def run(self, q_in, mode='gamma', nsteps=100, gradient=False,
-            integration_method='euler', addnoise=False, 
+            addnoise=False, 
             estimatenoise=False):
         """
         Produce synthetic observations.
@@ -153,8 +160,6 @@ class SynModel:
         Mo = self.outflow(ll)
         y[0, :] = [self.T0, M, X, qi[0]*0.0864,
                    Mi, Mo, H, ws]
-        fm = Forwardmodel(method=integration_method,
-                          mass2area=self.mass2area)
         for i in range(nsteps-1):
             prm[i, 0] = ll
             dt = (dates[i+1] - dates[i])/pd.Timedelta('1D')
@@ -166,14 +171,14 @@ class SynModel:
                 dp = [0.] * 5
                 dp[0] = (qi[i+1] - qi[i])*0.0864/dt
                 y[i, 5] = Mo
-            y_new = fm.integrate(y[i], dates[i], dt, dp)
-            prm[i, 1] = fm.get_evap()[1]
+            y_new = self.fm.integrate(y[i], dates[i], dt, dp)
+            prm[i, 1] = self.fm.get_evap()[1]
             V = self.volume(y_new[1], y_new[0])
             ll = self.level(V, A)
             Mo = self.outflow(ll)
             y[i+1, :] = y_new.copy()
         prm[i+1, 0] = ll
-        prm[i+1, 1] = fm.get_evap()[1]
+        prm[i+1, 1] = self.fm.get_evap()[1]
 
         # Prescripe errors
         factor = 1.
@@ -232,3 +237,137 @@ class SynModel:
         xds = xr.Dataset(df)
         xds = xds.rename({'dim_0': 'dates'})
         return xds
+
+
+def lhs(dim, nsamples, centered=False):
+    """
+    Compute latin hypercube samples.
+    
+    :param dim: Dimensionality of the samples
+    :type dim: int
+    :param nsamples: Number of samples
+    :type nsamples: int
+    :param centered: If 'True' returns samples
+                     centered within intervals
+    :type centered: bool
+    :returns: Latin hypercube samples with dimension
+              nsamples x dim
+    :rtype: :class:`numpy.ndarray`
+    """
+    # Make the random pairings
+    H = np.zeros((nsamples, dim))
+    if centered:
+        # Generate the intervals
+        cut = np.linspace(0, 1, nsamples + 1)
+        # Fill points uniformly in each interval
+        a = cut[:nsamples]
+        b = cut[1:nsamples + 1]
+        _center = (a + b)/2
+        for j in range(dim):
+            H[:, j] = np.random.permutation(_center)
+    else:
+        u = np.random.rand(nsamples, dim)
+        for j in range(dim):
+            H[:, j] = np.random.permutation(np.arange(nsamples))/nsamples + u[:,j]/nsamples
+    
+    return H
+
+
+def sensitivity_analysis_lhs(nsteps=100, mi=10, Mo_lim=(0,100),
+                             qi_lim=(0,1000), T0_lim=(5,60),
+                             H_lim=(1., 10), ws_lim=(0,20), dt=1.):
+    """
+    Model sensitivity analysis using latin hypercube samples.
+    """
+    s = SynModel()
+    samples = lhs(6, nsteps, centered=True)
+    V = 8800
+    Mo = samples[:,0] * (Mo_lim[1] - Mo_lim[0]) + Mo_lim[0]
+    qi = samples[:,1] * (qi_lim[1] - qi_lim[0]) + qi_lim[0]
+    T0 = samples[:,2] * (T0_lim[1] - T0_lim[0]) + T0_lim[0]
+    X = 2.
+    H = samples[:,3] * (H_lim[1] - H_lim[0]) + H_lim[0]
+    ws = samples[:,4] * (ws_lim[1] - ws_lim[0]) + ws_lim[0]
+    Mi = mi
+    ydays = (samples[:,5] * 365).astype(int)
+    dates = [date(2020, 1, 1) + timedelta(days=int(d)) for d in ydays]        
+    results = np.zeros((nsteps, 12))
+    columns = ['Qi', 'Mi', 'Mo', 'T0',
+               'X', 'H', 'Ws', 'V', 'Date',
+               'dT', 'dM', 'dX']
+    for i in range(nsteps): 
+        M = s.mass(V, T0[i])
+        y = [T0[i], M, X, qi[i]*0.0864,
+             Mi, Mo[i], H[i], ws[i]]
+        dp = [0.] * 5
+        y_new = s.fm.derivs(y, dates[i], dp, 1)
+        results[i, 0] = qi[i]
+        results[i, 1] = Mi
+        results[i, 2] = Mo[i]
+        results[i, 3] = T0[i]
+        results[i, 4] = X
+        results[i, 5] = H[i]
+        results[i, 6] = ws[i]
+        results[i, 7] = V
+        results[i, 8] = ydays[i]
+        results[i, 9] = y_new[0]
+        results[i, 10] = y_new[1]
+        results[i, 11] = y_new[2]
+
+    return pd.DataFrame(results, columns=columns)
+
+
+@cachier(stale_after=timedelta(weeks=2),
+         cache_dir='.cache')
+def sensitivity_analysis_grid(nsteps=10, mi=10, Mo_lim=(0, 90),
+                             qi_lim=(0, 900), T0_lim=(5,50),
+                             H_lim=(1, 10), ws_lim=(0,9), dt=1.):
+    """
+    Model sensitivity analysis using a regular grid.
+    """
+    s = SynModel()
+    V = 8800
+    Mo = np.linspace(Mo_lim[0], Mo_lim[1], nsteps)
+    qi = np.linspace(qi_lim[0], qi_lim[1], nsteps)
+    T0 = np.linspace(T0_lim[0], T0_lim[1], nsteps)
+    X = 2.
+    H = np.linspace(H_lim[0], H_lim[1], nsteps)
+    ws = np.linspace(ws_lim[0], ws_lim[1], nsteps)
+    Mi = mi
+    ydays = np.linspace(0, 365, nsteps).astype(int)
+    dates = [date(2020, 1, 1) + timedelta(days=int(d)) for d in ydays]        
+    results = np.zeros((nsteps**6, 14))
+    columns = ['Qi', 'Mi', 'Mo', 'T0',
+               'X', 'H', 'Ws', 'V', 'Date',
+               'dT', 'dM', 'dX', 'Me', 'Qe']
+    i = 0
+    for h in tqdm(H):
+        for dt in dates:
+            for w in ws:
+                for T in T0:
+                    for q in qi:
+                        for mo in Mo:
+                            M = s.mass(V, T)
+                            y = [T, M, X, q*0.0864,
+                                 Mi, mo, h, w]
+                            dp = [0.] * 5
+                            y_new = s.fm.derivs(y, dt, dp, 1)
+                            qe, me = s.fm.evap
+                            results[i, 0] = q
+                            results[i, 1] = Mi
+                            results[i, 2] = mo
+                            results[i, 3] = T
+                            results[i, 4] = X
+                            results[i, 5] = h
+                            results[i, 6] = w
+                            results[i, 7] = V
+                            results[i, 8] = dt.toordinal()
+                            results[i, 9] = y_new[0]
+                            results[i, 10] = y_new[1]
+                            results[i, 11] = y_new[2]
+                            results[i, 12] = me
+                            results[i, 13] = qe
+                            i += 1
+
+    return pd.DataFrame(results, columns=columns)
+

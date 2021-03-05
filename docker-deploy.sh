@@ -1,17 +1,21 @@
 #!/bin/bash
 
-set -e
-
 ######## Set up default project variables #######
 IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu:0.0.1'
 APP_NAME=Pumahu
-PORTAINER_HOST='huta17-d:9000'
-SERVER="Vulkan"
+APP_SERVER="Vulkan"
 TEAM="Volcano"
 #################################################
 ####### Docker config ###########################
 DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
 #################################################
+####### Aliases #################################
+PORTAINER_HOST='portainer:9000'
+STD_HTTPS_OPTS="--verify no --ignore-stdin"
+STATUS_HTTPS_OPTS="--check-status $STD_HTTPS_OPTS"
+#################################################
+
+set -e
 
 ###### Standard section to deploy containers ####
 PARAMS=""
@@ -20,7 +24,7 @@ while (( "$#" )); do
   case "$1" in
     -s|--server)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
-        SERVER=$2
+        APP_SERVER=$2
         shift 2
       else
         echo "Error: Argument for $1 is missing" >&2
@@ -54,6 +58,20 @@ while (( "$#" )); do
         exit 1
       fi
       ;;
+    -d|--dockerConfig)
+      if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+        DOCKER_CONFIG=("$2")
+        shift 2
+      else
+        echo "Error: Argument for $1 is missing" >&2
+        exit 1
+      fi
+      ;;
+
+    -h|--help)
+      echo "Some text explaining the options"
+      exit 0
+      ;;
     -*) # unsupported flags
       echo "Error: Unsupported flag $1" >&2
       exit 1
@@ -69,7 +87,7 @@ done
 eval set -- "$PARAMS"
 
 ## Find target server
-if [ -z "$SERVER" ]
+if [ -z "$APP_SERVER" ]
 then
   echo "Server is undefined"
   exit 1
@@ -81,27 +99,29 @@ then
   echo "Environment variables undefined"
   exit 2
 else
-  echo "Building as $portainer_user and deploying to $SERVER"
+  echo "Building as $portainer_user and deploying to $APP_SERVER"
 fi
 
-TOKEN=$(http POST "$PORTAINER_HOST"/api/auth Username="$portainer_user" Password="$portainer_auth" --ignore-stdin  | jq .jwt -r)
+TOKEN=$(https POST "$PORTAINER_HOST"/api/auth Username="$portainer_user" Password="$portainer_auth" $STD_HTTPS_OPTS | jq .jwt -r)
 
 if [[ -z "$TOKEN" ]]
 then
   echo "unauthorised access"
   exit 3
 fi
-## Find the target server id
-SERVER_ID=$( http GET "$PORTAINER_HOST"/api/endpoints "Authorization: Bearer $TOKEN" --ignore-stdin  -b | jq --arg SERVER "$SERVER" '.[] | select(.Name == $SERVER) | .Id')
 
-if [[ -z "$SERVER_ID" ]]
+AUTH="Authorization: Bearer $TOKEN"
+## Find the target server id
+APP_SERVER_ID=$( https GET "$PORTAINER_HOST"/api/endpoints "$AUTH" $STD_HTTPS_OPTS -b | jq --arg APP_SERVER "$APP_SERVER" '.[] | select(.Name == $APP_SERVER) | .Id')
+
+if [[ -z "$APP_SERVER_ID" ]]
 then
-  echo "Server $SERVER unavailable"
+  echo "Server $APP_SERVER unavailable"
   exit 4
 fi
 
 ## Find the owning team id
-TEAM_ID=$(http GET "$PORTAINER_HOST"/api/teams "Authorization: Bearer $TOKEN" --ignore-stdin  -b | jq --arg TEAM "$TEAM" '.[] | select(.Name == $TEAM) | .Id')
+TEAM_ID=$(https GET "$PORTAINER_HOST"/api/teams "$AUTH" $STD_HTTPS_OPTS -b | jq --arg TEAM "$TEAM" '.[] | select(.Name == $TEAM) | .Id')
 if [[ -z "$TEAM_ID" ]]
 then
   echo "Team $TEAM unavailable"
@@ -109,7 +129,7 @@ then
 fi
 
 echo "Cleaning up old versions of $APP_NAME"
-CONTAINERS=$(http GET "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/json?filters=\{\"name\":\{\""/$APP_NAME"\":true\}\} "Authorization: Bearer $TOKEN" --ignore-stdin  -b)
+CONTAINERS=$(https GET "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID"/docker/containers/json?filters=\{\"name\":\{\""/$APP_NAME"\":true\}\} "$AUTH" $STD_HTTPS_OPTS -b)
 echo "Found running containers $CONTAINERS"
 
 if [[ ! -z $(echo "$CONTAINERS" | jq .[]? ) ]]
@@ -118,26 +138,31 @@ then
   for id in $IDS
   do
     echo "Stopping $id"
-    if http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/"$id"/stop "Authorization: Bearer $TOKEN" --check-status --ignore-stdin &> /dev/null
+    if https POST "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID"/docker/containers/"$id"/stop "$AUTH" $STATUS_HTTPS_OPTS &> /dev/null
     then
-      STOP_STATUS=$(http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/"$id"/wait "Authorization: Bearer $TOKEN" --check-status --ignore-stdin -b)
+      STOP_STATUS=$(https POST "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID"/docker/containers/"$id"/wait "$AUTH" $STATUS_HTTPS_OPTS -b)
       echo "Stopped $id with status $STOP_STATUS"
       echo "Removing $id"
-      if http DELETE "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/"$id" "Authorization: Bearer $TOKEN" --check-status --ignore-stdin &> /dev/null
+      if https DELETE "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID"/docker/containers/"$id" "$AUTH" $STATUS_HTTPS_OPTS &> /dev/null
       then
         echo "Removed $id"
       else
           case $? in
+              2) echo 'Request timed out!' ;;
+              3) echo 'Unexpected HTTP 3xx Redirection!' ;;
               4) echo "Cannot remove $id" ;;
               5) echo 'HTTP 5xx Server Error!' ;;
+              6) echo 'Exceeded --max-redirects=<n> redirects!' ;;
               *) echo 'Other Error!' ;;
           esac
       fi
     else
         case $? in
-            3) echo "$id already stopped" ;;
-            4) echo "$id does not exist" ;;
+            2) echo 'Request timed out!' ;;
+            3) echo 'Unexpected HTTP 3xx Redirection!' ;;
+            4) echo 'HTTP 4xx Client Error!' ;;
             5) echo 'HTTP 5xx Server Error!' ;;
+            6) echo 'Exceeded --max-redirects=<n> redirects!' ;;
             *) echo 'Other Error!' ;;
         esac
     fi
@@ -147,7 +172,7 @@ else
 fi
 
 echo "Creating $IMAGE"
-CREATE_RESP=$(http -f POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/images/create "Authorization: Bearer $TOKEN" "fromImage=$IMAGE" --ignore-stdin -b)
+CREATE_RESP=$(https -f -b POST "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID"/docker/images/create "fromImage=$IMAGE" "$AUTH" $STD_HTTPS_OPTS)
 
 if [[ -z  "$CREATE_RESP" ]]
 then
@@ -163,11 +188,11 @@ fi
 
 echo "Starting container $APP_NAME"
 
-CONTAINER_CREATE=$(http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/create "Authorization: Bearer $TOKEN" \
+CONTAINER_CREATE=$(https -b POST "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID"/docker/containers/create \
 name=="$APP_NAME" \
 Image="$IMAGE" \
 "${DOCKER_CONFIG[@]}" \
---ignore-stdin -b)
+"$AUTH" --verify no --ignore-stdin )
 
 if [[ -z $(echo "$CONTAINER_CREATE" | jq .Id ) ]]
 then
@@ -176,20 +201,49 @@ then
   exit 6
 else
   NEW_APP=$(echo "$CONTAINER_CREATE" | jq -r .Id)
-  http POST "$PORTAINER_HOST"/api/endpoints/"$SERVER_ID"/docker/containers/"$NEW_APP"/start "Authorization: Bearer $TOKEN" --check-status --ignore-stdin &> /dev/null
+  echo "Created $APP_NAME with ID: $NEW_APP"
+
+  if https POST "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID"/docker/containers/"$NEW_APP"/start "$AUTH" --verify no --ignore-stdin --check-status &> /dev/null
+  then
+    echo "Started $APP_NAME on $APP_SERVER"
+  else
+      case $? in
+          2) echo 'Request timed out!' ;;
+          3) echo 'Unexpected HTTP 3xx Redirection!' ;;
+          4) echo "Cannot remove $id" ;;
+          5) echo 'HTTP 5xx Server Error!' ;;
+          6) echo 'Exceeded --max-redirects=<n> redirects!' ;;
+          *) echo 'Other Error!' ;;
+      esac
+  fi
+
   RET=$?
   if [[ $RET -eq 0 ]]
   then
-    echo "Starting $APP_NAME - $id on $SERVER"
     ## Ensure the correct team can access the application in Portainer by updating the ownership
     RESOURCE_ID=$(echo "$CONTAINER_CREATE" | jq -r '.Portainer.ResourceControl.Id' )
-    http PUT "$PORTAINER_HOST"/api/resource_controls/"$RESOURCE_ID" "Authorization: Bearer $TOKEN" Teams:=["$TEAM_ID"] --ignore-stdin -b &> /dev/null
+
+    if https PUT "$PORTAINER_HOST"/api/resource_controls/"$RESOURCE_ID" Teams:=["$TEAM_ID"] "$AUTH" --verify no --ignore-stdin -b &> /dev/null
+    then
+      echo "Assigned to $TEAM"
+    else
+        case $? in
+            2) echo 'Request timed out!' ;;
+            3) echo 'Unexpected HTTP 3xx Redirection!' ;;
+            4) echo "Cannot assign to $TEAM" ;;
+            5) echo 'HTTP 5xx Server Error!' ;;
+            6) echo 'Exceeded --max-redirects=<n> redirects!' ;;
+            *) echo 'Other Error!' ;;
+        esac
+    fi
   else
       case $RET in
-        3) echo "$APP_NAME already started";;
-        4) echo "No such container $id" ;;
-        5) echo 'HTTP 5xx Server Error!' ;;
-        *) echo 'Other Error!' ;;
+          2) echo 'Request timed out!' ;;
+          3) echo "$APP_NAME already started";;
+          4) echo "No such container $id" ;;
+          5) echo 'HTTP 5xx Server Error!' ;;
+          6) echo 'Exceeded --max-redirects=<n> redirects!' ;;
+          *) echo 'Other Error!' ;;
       esac
       exit 8
   fi
