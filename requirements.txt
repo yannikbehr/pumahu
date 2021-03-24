@@ -18,4 +18,5 @@ pytest
 filterpy
 cachier
 obspy
+sphinx
 git+https://github.com/yannikbehr/nsampling.git
