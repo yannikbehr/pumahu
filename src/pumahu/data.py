@@ -76,7 +76,7 @@ class LakeData:
         result[:, 8, 1] = np.ones(dsize)
 
         self.xdf = xr.DataArray(result,
-                                dims=('dates', 'i_parameters', 'val_std'),
+                                dims=('dates', 'parameters', 'val_std'),
                                 coords=(df1.index, parameters,
                                         ['val', 'std']))
         self.xdf = self.xdf.loc[tstart_max:tend_min]
