@@ -285,23 +285,36 @@ class Forwardmodel:
 
         Parameters
         ----------
-        state : array_like
+        state : array_like 
                 The state array has to have the following order
                 [temperature (C), lake mass (kt), total ion amount (kt),
                  volcanic heat input rate (TJ/day), mass inflow rate (kt/day),
                  mass outflow rate (kt/day), enthalpy (MJ/kg),
                  wind speed (m/s)]
 
-        time : datetime
+        time : datetime.datetime 
                Time at which the derivatives are computed. This is
                only important for the solor incident radiation.
-        dp : array_like
+
+        dp : array_like 
              The gradient of the model parameters in the following
-             order:
              [volcanic heat input rate, mass inflow rate,
               mass outflow rate, enthalpy, wind speed]
-        dt : float
+        dt : float 
              Time step
+
+
+        Returns:
+        --------
+
+        :class:`numpy.ndarray`
+                derivatives for:
+
+                [temperature (C/day), lake mass (kt/day), total ion amount (kt/day),
+                 volcanic heat input rate (TJ/day/day), mass inflow rate (kt/day/day),
+                 mass outflow rate (kt/day/day), enthalpy (MJ/kg/day),
+                 wind speed (m/s/day)]
+
         """
         cw = 0.0042
         a, v = self.mass2area(state[1], state[0])
@@ -321,5 +334,10 @@ class Forwardmodel:
         g2 = -state[5]*state[2]/state[1]
         return np.r_[np.array([g0, g1, g2]), dp]
 
-    def integrate(self, y, time, dt, dp):
-        return self.int_method(y, time, dt=dt, dp=dp)
+    def integrate(self, state, time, dt, dp):
+        """
+        Do the forward integration using the integration method
+        chosen at class initialisation. It accepts the same parameters
+        as the `Forwardmodel.derivs` method.
+        """
+        return self.int_method(state, time, dp=dp, dt=dt)
