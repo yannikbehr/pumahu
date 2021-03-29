@@ -53,7 +53,7 @@ class TrellisPlot:
                 ymean = np.where(ymean < 0., 0., ymean)
             return [ymean]
 
-    def plot_trace(self, fig, data, key, ylim, ylabel, row,
+    def plot_trace(self, fig, data, key, ylabel, row,
                    plotvars=[('exp', 'Result'), ('input', 'Input')]):
         """
         :param plotvars: Variables to plot.
@@ -62,40 +62,42 @@ class TrellisPlot:
         for source, name in plotvars:
             showlegend = True
             self._ntraces[row] += 1
-            try:
-                traces = self.get_traces(data[source], key)
-            except KeyError:
-                msg = "{} not in {}".format(key, data[source].coords)
-                print(msg)
-                continue
-            if name in self.legend_traces:
-                showlegend = False
-            else:
-                self.legend_traces.append(name)
-
-            fig.add_trace(go.Scatter(x=dates, y=traces[0],
-                                     line_color=self.line_colours[self._ntraces[row]],
-                                     legendgroup=name,
-                                     name=name,
-                                     showlegend=showlegend), row=row, col=1)
-            if len(traces) > 1:
-                fig.add_trace(go.Scatter(
-                    x=dates,
-                    y=traces[1],
-                    mode='lines',
-                    marker=dict(color="#444"),
-                    line=dict(width=0),
-                    showlegend=False), row=row, col=1)
-                fillcolor = self.error_colours[self._ntraces[row]]
-                fig.add_trace(go.Scatter(x=dates,
-                                         y=traces[2],
-                                         mode='lines',
-                                         marker=dict(color="#444"),
-                                         line=dict(width=0),
-                                         showlegend=False,
-                                         fillcolor=fillcolor,
-                                         fill='tonexty'), row=row, col=1)
-            fig.update_yaxes(title_text=ylabel, row=row, col=1)
+            if source in data.variables:
+                try:
+                    traces = self.get_traces(data[source], key)
+                except KeyError:
+                    msg = "{} not in {}".format(key, data[source].coords)
+                    print(msg)
+                    continue
+                if name in self.legend_traces:
+                    showlegend = False
+                else:
+                    self.legend_traces.append(name)
+                lc = self.line_colours[self._ntraces[row]]
+                fig.add_trace(go.Scatter(x=dates, y=traces[0],
+                                         line_color=lc,
+                                         legendgroup=name,
+                                         name=name,
+                                         showlegend=showlegend),
+                              row=row, col=1)
+                if len(traces) > 1:
+                    fig.add_trace(go.Scatter(
+                        x=dates,
+                        y=traces[1],
+                        mode='lines',
+                        marker=dict(color="#444"),
+                        line=dict(width=0),
+                        showlegend=False), row=row, col=1)
+                    fillcolor = self.error_colours[self._ntraces[row]]
+                    fig.add_trace(go.Scatter(x=dates,
+                                             y=traces[2],
+                                             mode='lines',
+                                             marker=dict(color="#444"),
+                                             line=dict(width=0),
+                                             showlegend=False,
+                                             fillcolor=fillcolor,
+                                             fill='tonexty'), row=row, col=1)
+                fig.update_yaxes(title_text=ylabel, row=row, col=1)
 
 
 def trellis_plot(data, data2=None, filename=None):
@@ -111,40 +113,31 @@ def trellis_plot(data, data2=None, filename=None):
     :type filename: str
     """
 
+    params = list(data.parameters.values)
+    nparams = len(params)
+    labels = dict(q_in='Qi [MW]', m_in='Mi [kt/day]',
+                  m_out='Mo [kt/day]', T='T [C]',
+                  M='M [kt]', X='X [kt]', h='H [MJ/kg]')
     with plt.style.context('bmh'):
-        fig = make_subplots(rows=7, cols=1, shared_xaxes=True,
+        fig = make_subplots(rows=nparams, cols=1, shared_xaxes=True,
                             vertical_spacing=.01)
         tp = TrellisPlot()
-        tp.plot_trace(fig, data, 'q_in', (-10, 1100), 'Qi [MW]', row=1)
-        tp.plot_trace(fig, data, 'm_in', (-1, 50), 'Mi [kt/day]', row=2)
-        tp.plot_trace(fig, data, 'm_out', (-1, 50), 'Mo [kt/day]', row=3)
-        tp.plot_trace(fig, data, 'T', (13, 21), 'T [C]', row=4)
-        tp.plot_trace(fig, data, 'M', (8760, 8800), 'M [kt]', row=5)
-        tp.plot_trace(fig, data, 'X', (1., 3), 'X [kt]', row=6)
-        tp.plot_trace(fig, data, 'h', (0., 10), 'H [MJ/kg]', row=7)
+        for i, p in enumerate(params):
+            tp.plot_trace(fig, data, p, labels.get(p, p), row=i+1)
+
         if data2 is not None:
             xdf2 = data2.loc[dict(dates=slice(data.dates[0],
                                               data.dates[-1]))]
-            tp.plot_trace(fig, xdf2, 'q_in', (-10, 1100), 'Qi [MW]', row=1,
-                          plotvars=[('exp', 'Benchmark')])
-            tp.plot_trace(fig, xdf2, 'm_in', (-1, 50), 'Mi [kt/day]', row=2,
-                          plotvars=[('exp', 'Benchmark')])
-            tp.plot_trace(fig, xdf2, 'm_out', (-1, 50), 'Mo [kt/day]', row=3,
-                          plotvars=[('exp', 'Benchmark')])
+            for i, p in enumerate(params):
+                tp.plot_trace(fig, xdf2, p, labels.get(p, p), row=i+1,
+                              plotvars=[('exp', 'Benchmark')])
 
     fig.update_layout(template='ggplot2',
                       height=1000,
                       width=1200)
 
     fig.update_xaxes(showticklabels=False, ticks='inside')
-    fig.update_xaxes(showticklabels=True, row=7)
-    fig.update_yaxes(row=7, col=1, title=dict(standoff=10))
-    fig.update_yaxes(row=6, col=1, title=dict(standoff=40))
-    fig.update_yaxes(row=5, col=1, title=dict(standoff=20))
-    fig.update_yaxes(row=4, col=1, title=dict(standoff=38))
-    fig.update_yaxes(row=3, col=1, title=dict(standoff=38))
-    fig.update_yaxes(row=2, col=1, title=dict(standoff=38))
-    fig.update_yaxes(row=1, col=1, title=dict(standoff=20))
+    fig.update_xaxes(showticklabels=True, row=nparams+1)
     if filename is not None:
         fig.write_image(file=filename)
     return fig
@@ -233,7 +226,7 @@ def get_rsam_data(filename, outdir):
     myssl.check_hostname=False
     myssl.verify_mode=ssl.CERT_NONE
 
-    baseurl = 'https://volcanolab.gns.cri.nz:8082/rsam/MAVZ.NZ/'
+    baseurl = 'https://volcanolab.gns.cri.nz:8080/rsam/MAVZ.NZ/'
     if not os.path.isdir(outdir):
         os.makedirs(outdir)
     fout = os.path.join(outdir, filename)
