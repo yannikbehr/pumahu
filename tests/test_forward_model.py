@@ -4,6 +4,7 @@ import unittest
 import numpy as np
 
 from pumahu import Forwardmodel, SynModel
+from pumahu.syn_model import setup_test
 
 
 class ForwardModelTestCase(unittest.TestCase):
@@ -148,68 +149,100 @@ class ForwardModelTestCase(unittest.TestCase):
         self.assertAlmostEqual(fw2.get_evap()[0], 15.72, places=2)
         self.assertAlmostEqual(fw2.get_evap()[1], 3.48, places=2)
 
-    def test_synthetic_model(self):
+    def test_synthetic_model_euler(self):
         """
-        Test generating synthetic observations.
+        Test generating synthetic observations using Euler's
+        method as integration method.
         """
         # Test with Euler
-        df = SynModel().run(1000., nsteps=21, mode='test')
-        np.testing.assert_array_almost_equal(df['T'].values,
+        xds = SynModel().run(setup_test())
+        tdata = xds.loc[dict(parameters=['T', 'M', 'X', 'm_out'],
+                             val_std='val')].to_array().values
+        T = tdata[0, :,0]
+        M = tdata[0, :,1]
+        X = tdata[0, :,2]
+        Mo = tdata[0, :,3]
+        np.testing.assert_array_almost_equal(T,
                                              np.array([15.000, 14.953,
                                                        15.374, 16.717]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['M'].values,
+        np.testing.assert_array_almost_equal(M,
                                              np.array([8782.84, 8783.277,
                                                        8786.092, 8789.457]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['X'].values,
+        np.testing.assert_array_almost_equal(X,
                                              np.array([2., 1.998,
                                                        1.996, 1.993]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['Mo'].values,
+        np.testing.assert_array_almost_equal(Mo,
                                              np.array([8.72, 9.225,
                                                        14.395, 14.395]),
                                              decimal=3)
 
-        # Test with 4th order Runge-Kutta
-        df = SynModel(integration_method='rk4').run(1000., nsteps=21,
-                                                    mode='test')
-        np.testing.assert_array_almost_equal(df['T'].values,
+    def test_synthetic_model_rk4(self):
+        """
+        Test generating synthetic observations using 4th order
+        Runge-Kutta method as integration method.
+        """
+        xds = SynModel(integration_method='rk4').run(setup_test())
+        tdata = xds.loc[dict(parameters=['T', 'M', 'X', 'm_out'],
+                             val_std='val')].to_array().values
+        T = tdata[0, :,0]
+        M = tdata[0, :,1]
+        X = tdata[0, :,2]
+        Mo = tdata[0, :,3]
+        np.testing.assert_array_almost_equal(T,
                                              np.array([15.000, 14.914,
                                                        15.294, 16.588]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['M'].values,
+        np.testing.assert_array_almost_equal(M,
                                              np.array([8782.84, 8783.281,
                                                        8786.262, 8789.637]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['X'].values,
+        np.testing.assert_array_almost_equal(X,
                                              np.array([2., 1.998,
                                                        1.996, 1.993]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['Mo'].values,
+        np.testing.assert_array_almost_equal(Mo,
                                              np.array([8.72, 9.045,
                                                        14.328, 14.328]),
                                              decimal=3)
 
-        # Test with 4th order Runge-Kutta and Qi gradient
+    def test_synthetic_model_rk4_dqi(self):
+        """
+        Test with 4th order Runge-Kutta as integration method
+        and Qi gradient
+        """
         s = SynModel(integration_method='rk4')
-        df = s.run(1000., nsteps=21, mode='test', gradient=True)
-        np.testing.assert_array_almost_equal(df['T'].values,
+        xds = s.run(setup_test(), gradient=True)
+        tdata = xds.loc[dict(parameters=['T', 'M', 'X', 'm_out'],
+                             val_std='val')].to_array().values
+        T = tdata[0, :, 0]
+        M = tdata[0, :, 1]
+        X = tdata[0, :, 2]
+        Mo = tdata[0, :, 3]
+        np.testing.assert_array_almost_equal(T,
                                              np.array([15.000, 15.147,
                                                        15.984, 17.727]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['M'].values,
+        np.testing.assert_array_almost_equal(M,
                                              np.array([8782.84, 8784.713,
                                                        8787.516, 8790.579]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['X'].values,
+        np.testing.assert_array_almost_equal(X,
                                              np.array([2., 1.998,
                                                        1.995, 1.991]),
                                              decimal=3)
-        np.testing.assert_array_almost_equal(df['Mo'].values,
+        np.testing.assert_array_almost_equal(Mo,
                                              np.array([8.72, 12.066,
                                                        17.432, 17.432]),
                                              decimal=3)
+
+    def test_setup_test(self):
+        xds = setup_test()
+        self.assertEqual(xds.shape, (4,4))
+        self.assertEqual(list(xds.params.values),
+                         ['q_in', 'm_in', 'h', 'W'])
 
 
 if __name__ == '__main__':

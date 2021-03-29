@@ -11,8 +11,6 @@ import pandas as pd
 from pumahu import get_data
 from pumahu.data import LakeData, WindData
 
-from metservicewind.windquery import WindQuery
-
 
 class DataTestCase(unittest.TestCase):
 
