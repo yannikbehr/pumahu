@@ -2,7 +2,7 @@
 
 This is a stochastic embedding of the model described by Hurst et al. [2014] to
 compute energy and mass input required to account for observed temperature
-changes in Mt. Ruapehu's crater lake. It has an interactive component which is currently implemented as a [Jupyter notebook](http://nbviewer.jupyter.org/github/ipython/ipython/blob/3.x/examples/Notebook/Index.ipynb).
+changes in Mt. Ruapehu's crater lake.
 
 ### Installation
 
@@ -51,7 +51,13 @@ Then start the image:
 ```
 docker run -it --rm -p 8888:8888 yadabe/clemb
 ```
-This will start a container from the docker image and expose the docker container's port 8888 to your local port 8888. To connect to the notebook type `http://localhost:8888` in your web-browser and enter the password.
+### Contribute
+
+Documentation should follow the numpy documentation style:
+https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard
+
+Issue Tracker: https://git.gns.cri.nz/behrya/pumahu/-/issues
+Source Code: https://git.gns.cri.nz/behrya/pumahu
 
 ### Running the notebook
 At this point you should see the start page of your jupyter notebook. Before starting the notebook `clemb_viz.ipynb` go to the `IPython Clusters` tab and start a cluster with the number of engines less or equal to the number of cores on your machine. Now go back to the `Files` tab, start the notebook, and click `Cell->Run All`. This will execute the notebook. To see the interactive part of the notebook scroll to the bottom. Note that you will have to confirm entries in the interactive text fields with `Enter`.
