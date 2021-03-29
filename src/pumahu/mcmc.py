@@ -26,7 +26,8 @@ from .visualise import (trellis_plot,
 
 class LikeliHood:
 
-    def __init__(self, data, date, dt, ws, cov, intmethod='rk4'):
+    def __init__(self, data, date, dt, ws, cov, intmethod='rk4',
+                 mass2area=None):
         self.data = data
         self.date = date
         self.dt = dt
@@ -37,7 +38,8 @@ class LikeliHood:
         self.factor = -np.log(np.power(2.*np.pi, cov.shape[0])
                               + np.sqrt(np.linalg.det(cov)))
         self.samples = []
-        self.fm = Forwardmodel(method=intmethod)
+        self.fm = Forwardmodel(method=intmethod,
+                               mass2area=mass2area)
 
     def get_samples(self):
         return np.array(self.samples)
@@ -70,12 +72,11 @@ class LikeliHood:
         return lh
 
     
-def ns_sampling(data, results_file, nsamples=10000, nresample=500,
-                q_in_min=0., q_in_max=1000., m_in_min=0., m_in_max=20.,
-                m_out_min=0., m_out_max=20., new=False,
-                m_out_prior=None, tolZ=1e-3, lh_fun=None,
-                tolH=3., H=6., ws=4.5, seed=-1, intmethod='rk4',
-                gradient=False):
+def ns_sampling(data, results_file=None, nsamples=10000, nresample=500,
+                q_in_lim=(0., 1000.), m_in_lim=(0., 20.),
+                m_out_lim=(0., 20.), H=6., ws=4.5, m_out_prior=None,
+                tolZ=1e-3, tolH=3., mass2area=None, intmethod='rk4',
+                gradient=False, seed=-1, new=False):
     """
     Compute the amount of steam and energy that has to be put into a crater
     lake to cause an observed temperature change. This computation runs
@@ -83,11 +84,61 @@ def ns_sampling(data, results_file, nsamples=10000, nresample=500,
     The scheme tries to optimise the misfit between the observed and
     predicted temperature, water level, and chemical concentration
     assuming normally distributed observation errors.
+
+    Parameters:
+    -----------
+    data : :class:`xarray.DataArray`
+           Observational data.
+    results_file : str
+                   Filename to store results.
+    nsamples : int
+               Maximum number of samples to use at every
+               timestep.
+    nresample : int
+                Number of samples used for importance 
+                resampling.
+    q_in_lim : tuple
+               Lower and upper bound of sampling interval for heat
+               input rate [MW]
+    m_in_lim : float
+               Lower and upper bound of sampling interval for water 
+               inflow rate [kt/day]
+    m_out_lim : float
+                Lower and upper bound of sampling interval for water 
+                outflow rate [kt/day]
+    H : float
+        Enthalpy of the steam input [MJ/kg/day]
+    ws : float
+         Windspeed [m/s]
+    m_out_prior : str
+                  Path to .npz file containing m_out_lim based on
+                  lake level.
+    tolZ : float
+           Fraction of the evidence gain at which to stop the sampling.
+    tolH : float
+           Fraction of the information gain at which to stop the 
+           sampling.
+    mass2area : function
+                Provide an alternative function to infer lake volume
+                based on lake level. The function can only accept one
+                parameter, lake level, which can be either float or
+                array_like
+    intmethod : str
+                ODE integration method. Can be either 'euler', 'rk2' for
+                2nd order Runge-Kutta, or 'rk4' for 4th order Runge-Kutta.
+    gradient : bool
+               If 'True', also sample the gradient of the heat input rate.
+    seed : int
+           The seed to use for random sampling
+    new : bool
+          If True, run the inversion even if the results_file already exists.
+          Else, if the results_file exists just return its contents.
     """
-    if not new and os.path.isfile(results_file):
-        res = xr.open_dataset(results_file)
-        res.close()
-        return res
+    if results_file is not None:
+        if not new and os.path.isfile(results_file):
+            res = xr.open_dataset(results_file)
+            res.close()
+            return res
     
     data = data.loc[:, ['T', 'M', 'X', 'z'], :]
     dates = pd.to_datetime(data['dates'].values)
@@ -102,8 +153,8 @@ def ns_sampling(data, results_file, nsamples=10000, nresample=500,
     p_parameters = ['lh', 'wt', 'zs', 'hs', 'ig', 'Z', 'Z_var']
     npparams = len(p_parameters)
     
-    nsvars['q_in'] = Uniform('qin', q_in_min, q_in_max)
-    nsvars['m_in'] = Uniform('m_in', m_in_min, m_in_max)
+    nsvars['q_in'] = Uniform('qin', q_in_lim[0], q_in_lim[1])
+    nsvars['m_in'] = Uniform('m_in', m_in_lim[0], m_in_lim[1])
     nsvars['h'] = Constant('h', H)
     f_m_out_min = None
     f_m_out_max = None
@@ -113,7 +164,7 @@ def ns_sampling(data, results_file, nsamples=10000, nresample=500,
         f_m_out_min = interp1d(z, m_out_min, fill_value='extrapolate')
         f_m_out_max = interp1d(z, m_out_max, fill_value='extrapolate')
     else:
-        nsvars['m_out'] = Uniform('m_out', m_out_min, m_out_max)
+        nsvars['m_out'] = Uniform('m_out', m_out_lim[0], m_out_lim[1])
 
     if gradient:
         nsvars['dq_in'] = Uniform('dq', -2e3, 2e3)
@@ -140,28 +191,26 @@ def ns_sampling(data, results_file, nsamples=10000, nresample=500,
     for i in tqdm(range(ndates-1)):
         # Take samples from the input
         for j, _v in enumerate(['T', 'M', 'X']):
-            val_now = data[i].sel(i_parameters=_v, val_std='val')
-            err_now = data[i].sel(i_parameters=_v, val_std='std')
-            val_next = data[i+1].sel(i_parameters=_v, val_std='val')
-            err_next = data[i+1].sel(i_parameters=_v, val_std='std')
+            val_now = data[i].sel(parameters=_v, val_std='val')
+            err_now = data[i].sel(parameters=_v, val_std='std')
+            val_next = data[i+1].sel(parameters=_v, val_std='val')
+            err_next = data[i+1].sel(parameters=_v, val_std='std')
             nsvars[_v] = Normal(_v, val_now, err_now)
             y_next[j] = val_next
             cov[j,j] = err_next*err_next
             
         if m_out_prior is not None:
-            lake_level = data[i].sel(i_parameters='z', val_std='val')
+            lake_level = data[i].sel(parameters='z', val_std='val')
             m_out_min = f_m_out_min(lake_level)
             m_out_max = f_m_out_max(lake_level)
             nsvars['m_out'] = Uniform('m_out', float(m_out_min),
                                       float(m_out_max))
         dt = (dates[i+1] - dates[i])/pd.Timedelta('1D')
         ns = NestedSampling(seed=seed)
-        if lh_fun is None:
-            _lh = LikeliHood(data=y_next, dt=dt, ws=ws, cov=cov,
-                             date=dates[i], intmethod=intmethod)
-            _lh_fun = _lh.run_lh
-        else:
-            _lh_fun = lh_fun
+        _lh = LikeliHood(data=y_next, dt=dt, ws=ws, cov=cov,
+                         date=dates[i], intmethod=intmethod,
+                         mass2area=mass2area)
+        _lh_fun = _lh.run_lh
         rs = ns.explore(list(nsvars.values()), 100, nsamples, _lh_fun, 40,
                         0.1, tolZ, tolH)
 
@@ -204,12 +253,13 @@ def ns_sampling(data, results_file, nsamples=10000, nresample=500,
                      {'dates': dates.values,
                       'parameters': parameters,
                       'p_parameters': p_parameters, 
-                      'i_parameters': data['i_parameters'],
+                      'i_parameters': data['parameters'].values,
                       'obs': ['T', 'M', 'X', 'q_in', 'm_in',
                               'm_out', 'h', 'ws'],
                       'val_std': ['val', 'std']})
 
-    res.to_netcdf(results_file)
+    if results_file is not None:
+        res.to_netcdf(results_file)
     return res
 
 
