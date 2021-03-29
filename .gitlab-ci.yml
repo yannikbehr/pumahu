@@ -11,6 +11,7 @@ test:
   variables:
     TRAVIS: "true"
   before_script:
+  - apt-get -y update && apt-get -y install cmake
   - python -V  # Print out python version for debugging
   script:
     - python -c "import os; print(os.environ)"
