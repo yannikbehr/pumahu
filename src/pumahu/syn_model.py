@@ -254,6 +254,7 @@ class SynModel:
             exp[i, prms.index('W'), 0] = data.isel(times=i).loc['W'] 
             exp[i, prms.index('m_in'), 0] = data.isel(times=i).loc['m_in'] 
             exp[i, prms.index('q_in'), 0] = 0.0864*qi[i]
+            exp[i, prms.index('m_out'), 0] = Mo
             dt = (dates[i+1] - dates[i])/pd.Timedelta('1D')
 
             if not gradient:
