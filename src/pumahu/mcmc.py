@@ -298,10 +298,10 @@ def main(argv=None):
     
     if args.fit:
         ns_sampling(data, res_fn, nsamples=1001, nresample=500,
-                    q_in_min=0., q_in_max=1000., m_in_min=0., m_in_max=20.,
-                    m_out_min=0., m_out_max=20., new=True,
-                    m_out_prior=args.prior, tolZ=1e-3, lh_fun=None,
-                    tolH=3., H=6., ws=4.5, seed=-1, intmethod='euler',
+                    q_in_lim=(0., 1000.), m_in_lim=(0., 20.),
+                    m_out_lim=(0., 20.), new=True,
+                    m_out_prior=args.prior, tolZ=1e-3, tolH=3.,
+                    H=6., ws=4.5, seed=-1, intmethod='euler',
                     gradient=False)
     if args.plot:
         xdf = xr.open_dataset(res_fn)
