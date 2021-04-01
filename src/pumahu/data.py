@@ -23,9 +23,23 @@ class LakeData:
     """
 
     def __init__(self, url="https://fits.geonet.org.nz/observation",
-                 csvfile=None):
+                 csvfile=None, windspeed=4.5):
+        """
+        Parameters:
+        -----------
+        url : str
+              FITS url to retrieve data from
+        csvfile : str
+                  If not None, read data from a csv file instead of
+                  requesting it from FITS
+        windspeed : float
+                  Default windspeed to use.
+        """
         self.base_url = url
         self.xdf = None
+        self.ws = windspeed
+        self.parameters = ['T', 'z', 'Mg', 'X', 'v',
+                           'a', 'p', 'M', 'dv', 'W']
         if csvfile is None:
             self.get_data = self.get_data_fits
         else:
@@ -53,9 +67,7 @@ class LakeData:
          M, M_err, a, a_err) = self.derived_obs(df1, df2, df3,
                                                 nsamples=20000)
         dsize = X.size
-        parameters = ['T', 'z', 'Mg', 'X', 'v',
-                      'a', 'p', 'M', 'dv']
-        result = np.zeros((dsize, len(parameters), 2))*np.nan
+        result = np.zeros((dsize, len(self.parameters), 2))*np.nan
         result[:, 0, 0] = df2['t'].values
         result[:, 0, 1] = df2['t_err'].values
         result[:, 1, 0] = df3['h'].values
@@ -74,10 +86,13 @@ class LakeData:
         result[:, 7, 1] = M_err
         result[:, 8, 0] = np.ones(dsize)
         result[:, 8, 1] = np.ones(dsize)
+        result[:, 9, 0] = np.ones(dsize)*self.ws
+        result[:, 9, 1] = np.zeros(dsize)
+
 
         self.xdf = xr.DataArray(result,
                                 dims=('dates', 'parameters', 'val_std'),
-                                coords=(df1.index, parameters,
+                                coords=(df1.index, self.parameters,
                                         ['val', 'std']))
         self.xdf = self.xdf.loc[tstart_max:tend_min]
         return self.xdf
@@ -323,9 +338,9 @@ class LakeData:
             for d in mg_df.index:
                 dt = d.date()
                 if dt in dates:
-                    mg_df.loc[dt, 'Mg_err'] = stds[dt]
+                    mg_df.loc[str(dt), 'Mg_err'] = stds[dt]
                 else:
-                    mg_df.loc[dt, 'Mg_err'] = stds_mean
+                    mg_df.loc[str(dt), 'Mg_err'] = stds_mean
             mg_df = mg_df.reindex(index=new_dates)
             return mg_df
         else:
@@ -485,7 +500,10 @@ class LakeData:
                     if not l:
                         break
                     # ignore commented lines
-                    l = l.decode()
+                    try:
+                        l = l.decode()
+                    except AttributeError:
+                        pass
                     if not l.startswith(' '):
                         continue
                     a = l.split()
@@ -547,7 +565,7 @@ class LakeData:
         """
         Get lake outflow data from CSV file.
         """
-        if self.df is None:
+        if self.xdf is None:
             msg = "First run self.get_data before running this."
             raise TypeError(msg)
         data_dir = os.path.join(os.path.dirname(os.path.abspath(
@@ -560,7 +578,7 @@ class LakeData:
         df['Mo'] *= 0.0864
         df['Mo_err'] = df['Mo']*0.3
         
-        dfn = df.reindex(index=self.df.index)
+        dfn = df.reindex(index=self.xdf.dates.data)
         
         # from field observations we assume that there is no
         # outflow below 1.9 m which is 10 cm below the
@@ -568,7 +586,7 @@ class LakeData:
         H_0 = 2529.25
 
         # Set the outflow below H0 to 0.
-        dfn['Mo'].loc[self.df['z'] < H_0] = 0.0
+        dfn['Mo'].loc[self.xdf.loc[:, 'z', 'val'].data < H_0] = 0.0
 
         # for lake levels below 1.9 m assign an linearly increasing error
         # to the outflow; we arbitrarily assume an error of 25 l/s at
@@ -583,7 +601,7 @@ class LakeData:
         """
         Get wind data from MetService wind model files.
         """
-        if self.df is None:
+        if self.xdf is None:
             msg = "First run self.get_data before running this."
             raise TypeError(msg)
 
@@ -594,18 +612,19 @@ class LakeData:
 
         baseurl = 'http://vulkan.gns.cri.nz:9876/wind'
         request = baseurl + '?starttime={}&endtime={}&volcano={}&elevation={}'
-        request = request.format(self.df.index[0], self.df.index[-1],
+        request = request.format(self.xdf.dates[0].data, self.xdf.dates[-1].data,
                                  volcano, elev)
-        df = pd.read_csv(request, index_col=0, parse_dates=True)
+        df = pd.read_csv(request, index_col=0, parse_dates=True,
+                         header=[0, 1])
         mdf = df.groupby(pd.Grouper(freq='D')).mean()
         sdf = df.groupby(pd.Grouper(freq='D')).std()
         ndf = pd.DataFrame({'W': mdf['pmodel']['speed'],
                             'W_err': sdf['pmodel']['speed']},
                            index=mdf.index)
         ndf.index = ndf.index.tz_convert(None)
-        ndf = ndf.reindex(self.df.index).interpolate()
-        self.df['W'] = ndf['W']
-        self.df['W_err'] = ndf['W_err']
+        ndf = ndf.reindex(self.xdf.dates.data).interpolate()
+        self.xdf.loc[:, 'W', 'val'] = ndf['W']
+        self.xdf.loc[:, 'W', 'std'] = ndf['W_err']
 
 
 class WindData:

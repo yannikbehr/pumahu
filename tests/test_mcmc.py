@@ -1,6 +1,7 @@
 from collections import defaultdict
 import inspect
 import os
+import tempfile
 import unittest
 import warnings
 
@@ -9,7 +10,7 @@ import pandas as pd
 import pytest
 
 from pumahu.data import LakeData, WindData
-from pumahu.mcmc import ns_sampling
+from pumahu.mcmc import ns_sampling, main
 from pumahu.syn_model import SynModel, setup_test
 
 
@@ -69,27 +70,27 @@ class MCMCTestCase(unittest.TestCase):
         z_val = rs.p_samples.loc[:, :, 'Z'].max(axis=1).data 
         z_var = rs.p_samples.loc[:, :, 'Z_var'].max(axis=1).data 
         np.testing.assert_array_almost_equal(q_in_val,
-                                             np.array([157.990046,
-                                                       315.865505,
-                                                       650.040960,
+                                             np.array([146.429074,
+                                                       323.870525,
+                                                       602.184093,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(q_in_var,
-                                             np.array([10232.987854,
-                                                       43354.119170,
-                                                       68017.325559,
+                                             np.array([9803.695870,
+                                                       32647.285447,
+                                                       57228.341571,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_val,
-                                             np.array([-9.600456,
-                                                       -9.604083,
-                                                       -9.882427,
+                                             np.array([-9.580015,
+                                                       -9.595466,
+                                                       -9.577152,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_var,
-                                             np.array([0.176571,
-                                                       0.164973,
-                                                       0.1727552,
+                                             np.array([0.177103,
+                                                       0.167645,
+                                                       0.162358,
                                                        np.nan]),
                                              decimal=6)
 
@@ -133,6 +134,10 @@ class MCMCTestCase(unittest.TestCase):
                                                        0.167194,
                                                        np.nan]),
                                              decimal=6)
+
+    def test_main(self):
+        rdir = tempfile.gettempdir()
+        main(['-p', '-f', '--rdir', rdir])
 
 
 if __name__ == '__main__':

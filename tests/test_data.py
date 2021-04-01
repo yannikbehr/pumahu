@@ -7,6 +7,7 @@ import warnings
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from pumahu import get_data
 from pumahu.data import LakeData, WindData
@@ -169,14 +170,13 @@ class DataTestCase(unittest.TestCase):
         warnings.filterwarnings("ignore", message="can't resolve package from")
         ld = LakeData()
         df = ld.get_data_fits('20160603', '20161231')
-        tdf = pd.read_hdf(os.path.join(self.data_dir,
-                                       'measurements_20160603_20161231.h5'),
-                          'table')
-        np.testing.assert_array_almost_equal(df['T'],
+        tdf = xr.open_dataset(os.path.join(self.data_dir,
+                               'measurements_20160603_20161231.nc'))
+        np.testing.assert_array_almost_equal(df.loc[:, 'T', 'val'],
                                              tdf['T'], 1)
-        np.testing.assert_array_almost_equal(df['z'],
+        np.testing.assert_array_almost_equal(df.loc[:, 'z', 'val'],
                                              tdf['z'], 1)
-        np.testing.assert_array_almost_equal(df['Mg'],
+        np.testing.assert_array_almost_equal(df.loc[:, 'Mg', 'val'],
                                              tdf['Mg'], 0)
 
     # @unittest.skip("CSV reading needs to be fixed")
@@ -245,8 +245,13 @@ class DataTestCase(unittest.TestCase):
         """
         warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
         ld = LakeData()
-        ld.get_data_fits('20190101', '20191231')
-        ld.get_MetService_wind('/home/yannik/GeoNet/wind')
+        ld.get_data_fits('20191201', '20191231')
+        ld.get_MetService_wind()
+        mean_ws = ld.xdf.loc[:, 'W', :].mean(axis=0).data 
+        np.testing.assert_array_almost_equal(mean_ws,
+                                             np.array([6.942369,
+                                                       1.649878]),
+                                             6)
 
 
 def suite():

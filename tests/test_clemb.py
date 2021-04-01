@@ -8,9 +8,9 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from clemb.data import LakeData, WindData
-from clemb import Clemb, get_data
-from clemb.syn_model import SynModel
+from pumahu.data import LakeData, WindData
+from pumahu import get_data
+from pumahu.syn_model import SynModel
 
 
 
@@ -142,95 +142,10 @@ class ClembTestCase(unittest.TestCase):
             c.update_data(start='2003-01-16', end='2003-01-20')
             self.assertTrue(np.all(c.get_variable('dv') < 1.0))
 
-    @unittest.skip("Sampling with gradients doesn't work yet.")
-    def test_with_dq(self):
-        s = SynModel()
-        df = s.run(1000., mode='test', gradient=True).to_dataframe()
-        c = Clemb(None, None, None, None, pre_txt='syn1',
-                  resultsd='./data', save_results=False)
-        c._df = df
-        c._dates = df.index
-        rs = c.run_forward(nsamples=2000, nresample=-1, m_out_max=40.,
-                           m_in_max=40., q_in_max=1500., new=True,
-                           prior_sampling=True, tolZ=1e-3,
-                           prior_resample=10000,
-                           tolH=3e30, seed=42, intmethod='rk4',
-                           gradient=True)
-        np.testing.assert_array_almost_equal(rs['exp'].loc[:, 'q_in'].data,
-                                             np.array([201.444228,
-                                                       302.327733,
-                                                       608.507819]),
-                                             decimal=6)
-        np.testing.assert_array_almost_equal(rs['var'].loc[:, 'q_in'].data,
-                                             np.array([21113.987569,
-                                                       38603.58335,
-                                                       54191.758414]),
-                                             decimal=6)
-        np.testing.assert_array_almost_equal(rs['z'].data,
-                                             np.array([[-9.533294, 0.170592],
-                                                       [-9.724431, 0.171948],
-                                                       [-9.191915, 0.156072]]),
-                                             decimal=6)
-
-    @pytest.mark.slow
-    def test_clemb_synthetic_rk4(self):
-        c = Clemb(None, None, None, None, pre_txt='syn1',
-                  resultsd='./data', save_results=False)
-        df = SynModel().run(1000., mode='test').to_dataframe()
-        c._df = df
-        c._dates = df.index
-        rs = c.run_forward(nsamples=2000, nresample=-1, m_out_max=40.,
-                           m_in_max=40., q_in_max=1500., new=True,
-                           prior_sampling=False, tolZ=1e-3,
-                           prior_resample=10000,
-                           tolH=3e30, seed=42, intmethod='rk4')
-        np.testing.assert_array_almost_equal(rs['exp'].loc[:, 'q_in'].data,
-                                             np.array([201.444228,
-                                                       302.327733,
-                                                       608.507819]),
-                                             decimal=6)
-        np.testing.assert_array_almost_equal(rs['var'].loc[:, 'q_in'].data,
-                                             np.array([21113.987569,
-                                                       38603.58335,
-                                                       54191.758414]),
-                                             decimal=6)
-        np.testing.assert_array_almost_equal(rs['z'].data,
-                                             np.array([[-9.533294, 0.170592],
-                                                       [-9.724431, 0.171948],
-                                                       [-9.191915, 0.156072]]),
-                                             decimal=6)
-
-    @pytest.mark.slow
-    def test_clemb_synthetic_euler(self):
-        c = Clemb(None, None, None, None, pre_txt='syn1',
-                  resultsd='./data', save_results=False)
-        df = SynModel().run(1000., mode='test').to_dataframe()
-        c._df = df
-        c._dates = df.index
-        rs = c.run_forward(nsamples=2000, nresample=-1, m_out_max=40.,
-                           m_in_max=40., q_in_max=1500., new=True,
-                           prior_sampling=False, tolZ=1e-3,
-                           prior_resample=10000,
-                           tolH=3e30, seed=42, intmethod='euler')
-        np.testing.assert_array_almost_equal(rs['exp'].loc[:, 'q_in'].data,
-                                             np.array([186.169695,
-                                                       308.423467,
-                                                       626.165709]),
-                                             decimal=6)
-        np.testing.assert_array_almost_equal(rs['var'].loc[:, 'q_in'].data,
-                                             np.array([21867.208907,
-                                                       39601.258501,
-                                                       54910.758894]),
-                                             decimal=6)
-        np.testing.assert_array_almost_equal(rs['z'].data,
-                                             np.array([[-10.011447, 0.175481],
-                                                       [-9.925883, 0.174717],
-                                                       [-9.334939, 0.157328]]),
-                                             decimal=6)
-
 
 def suite():
-    return unittest.makeSuite(ClembTestCase, 'test')
+    return
+    #return unittest.makeSuite(ClembTestCase, 'test')
 
 
 if __name__ == '__main__':

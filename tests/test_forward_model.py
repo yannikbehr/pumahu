@@ -155,7 +155,7 @@ class ForwardModelTestCase(unittest.TestCase):
         method as integration method.
         """
         # Test with Euler
-        xds = SynModel().run(setup_test())
+        xds = SynModel().run(setup_test(), ignore_cache=True)
         tdata = xds.loc[dict(parameters=['T', 'M', 'X', 'm_out'],
                              val_std='val')].to_array().values
         T = tdata[0, :,0]
@@ -184,13 +184,14 @@ class ForwardModelTestCase(unittest.TestCase):
         Test generating synthetic observations using 4th order
         Runge-Kutta method as integration method.
         """
-        xds = SynModel(integration_method='rk4').run(setup_test())
+        xds = SynModel(integration_method='rk4').run(setup_test(),
+                                                     ignore_cache=True)
         tdata = xds.loc[dict(parameters=['T', 'M', 'X', 'm_out'],
                              val_std='val')].to_array().values
-        T = tdata[0, :,0]
-        M = tdata[0, :,1]
-        X = tdata[0, :,2]
-        Mo = tdata[0, :,3]
+        T = tdata[0, :, 0]
+        M = tdata[0, :, 1]
+        X = tdata[0, :, 2]
+        Mo = tdata[0, :, 3]
         np.testing.assert_array_almost_equal(T,
                                              np.array([15.000, 14.914,
                                                        15.294, 16.588]),
@@ -214,7 +215,7 @@ class ForwardModelTestCase(unittest.TestCase):
         and Qi gradient
         """
         s = SynModel(integration_method='rk4')
-        xds = s.run(setup_test(), gradient=True)
+        xds = s.run(setup_test(), gradient=True, ignore_cache=True)
         tdata = xds.loc[dict(parameters=['T', 'M', 'X', 'm_out'],
                              val_std='val')].to_array().values
         T = tdata[0, :, 0]
