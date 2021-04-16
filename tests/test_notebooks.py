@@ -26,6 +26,13 @@ class NBTestCase(unittest.TestCase):
         ep = ExecutePreprocessor(timeout=1200, kernel_name='python3')
         ep.preprocess(nb, {'metadata': {'path': self.nbdir}})
 
+    def test_outflow(self):
+        nbfn = os.path.join(self.nbdir, 'Outflow_estimate.ipynb')
+        with open(nbfn) as f:
+            nb = nbformat.read(f, as_version=4)
+        ep = ExecutePreprocessor(timeout=1200, kernel_name='python3')
+        ep.preprocess(nb, {'metadata': {'path': self.nbdir}})
+
 
 
 if __name__ == '__main__':
