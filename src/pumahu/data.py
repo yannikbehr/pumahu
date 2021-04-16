@@ -8,6 +8,7 @@ import pkg_resources
 from cachier import cachier
 import numpy as np
 import pandas as pd
+from scipy.interpolate import interp1d
 from filterpy.kalman import UnscentedKalmanFilter as UKF
 from filterpy.kalman import KalmanFilter as KF
 from filterpy.kalman import MerweScaledSigmaPoints
@@ -23,7 +24,7 @@ class LakeData:
     """
 
     def __init__(self, url="https://fits.geonet.org.nz/observation",
-                 csvfile=None, windspeed=4.5):
+                 csvfile=None, windspeed=4.5, m_out=10.):
         """
         Parameters:
         -----------
@@ -33,13 +34,16 @@ class LakeData:
                   If not None, read data from a csv file instead of
                   requesting it from FITS
         windspeed : float
-                  Default windspeed to use.
+                  Default windspeed to use [m/s].
+        m_out : Default outflow rate [kt/day]
         """
         self.base_url = url
         self.xdf = None
         self.ws = windspeed
+        self.m_out = m_out
         self.parameters = ['T', 'z', 'Mg', 'X', 'v',
-                           'a', 'p', 'M', 'dv', 'W']
+                           'a', 'p', 'M', 'dv', 'W',
+                           'Mo']
         if csvfile is None:
             self.get_data = self.get_data_fits
         else:
@@ -88,6 +92,8 @@ class LakeData:
         result[:, 8, 1] = np.ones(dsize)
         result[:, 9, 0] = np.ones(dsize)*self.ws
         result[:, 9, 1] = np.zeros(dsize)
+        result[:, 10, 0] = np.ones(dsize)*self.m_out
+        result[:, 10, 1] = np.zeros(dsize)
 
 
         self.xdf = xr.DataArray(result,
@@ -571,44 +577,27 @@ class LakeData:
         data_dir = os.path.join(os.path.dirname(os.path.abspath(
                                 inspect.getfile(inspect.currentframe()))),
                                 "data")
-        df = pd.read_csv(os.path.join(data_dir, 'outflow.csv'),
-                         index_col=0, parse_dates=True,
-                         names=['Mo'], skiprows=[0])
-        # convert from l/s to kt/day
-        df['Mo'] *= 0.0864
-        df['Mo_err'] = df['Mo']*0.3
+        a = np.load(get_data('data/outflow_prior.npz'))
+        z, m_out_min, m_out_max, m_out_mean = (a['z'], a['o_min'],
+                                               a['o_max'], a['o_mean'])
+        f_m_out_min = interp1d(z, m_out_min, fill_value='extrapolate')
+        f_m_out_max = interp1d(z, m_out_max, fill_value='extrapolate')
+        f_m_out_mean = interp1d(z, m_out_max, fill_value='extrapolate')
+       
+        new_z = self.xdf.loc[:, 'z', 'val'].data
+        m_out = f_m_out_mean(new_z)
+        m_err = (f_m_out_min(new_z) + f_m_out_max(new_z))/2.
         
-        dfn = df.reindex(index=self.xdf.dates.data)
-        
-        # from field observations we assume that there is no
-        # outflow below 1.9 m which is 10 cm below the
-        # assumed reference level
-        H_0 = 2529.25
+        self.xdf.loc[:, 'Mo', 'val'] = m_out 
+        self.xdf.loc[:, 'Mo', 'std'] = m_err
 
-        # Set the outflow below H0 to 0.
-        dfn['Mo'].loc[self.xdf.loc[:, 'z', 'val'].data < H_0] = 0.0
-
-        # for lake levels below 1.9 m assign an linearly increasing error
-        # to the outflow; we arbitrarily assume an error of 25 l/s at
-        # at H_0
-        h_tmp = self.df['z'].loc[self.df['z'] < H_0]
-        h_min = h_tmp.min()
-        dfn['Mo_err'].loc[self.df['z'] < H_0] = 25*0.0864*(h_tmp - h_min)/(H_0 - h_min)
-        self.df['Mo'] = dfn['Mo']
-        self.df['Mo_err'] = dfn['Mo_err']
-
-    def get_MetService_wind(self, elev=3000, volcano='Ruapehu', default=None):
+    def get_MetService_wind(self, elev=3000, volcano='Ruapehu'):
         """
         Get wind data from MetService wind model files.
         """
         if self.xdf is None:
             msg = "First run self.get_data before running this."
             raise TypeError(msg)
-
-        if default is not None:
-            self.df['W'] = np.ones(self.df.shape[0])*default
-            self.df['W_err'] = np.ones(self.df.shape[0])*.1
-            return
 
         baseurl = 'http://vulkan.gns.cri.nz:9876/wind'
         request = baseurl + '?starttime={}&endtime={}&volcano={}&elevation={}'

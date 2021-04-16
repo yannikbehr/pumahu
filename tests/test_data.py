@@ -228,7 +228,7 @@ class DataTestCase(unittest.TestCase):
         ws = [w for d, w in df1.iteritems()]
         np.testing.assert_array_almost_equal(ws, ti['wind'], 1)
 
-    def test_outflow_csv(self):
+    def test_outflow(self):
         """
         Test retrieving and interpolating outflow data.
         """
@@ -236,8 +236,10 @@ class DataTestCase(unittest.TestCase):
         ld = LakeData()
         ld.get_data_fits('20190101', '20191231')
         ld.get_outflow()
-        Mo = ld.df['Mo'].loc[ld.df['z'] < 2529.25]
-        self.assertTrue(np.all(Mo.values == 0))
+        mean_mout = ld.xdf.loc[:, 'Mo', :].mean(axis=0).data 
+        np.testing.assert_array_almost_equal(mean_mout,
+                                             np.array([18.201107,
+                                                       9.100553]), 6)
 
     def test_metservice_wind(self):
         """
@@ -250,8 +252,7 @@ class DataTestCase(unittest.TestCase):
         mean_ws = ld.xdf.loc[:, 'W', :].mean(axis=0).data 
         np.testing.assert_array_almost_equal(mean_ws,
                                              np.array([6.942369,
-                                                       1.649878]),
-                                             6)
+                                                       1.649878]), 6)
 
 
 def suite():
