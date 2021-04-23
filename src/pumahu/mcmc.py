@@ -5,10 +5,13 @@ temperature, wind speed and chemical dilution.
 from argparse import ArgumentParser
 from collections import OrderedDict
 from datetime import datetime, timedelta
+import logging
 import os
+import time
 
 import numpy as np
 import pandas as pd
+import schedule
 from scipy.interpolate import interp1d
 from tqdm import tqdm
 import xarray as xr
@@ -22,6 +25,9 @@ from .data import LakeData
 from .visualise import (trellis_plot,
                         mcmc_heat_input,
                         heat_vs_rsam)
+
+
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
 
 
 class LikeliHood:
@@ -263,27 +269,7 @@ def ns_sampling(data, results_file=None, nsamples=10000, nresample=500,
     return res
 
 
-def main(argv=None):
-    parser = ArgumentParser(prog='mcmc_heat.py',
-                            description=__doc__.strip())
-    parser.add_argument('--rdir', type=str, default='./',
-                        help='Directory to write results to.')
-    parser.add_argument('--pretxt', type=str, default=None,
-                        help='Text to prepend to file name.')
-    parser.add_argument('-s', '--starttime', type=str,
-                        default=datetime.utcnow()-timedelta(days=365),
-                        help='Start of the data window')
-    parser.add_argument('-e', '--endtime', type=str,
-                        default=datetime.utcnow(),
-                        help='End of the data window')
-    parser.add_argument('-f', '--fit', action='store_true',
-                        help='Run the MCMC sampling.')
-    parser.add_argument('-p', '--plot', action='store_true',
-                        help='Plot the results.')
-    parser.add_argument('--prior', type=str,
-                        default=get_data('data/outflow_prior.npz'),
-                        help='File containing priors.')
-    args = parser.parse_args(argv)
+def mainCore(args):
     ld = LakeData()
     data = ld.get_data(args.starttime, args.endtime)
     # Setup path for results file
@@ -312,6 +298,39 @@ def main(argv=None):
         fout_heat_rsam = os.path.join(args.rdir, 'mcmc_heat_vs_rsam.png')
         heat_vs_rsam(xdf, filename=fout_heat_rsam)
 
+
+def main(argv=None):
+    parser = ArgumentParser(prog='mcmc_heat.py',
+                            description=__doc__.strip())
+    parser.add_argument('--rdir', type=str, default='./',
+                        help='Directory to write results to.')
+    parser.add_argument('--pretxt', type=str, default=None,
+                        help='Text to prepend to file name.')
+    parser.add_argument('-s', '--starttime', type=str,
+                        default=datetime.utcnow()-timedelta(days=365),
+                        help='Start of the data window')
+    parser.add_argument('-e', '--endtime', type=str,
+                        default=datetime.utcnow(),
+                        help='End of the data window')
+    parser.add_argument('-f', '--fit', action='store_true',
+                        help='Run the MCMC sampling.')
+    parser.add_argument('-p', '--plot', action='store_true',
+                        help='Plot the results.')
+    parser.add_argument('-d', '--daemon', action='store_true',
+                        help='Run the script in daemon mode.')
+    parser.add_argument('--prior', type=str,
+                        default=get_data('data/outflow_prior.npz'),
+                        help='File containing priors.')
+    args = parser.parse_args(argv)
+    if not args.daemon:
+        mainCore(args)
+    else:
+        logging.info("Starting script in daemon mode.")
+        schedule.every().day.at("23:00").do(mainCore, args)
+        while True:
+            schedule.run_pending()
+            time.sleep(10)
+ 
 
 if __name__ == '__main__':
    main()

@@ -24,4 +24,5 @@ dependencies:
     - pip:
         - filterpy
         - cachier
+        - schedule
         - git+ssh://git@github.com/yannikbehr/nsampling.git

@@ -40,10 +40,6 @@ WORKDIR $HOME
 
 # copy only the dependencies installation from the 1st stage image
 COPY --from=builder --chown=$NB_USER:users /root/.local /home/$NB_USER/.local
-
-# Add crontab file in the cron directory
-ADD crontab /tmp/crontab
-RUN crontab -u $NB_USER /tmp/crontab
  
 RUN mkdir -p $HOME/pumahu
 WORKDIR $HOME/pumahu
@@ -52,6 +48,4 @@ COPY --chown=$NB_USER:users . .
 RUN python setup.py develop --user 
 
 WORKDIR $HOME
-RUN touch $HOME/cron.log
-USER root
-CMD cron && tail -f $HOME/cron.log
+CMD ['heat_mcmc', '-d', '--rdir', '/opt/data', '-f', '-p']
