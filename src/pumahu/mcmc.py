@@ -271,6 +271,12 @@ def ns_sampling(data, results_file=None, nsamples=10000, nresample=500,
 
 def mainCore(args):
     ld = LakeData()
+    
+    # If the script runs in daemon mode update the start
+    # and end time
+    if args.daemon:
+        args.starttime = datetime.utcnow()-timedelta(days=365)
+        args.endtime = datetime.utcnow()
     data = ld.get_data(args.starttime, args.endtime)
     # Setup path for results file
     tstart = pd.to_datetime(data['dates'].values[0])
