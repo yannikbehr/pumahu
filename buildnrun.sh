@@ -5,7 +5,7 @@
 # 09/20 Y. Behr <y.behr@gns.cri.nz>     #
 #########################################
 
-IMAGE=
+IMAGE=pumahu
 TAG=0.0.1
 BUILD=false
 PUSH=false
@@ -50,8 +50,8 @@ if [ "${BUILD}" == "true" ]; then
 fi
 
 if [ "${PUSH}" != "false" ]; then
-    docker tag ${IMAGE}:${TAG} huta17-d:5000/yannik/pumahu:${TAG}
-    docker push huta17-d:5000/yannik/pumahu:${TAG}
+    docker tag ${IMAGE}:${TAG} huta17-d.gns.cri.nz:5000/yannik/pumahu:${TAG}
+    docker push huta17-d.gns.cri.nz:5000/yannik/pumahu:${TAG}
 fi
 
 if [ "${INTERACTIVE}" == "true" ]; then
