@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import numpy as np
 import unittest
 import pandas as pd
@@ -6,7 +7,7 @@ import xarray as xr
 from filterpy.kalman import unscented_transform
 
 from pumahu.uks import UnscentedKalmanSmoother
-from pumahu.syn_model import SynModel
+from pumahu.syn_model import (SynModel, setup_test)
 from pumahu.data import LakeData
 from pumahu.sigma_points import MerweScaledSigmaPoints
 
@@ -14,38 +15,58 @@ from pumahu.sigma_points import MerweScaledSigmaPoints
 class UKSTestCase(unittest.TestCase):
 
     def setUp(self):
-        self.xds = SynModel(seed=42).run(1000., nsteps=100,
-                                         integration_method='rk4',
-                                         gradient=True, mode='gamma',
-                                         addnoise=True,
-                                         estimatenoise=True)
-        self.df = self.xds.to_dataframe()
-        self.dt = (self.df.index[1] - self.df.index[0])/pd.Timedelta('1D')
-        self.Q = np.eye(9)*[1e-3, 1e-3, 1e-3, 1e-10,
-                            1e1, 1e1, 1e3, 1e4, 1e4]*self.dt**2
-        (T, M, X, self.Mi,
-         self.Mo, self.qi) = self.df.iloc[0][['T', 'M', 'X',
-                                              'Mi', 'Mo', 'qi']]
-        self.dqi = 1e-1
-        self.dMi = 1e-1
-        self.dMo = 1e-1
-        self.X0 = [T, M, X, self.qi*0.0864, self.Mi, self.Mo,
-                   self.dqi, self.dMi, self.dMo]
-        self.P0 = np.eye(9)*1e3
+        self.xds = SynModel(integration_method='rk4').run(setup_test(),
+                                                          gradient=True)
+        # self.xds = SynModel(seed=42).run(1000., nsteps=100,
+        #                                  integration_method='rk4',
+        #                                  gradient=True, mode='gamma',
+        #                                  addnoise=True,
+        #                                  estimatenoise=True)
+        # self.df = self.xds.to_dataframe()
+        # self.dt = (self.df.index[1] - self.df.index[0])/pd.Timedelta('1D')
+        self.Q = OrderedDict(T=1e-3, M=1e-3, X=1e-3, q_in=1e-10,
+                             m_in=1e1, m_out=1e1, h=1e-3, W=1e1,
+                             dqi=1e3, dMi=1e4, dMo=1e4, dH=1e-3, dW=1e1)
+        self.Q = np.eye(len(self.Q))*list(self.Q.values())
 
-        npts = self.df.shape[0]
-        self.df_nan = self.df.copy()
-        self.df_nan['X'][1:npts] = np.nan
-        self.df_nan['X_err'][1:npts] = np.nan
+        self.P0 = OrderedDict(T=1e3, M=1e3, X=1e3, q_in=1e3,
+                              m_in=1e3, m_out=1e3, h=1e-1, W=1e-1,
+                              dqi=1e3, dMi=1e3, dMo=1e3, dH=1e-1, dW=1e-1)
+        self.P0 = np.eye(len(self.P0))*list(self.P0.values())
 
-        self.df_nan2 = self.df.copy()
-        self.df_nan2['X'][:] = np.nan
-        self.df_nan2['X_err'][:] = np.nan
+        # (T, M, X, self.Mi,
+
+        #  self.Mo, self.qi) = self.df.iloc[0][['T', 'M', 'X',
+        #                                       'Mi', 'Mo', 'qi']]
+        # self.dqi = 1e-1
+        # self.dMi = 1e-1
+        # self.dMo = 1e-1
+        # self.X0 = [T, M, X, self.qi*0.0864, self.Mi, self.Mo,
+        #            self.dqi, self.dMi, self.dMo]
+        # self.P0 = np.eye(9)*1e3
+
+        # npts = self.df.shape[0]
+        # self.df_nan = self.df.copy()
+        # self.df_nan['X'][1:npts] = np.nan
+        # self.df_nan['X_err'][1:npts] = np.nan
+
+        # self.df_nan2 = self.df.copy()
+        # self.df_nan2['X'][:] = np.nan
+        # self.df_nan2['X_err'][:] = np.nan
+
+    def test_init(self):
+        """
+        Test that the init function works correctly
+        """
+        uks = UnscentedKalmanSmoother(data=self.xds.exp)
+        self.assertEqual(len(uks.X0), uks.nvar)
+        self.assertTrue(isinstance(uks.X0, list))
 
     def test_synthetic(self):
-        uks = UnscentedKalmanSmoother(data=self.df)
-        log_lh = uks(self.Q, self.X0, self.P0, test=True)
-        self.assertAlmostEqual(log_lh, 12.8047, 4)
+        uks = UnscentedKalmanSmoother(data=self.xds.exp, P0=self.P0)
+        res = uks(self.Q, test=True)
+        log_lh = np.nansum(res['p_samples'].loc[dict(p_parameters='lh')].values)
+        self.assertAlmostEqual(log_lh, -49.56340, 4)
 
     def test_nans(self):
         """

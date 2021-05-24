@@ -9,6 +9,7 @@ from filterpy.kalman import (UnscentedKalmanFilter,
 
 import numpy as np
 import pandas as pd
+import xarray as xr
 
 from .syn_model import SynModel
 from .forward_model import Forwardmodel
@@ -17,7 +18,22 @@ from .sigma_points import MerweScaledSigmaPoints
 
 class Fx:
 
-    def __init__(self, test=False):
+    def __init__(self, nparams, ngrads, test=False):
+        """
+        Run the forward model.
+
+        Parameters:
+        -----------
+        nparams : int
+                  Number of free parameters
+        ngrads : int
+                 Number of free gradients
+        test: bool
+              If 'True' use a mass2area function
+              corresponding to the synthetic test setup.
+        """
+        self.nparams = nparams
+        self.ngrads = ngrads
         if test:
             s = SynModel()
             self.fm = Forwardmodel(method='rk4', mass2area=s.mass2area)
@@ -28,17 +44,12 @@ class Fx:
         """
         Forward model lake temperature
         """
-        y = np.zeros(8)
-        y[0:8] = x[0:8]
-        dp = [0.] * 5
-        dp[0] = x[8]
-        if len(x) == 13:
-            dp[1] = x[9]
-            dp[2] = x[10]
-            dp[3] = x[11]
-            dp[4] = x[12]
+        y = np.zeros(self.nparams)
+        y[:] = x[0:self.nparams]
+        dp = [0.] * self.ngrads 
+        dp[:] = x[self.nparams:]
         y_next = self.fm.integrate(y, date, dt, dp)
-        return np.r_[y_next[0:8], x[8:]]
+        return np.r_[y_next[0:self.nparams], x[self.nparams:]]
 
 
 def h_x(x):
@@ -50,9 +61,27 @@ def h_x(x):
 
 class UnscentedKalmanSmoother:
 
-    def __init__(self, data):
-        self.data = data
-        self.dt = (data.index[1] - data.index[0])/pd.Timedelta('1D')
+    def __init__(self, data, X0=None, P0=None):
+        self.dates = pd.to_datetime(data['dates'].values)
+        self.ndates = len(self.dates)
+        self.dt = (self.dates[1] - self.dates[0])/pd.Timedelta('1D')
+        self.params = ['T', 'M', 'X', 'q_in', 'm_in', 'm_out', 'h', 'W']
+        self.nparams = len(self.params)
+        self.data = data.loc[:, self.params, :]
+        (T, M, X, Mi, Mo, qi, H, W) = self.data.loc[:,  self.params, 'val'].values[0]
+        dqi = 1e-1
+        dMi = 1e-1
+        dMo = 1e-1
+        dH = 1e-1
+        dW = 1e-1
+        self.ngrads = 5
+        self.X0 = [T, M, X, qi*0.0864, Mi, Mo, H, W, dqi, dMi, dMo, dH, dW]
+        if X0 is not None:
+            self.X0 = X0
+        self.nvar = len(self.X0)
+        self.P0 = np.eye(self.nvar)*1e3
+        if P0 is not None:
+            self.P0 = P0
 
     def residual_nan(self, x, y):
         """
@@ -63,32 +92,48 @@ class UnscentedKalmanSmoother:
         return rs[~np.isnan(rs)]
     
     def sigma_point_constraints(self, points):
-        idx = np.where(points[:,:8] < 0.)
+        """
+        Set negative sigma points to zero.
+
+        Parameters:
+        -----------
+        points : :class:`numpy.ndarray`
+                 Sigma points
+        Returns:
+        --------
+        :class:`numpy.ndarray`
+            The constrained sigma points
+        """
+        # set negative sigma points for parameters to 0
+        idx = np.where(points[:,:self.nparams] < 0.)
         points[idx] = 0.
-        dpidx = (idx[0], idx[1] + 5)
+        # now set the gradients to zero for which the
+        # parameters were zero
+        dpidx = (idx[0], idx[1] + self.ngrads)
         points[dpidx] = np.where(points[dpidx] < 0., 0., points[dpidx])
         return points
 
-
-    def __call__(self, Q, X0, P0, test=False, alpha=1e-1, beta=2., kappa=0.):
-        nvar = len(X0)
-        points = MerweScaledSigmaPoints(n=nvar, alpha=alpha, beta=beta,
+    def __call__(self, Q, test=False, alpha=1e-1, beta=2., kappa=0.,
+                 results_file=None):
+        points = MerweScaledSigmaPoints(n=self.nvar, alpha=alpha, beta=beta,
                                         kappa=kappa)
-        F = Fx(test=test)
-        kf = UnscentedKalmanFilter(dim_x=nvar, dim_z=5, dt=self.dt, fx=F.run,
+        F = Fx(self.nparams, self.ngrads, test=test)
+        kf = UnscentedKalmanFilter(dim_x=self.nvar, dim_z=5, dt=self.dt, fx=F.run,
                                    hx=h_x, points=points)
-        kf.x = X0.values
-        kf.Q = Q.values*self.dt*self.dt
-        kf.P = P0.values
+        kf.x = self.X0
+        kf.Q = Q*self.dt*self.dt
+        kf.P = self.P0
         nperiods = self.data.shape[0]-1
-        Xs = np.zeros((nperiods, nvar))
-        Ps = np.zeros((nperiods, nvar, nvar))
+        Xs = np.zeros((nperiods, self.nvar))
+        Ps = np.zeros((nperiods, self.nvar, self.nvar))
         kf.residual_z = self.residual_nan
+        p_parameters = ['lh']
+        npparams = len(p_parameters)
+        p_samples = np.zeros((self.ndates, npparams))*np.nan
 
         # Filtering
-        log_lh = 0
         for i in range(nperiods):
-            _fx = partial(F.run, date=self.data.index[i])
+            _fx = partial(F.run, date=self.dates[i])
             kf.fx = _fx
 
             try:
@@ -112,17 +157,12 @@ class UnscentedKalmanSmoother:
             # save prior
             kf.x_prior = np.copy(kf.x)
             kf.P_prior = np.copy(kf.P)
-            z = self.data.iloc[i+1][['T', 'M', 'X', 'Mo', 'W']]
-            T_err, M_err, X_err, Mo_err, W_err = self.data.iloc[i+1][['T_err',
-                                                                      'M_err',
-                                                                      'X_err',
-                                                                      'Mo_err',
-                                                                      'W_err']]
-            kf.R = np.eye(5)*[T_err*T_err, M_err*M_err, X_err*X_err,
-                              Mo_err*Mo_err, W_err*W_err]*self.dt**2
+            dtpoint = self.data.isel(dates=i+1)
+            z = dtpoint.loc[['T', 'M', 'X', 'm_out', 'W'], 'val'].values
+            z_err = dtpoint.loc[['T', 'M', 'X', 'm_out', 'W'], 'std'].values
+            kf.R = np.eye(z_err.size)*(z_err*z_err)
             # if measurements or measurement error are all
             # NaN, don't update
-
             if not np.alltrue(np.isnan(z)) and not np.alltrue(np.isnan(kf.R)):
 
                 # Handle NaNs
@@ -145,8 +185,12 @@ class UnscentedKalmanSmoother:
 
                 kf.S = Pz
                 # compute cross variance of the state and the measurements
-                Pxz = kf.cross_variance(kf.x, zp, kf.sigmas_f,
-                                        kf.sigmas_h[:, z_mask])
+                try:
+                    Pxz = kf.cross_variance(kf.x, zp, kf.sigmas_f,
+                                            kf.sigmas_h[:, z_mask])
+                except:
+                    import ipdb
+                    ipdb.set_trace()
 
                 kf.K = np.dot(Pxz, kf.inv(Pz))        # Kalman gain
                 kf.y = np.subtract(z[z_mask], zp)   # residual
@@ -159,7 +203,7 @@ class UnscentedKalmanSmoother:
                 kf._likelihood = None
                 # update likelihood
                 try:
-                    log_lh += kf.log_likelihood
+                    p_samples[i+1, 0] = kf.log_likelihood
                 except:
                     import ipdb
                     ipdb.set_trace()
@@ -182,7 +226,7 @@ class UnscentedKalmanSmoother:
                 sigmas = self.sigma_point_constraints(sigmas)
                 for i in range(num_sigmas):
                     sigmas_f[i] = kf.fx(sigmas[i], dts[k],
-                                        date=self.data.index[k])
+                                        date=self.dates[k])
                 xb, Pb = unscented_transform(sigmas_f, weights[0],
                                              weights[1], kf.Q)
 
@@ -201,42 +245,49 @@ class UnscentedKalmanSmoother:
                 res[k] = kf.residual_x(xs[k+1], xb)
                 ps[k] += np.dot(K, ps[k+1] - Pb).dot(K.T)
 
-        # Append smoothed values
-        self.data['T_uks'] = np.r_[X0[0], xs[:, 0]]
-        self.data['T_uks_err'] = np.r_[P0[0, 0], ps[:, 0, 0]]
-        self.data['M_uks'] = np.r_[X0[1], xs[:, 1]]
-        self.data['M_uks_err'] = np.r_[P0[1, 1], ps[:, 1, 1]]
-        self.data['X_uks'] = np.r_[X0[2], xs[:, 2]]
-        self.data['X_uks_err'] = np.r_[P0[2, 2], ps[:, 2, 2]]
-        self.data['qi_uks'] = np.r_[X0[3]/0.0864, xs[:, 3]/0.0864]
-        self.data['qi_uks_err'] = np.r_[P0[3, 3], ps[:, 3, 3]/0.0864]
-        self.data['Mi_uks'] = np.r_[X0[4], xs[:, 4]]
-        self.data['Mi_uks_err'] = np.r_[P0[4, 4], ps[:, 4, 4]]
-        self.data['Mo_uks'] = np.r_[X0[5], xs[:, 5]]
-        self.data['Mo_uks_err'] = np.r_[P0[5, 5], ps[:, 5, 5]]
-        self.data['H_uks'] = np.r_[X0[6], xs[:, 6]]
-        self.data['H_uks_err'] = np.r_[P0[6, 6], ps[:, 6, 6]]
-        self.data['W_uks'] = np.r_[X0[7], xs[:, 7]]
-        self.data['W_uks_err'] = np.r_[P0[7, 7], ps[:, 7, 7]]
-
-        # Append filtered values
-        self.data['T_ukf'] = np.r_[X0[0], Xs[:, 0]]
-        self.data['T_ukf_err'] = np.r_[P0[0, 0], Ps[:, 0, 0]]
-        self.data['M_ukf'] = np.r_[X0[1], Xs[:, 1]]
-        self.data['M_ukf_err'] = np.r_[P0[1, 1], Ps[:, 1, 1]]
-        self.data['X_ukf'] = np.r_[X0[2], Xs[:, 2]]
-        self.data['X_ukf_err'] = np.r_[P0[2, 2], Ps[:, 2, 2]]
-        self.data['qi_ukf'] = np.r_[X0[3]/0.0864, Xs[:, 3]/0.0864]
-        self.data['qi_ukf_err'] = np.r_[P0[3, 3], Ps[:, 3, 3]/0.0864]
-        self.data['Mi_ukf'] = np.r_[X0[4], Xs[:, 4]]
-        self.data['Mi_ukf_err'] = np.r_[P0[4, 4], Ps[:, 4, 4]]
-        self.data['Mo_ukf'] = np.r_[X0[5], Xs[:, 5]]
-        self.data['Mo_ukf_err'] = np.r_[P0[5, 5], Ps[:, 5, 5]]
-        self.data['H_ukf'] = np.r_[X0[6], Xs[:, 6]]
-        self.data['H_ukf_err'] = np.r_[P0[6, 6], Ps[:, 6, 6]]
-        self.data['W_ukf'] = np.r_[X0[7], Xs[:, 7]]
-        self.data['W_ukf_err'] = np.r_[P0[7, 7], Ps[:, 7, 7]]
-        return log_lh
+        #self.params = ['T', 'M', 'X', 'q_in', 'm_in', 'm_out', 'h', 'W']
+        exp = np.zeros((self.ndates, self.nparams, 2))*np.nan
+        T_idx = self.params.index('T')
+        exp[:, T_idx, 0] = np.r_[self.X0[T_idx], xs[:, T_idx]]
+        exp[:, T_idx, 1] = np.r_[self.P0[T_idx, T_idx], ps[:, T_idx, T_idx]]
+        M_idx = self.params.index('M')
+        exp[:, M_idx, 0] = np.r_[self.X0[M_idx], xs[:, M_idx]]
+        exp[:, M_idx, 1] = np.r_[self.P0[M_idx, M_idx], ps[:, M_idx, M_idx]]
+        X_idx = self.params.index('X')
+        exp[:, X_idx, 0] = np.r_[self.X0[X_idx], xs[:, X_idx]]
+        exp[:, X_idx, 1] = np.r_[self.P0[X_idx, X_idx], ps[:, X_idx, X_idx]]
+        q_in_idx = self.params.index('q_in')
+        exp[:, q_in_idx, 0] = np.r_[self.X0[q_in_idx] / 0.0864,
+                                    xs[:, q_in_idx] / 0.0864]
+        exp[:, q_in_idx, 1] = np.r_[self.P0[q_in_idx, q_in_idx] / 0.0864,
+                                    ps[:, q_in_idx, q_in_idx] / 0.0864]
+        m_in_idx = self.params.index('m_in')
+        exp[:, m_in_idx, 0] = np.r_[self.X0[m_in_idx], xs[:, m_in_idx]]
+        exp[:, m_in_idx, 1] = np.r_[self.P0[m_in_idx, m_in_idx],
+                                    ps[:, m_in_idx, m_in_idx]]
+        m_out_idx = self.params.index('m_out')
+        exp[:, m_out_idx, 0] = np.r_[self.X0[m_out_idx], xs[:, m_out_idx]]
+        exp[:, m_out_idx, 1] = np.r_[self.P0[m_out_idx, m_out_idx],
+                                     ps[:, m_out_idx, m_out_idx]]
+        h_idx = self.params.index('h')
+        exp[:, h_idx, 0] = np.r_[self.X0[h_idx], xs[:, h_idx]]
+        exp[:, h_idx, 1] = np.r_[self.P0[h_idx, h_idx], ps[:, h_idx, h_idx]]
+        W_idx = self.params.index('h')
+        exp[:, W_idx, 0] = np.r_[self.X0[W_idx], xs[:, W_idx]]
+        exp[:, W_idx, 1] = np.r_[self.P0[W_idx, W_idx], ps[:, W_idx, W_idx]]
+        res = xr.Dataset({'exp': (('dates', 'parameters', 'val_std'), exp),
+                          'p_samples': (('dates', 'p_parameters'), p_samples),
+                          'input': (('dates', 'i_parameters', 'val_std'),
+                                    self.data.data)},
+                         {'dates': self.dates,
+                          'parameters': self.params,
+                          'p_parameters': p_parameters,
+                          'i_parameters': self.data['parameters'].values,
+                          'val_std': ['val', 'std']})
+        
+        if results_file is not None:
+            res.to_netcdf(results_file)
+        return res
 
     def likelihood(self, var, sid):
         T_Q = var[0]
