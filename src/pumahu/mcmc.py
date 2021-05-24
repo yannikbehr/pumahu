@@ -332,7 +332,7 @@ def main(argv=None):
         mainCore(args)
     else:
         logging.info("Starting script in daemon mode.")
-        schedule.every().day.at("23:00").do(mainCore, args)
+        schedule.every().day.at("11:00").do(mainCore, args)
         while True:
             schedule.run_pending()
             time.sleep(10)
