@@ -24,7 +24,8 @@ class LakeData:
     """
 
     def __init__(self, url="https://fits.geonet.org.nz/observation",
-                 csvfile=None, windspeed=4.5, m_out=10.):
+                 csvfile=None, windspeed=4.5, m_out=10.,
+                 enthalpy=3.):
         """
         Parameters:
         -----------
@@ -34,16 +35,22 @@ class LakeData:
                   If not None, read data from a csv file instead of
                   requesting it from FITS
         windspeed : float
-                  Default windspeed to use [m/s].
+                  Default windspeed [m/s].
+        enthalpy : float
+                   Default enthalpy [MJ/kg/day]
         m_out : Default outflow rate [kt/day]
         """
         self.base_url = url
         self.xdf = None
         self.ws = windspeed
+        self.ws_err = 0.5
         self.m_out = m_out
-        self.parameters = ['T', 'z', 'Mg', 'X', 'v',
-                           'a', 'p', 'M', 'dv', 'W',
-                           'Mo']
+        self.m_out_err = .25
+        self.h = enthalpy
+        self.h_err = 0.01
+        self.prms = ['T', 'z', 'Mg', 'X', 'V',
+                     'A', 'p', 'M', 'dV', 'h', 
+                     'W', 'm_out']
         if csvfile is None:
             self.get_data = self.get_data_fits
         else:
@@ -56,6 +63,22 @@ class LakeData:
     def get_data_fits(self, start, end, smoothing='kf'):
         """
         Request data from the FITS database unless it has been already cached.
+        
+        Parameters:
+        -----------
+        start : str
+                The start date as a ISO 8601 compliant string.
+        end : str
+              The end date as a ISO 8601 compliant string.
+        smoothing : str
+                    Can be either 'kf' for Kalman Filter smoothing
+                    or 'dv' to smooth by averaging over all values
+                    in a day.
+        
+        Returns:
+        --------
+        :class:`xarray.DataArray`
+            The observational data.
         """
         df1 = self.get_Mg(tstart=start, tend=end,
                           smoothing=smoothing)
@@ -71,34 +94,36 @@ class LakeData:
          M, M_err, a, a_err) = self.derived_obs(df1, df2, df3,
                                                 nsamples=20000)
         dsize = X.size
-        result = np.zeros((dsize, len(self.parameters), 2))*np.nan
-        result[:, 0, 0] = df2['t'].values
-        result[:, 0, 1] = df2['t_err'].values
-        result[:, 1, 0] = df3['h'].values
-        result[:, 1, 1] = df3['h_err'].values
-        result[:, 2, 0] = df1['Mg'].values
-        result[:, 2, 1] = df1['Mg_err'].values
-        result[:, 3, 0] = X
-        result[:, 3, 1] = X_err
-        result[:, 4, 0] = v
-        result[:, 4, 1] = v_err
-        result[:, 5, 0] = a
-        result[:, 5, 1] = a_err
-        result[:, 6, 0] = p
-        result[:, 6, 1] = p_err
-        result[:, 7, 0] = M
-        result[:, 7, 1] = M_err
-        result[:, 8, 0] = np.ones(dsize)
-        result[:, 8, 1] = np.ones(dsize)
-        result[:, 9, 0] = np.ones(dsize)*self.ws
-        result[:, 9, 1] = np.zeros(dsize)
-        result[:, 10, 0] = np.ones(dsize)*self.m_out
-        result[:, 10, 1] = np.zeros(dsize)
+        result = np.zeros((dsize, len(self.prms), 2))*np.nan
+        result[:, self.prms.index('T'), 0] = df2['t'].values
+        result[:, self.prms.index('T'), 1] = df2['t_err'].values
+        result[:, self.prms.index('z'), 0] = df3['h'].values
+        result[:, self.prms.index('z'), 1] = df3['h_err'].values
+        result[:, self.prms.index('Mg'), 0] = df1['Mg'].values
+        result[:, self.prms.index('Mg'), 1] = df1['Mg_err'].values
+        result[:, self.prms.index('X'), 0] = X
+        result[:, self.prms.index('X'), 1] = X_err
+        result[:, self.prms.index('V'), 0] = v
+        result[:, self.prms.index('V'), 1] = v_err
+        result[:, self.prms.index('A'), 0] = a
+        result[:, self.prms.index('A'), 1] = a_err
+        result[:, self.prms.index('p'), 0] = p
+        result[:, self.prms.index('p'), 1] = p_err
+        result[:, self.prms.index('M'), 0] = M
+        result[:, self.prms.index('M'), 1] = M_err
+        result[:, self.prms.index('dV'), 0] = np.ones(dsize)
+        result[:, self.prms.index('dV'), 1] = np.ones(dsize)
+        result[:, self.prms.index('W'), 0] = np.ones(dsize)*self.ws
+        result[:, self.prms.index('W'), 1] = np.ones(dsize)*self.ws_err
+        result[:, self.prms.index('h'), 0] = np.ones(dsize)*self.h
+        result[:, self.prms.index('h'), 1] = np.ones(dsize)*self.h_err
+        result[:, self.prms.index('m_out'), 0] = np.ones(dsize)*self.m_out
+        result[:, self.prms.index('m_out'), 1] = np.ones(dsize)*self.m_out_err
 
 
         self.xdf = xr.DataArray(result,
                                 dims=('dates', 'parameters', 'val_std'),
-                                coords=(df1.index, self.parameters,
+                                coords=(df1.index, self.prms,
                                         ['val', 'std']))
         self.xdf = self.xdf.loc[tstart_max:tend_min]
         return self.xdf
