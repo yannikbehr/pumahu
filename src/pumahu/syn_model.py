@@ -232,7 +232,8 @@ class SynModel:
         exp = np.zeros((nsteps, nprms, 2))
         error = {'T': 0.4, 'z': 0.01, 'M': 2.,
                  'X': 0.4, 'A': 30., 'V': 2.0,
-                 'Mg': 50, 'm_out': .25, 'W':.5}
+                 'Mg': 50, 'm_out': .25, 'W':.5,
+                 'h': .01}
  
         V = 8800
         A = self.a
@@ -282,7 +283,7 @@ class SynModel:
         exp[:, prms.index('q_in'), 0] /= 0.0864
 
         if addnoise:
-            for k in ['T', 'M', 'X', 'W']:
+            for k in ['T', 'M', 'X', 'W', 'h']:
                 exp[:, prms.index(k), 0] += np.random.normal(scale=error[k],
                                                              size=nsteps)
 
@@ -293,7 +294,7 @@ class SynModel:
         return xds
 
 
-def resample(xds, parameters=['T', 'M', 'X', 'z', 'W'], sinterval='1D'):
+def resample(xds, parameters=['T', 'M', 'X', 'z', 'W', 'h'], sinterval='1D'):
     """
     Resample a synthetic model to a given sampling interval.
     
