@@ -2,6 +2,7 @@
 Solve the mass and energy balance model using
 the Unscented Kalman Smoother.
 """
+from collections import OrderedDict
 from functools import partial
 
 from filterpy.kalman import (UnscentedKalmanFilter,
@@ -14,6 +15,8 @@ import xarray as xr
 from .syn_model import SynModel
 from .forward_model import Forwardmodel
 from .sigma_points import MerweScaledSigmaPoints
+
+import ipdb
 
 
 class Fx:
@@ -56,19 +59,27 @@ def h_x(x):
     """
     Measurement function
     """
-    return [x[0], x[1], x[2], x[5], x[7]]
+    return [x[0], x[1], x[2], x[5], x[6], x[7]]
 
 
 class UnscentedKalmanSmoother:
 
-    def __init__(self, data, X0=None, P0=None):
+    def __init__(self, data, X0=None, P0=None,
+                 initvals={'qi':200., 'm_in': 10, 'm_out':10., 'X':2.}):
         self.dates = pd.to_datetime(data['dates'].values)
         self.ndates = len(self.dates)
         self.dt = (self.dates[1] - self.dates[0])/pd.Timedelta('1D')
         self.params = ['T', 'M', 'X', 'q_in', 'm_in', 'm_out', 'h', 'W']
         self.nparams = len(self.params)
-        self.data = data.loc[:, self.params, :]
-        (T, M, X, Mi, Mo, qi, H, W) = self.data.loc[:,  self.params, 'val'].values[0]
+        try:
+            self.data = data.loc[:, self.params, :]
+            (T, M, X, Mi, Mo, qi, H, W) = self.data.loc[:,  self.params, 'val'].values[0]
+        except KeyError:
+            self.data = data.loc[:, ['T', 'M', 'X', 'm_out', 'h', 'W'], :]
+            (T, M, X, Mo, H, W) = self.data.loc[:, ['T', 'M', 'X', 'm_out', 'h', 'W'], 'val'].values[0]
+            qi, Mi, Mo, X = list(initvals.values())
+            
+        
         dqi = 1e-1
         dMi = 1e-1
         dMo = 1e-1
@@ -114,7 +125,7 @@ class UnscentedKalmanSmoother:
         return points
 
     def __call__(self, Q, test=False, alpha=1e-1, beta=2., kappa=0.,
-                 results_file=None):
+                 results_file=None, smooth=True):
         points = MerweScaledSigmaPoints(n=self.nvar, alpha=alpha, beta=beta,
                                         kappa=kappa)
         F = Fx(self.nparams, self.ngrads, test=test)
@@ -140,7 +151,6 @@ class UnscentedKalmanSmoother:
                 weights, sigmas = points.sigma_points(kf.x, kf.P)
                 sigmas = self.sigma_point_constraints(sigmas)
             except Exception as e:
-                import ipdb
                 ipdb.set_trace()
                 raise e
             for k, s in enumerate(sigmas):
@@ -158,8 +168,8 @@ class UnscentedKalmanSmoother:
             kf.x_prior = np.copy(kf.x)
             kf.P_prior = np.copy(kf.P)
             dtpoint = self.data.isel(dates=i+1)
-            z = dtpoint.loc[['T', 'M', 'X', 'm_out', 'W'], 'val'].values
-            z_err = dtpoint.loc[['T', 'M', 'X', 'm_out', 'W'], 'std'].values
+            z = dtpoint.loc[['T', 'M', 'X', 'm_out', 'h', 'W'], 'val'].values
+            z_err = dtpoint.loc[['T', 'M', 'X', 'm_out', 'h', 'W'], 'std'].values
             kf.R = np.eye(z_err.size)*(z_err*z_err)
             # if measurements or measurement error are all
             # NaN, don't update
@@ -189,7 +199,6 @@ class UnscentedKalmanSmoother:
                     Pxz = kf.cross_variance(kf.x, zp, kf.sigmas_f,
                                             kf.sigmas_h[:, z_mask])
                 except:
-                    import ipdb
                     ipdb.set_trace()
 
                 kf.K = np.dot(Pxz, kf.inv(Pz))        # Kalman gain
@@ -205,14 +214,13 @@ class UnscentedKalmanSmoother:
                 try:
                     p_samples[i+1, 0] = kf.log_likelihood
                 except:
-                    import ipdb
                     ipdb.set_trace()
             Xs[i, :] = kf.x
             Ps[i, :, :] = kf.P
 
         # Smoothing
         xs, ps = Xs.copy(), Ps.copy()
-        if True:
+        if smooth:
             n, dim_x = xs.shape
             num_sigmas = kf._num_sigmas
             dts = [kf._dt] * n
@@ -220,6 +228,7 @@ class UnscentedKalmanSmoother:
             res = np.zeros((n, dim_x))
 
             for k in reversed(range(n-1)):
+                # ipdb.set_trace(cond=(self.dates[k] < pd.Timestamp(2020, 4, 28)))
                 # create sigma points from state estimate,
                 # pass through state func
                 weights, sigmas = points.sigma_points(xs[k], ps[k])
@@ -272,7 +281,7 @@ class UnscentedKalmanSmoother:
         h_idx = self.params.index('h')
         exp[:, h_idx, 0] = np.r_[self.X0[h_idx], xs[:, h_idx]]
         exp[:, h_idx, 1] = np.r_[self.P0[h_idx, h_idx], ps[:, h_idx, h_idx]]
-        W_idx = self.params.index('h')
+        W_idx = self.params.index('W')
         exp[:, W_idx, 0] = np.r_[self.X0[W_idx], xs[:, W_idx]]
         exp[:, W_idx, 1] = np.r_[self.P0[W_idx, W_idx], ps[:, W_idx, W_idx]]
         res = xr.Dataset({'exp': (('dates', 'parameters', 'val_std'), exp),
