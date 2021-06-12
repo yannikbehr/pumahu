@@ -53,7 +53,7 @@ class TrellisPlot:
                 ymean = np.where(ymean < 0., 0., ymean)
             return [ymean]
 
-    def plot_trace(self, fig, data, key, ylabel, row,
+    def plot_trace(self, fig, data, key, ylabel, row, filled_error=True,
                    plotvars=[('exp', 'Result'), ('input', 'Input')]):
         """
         :param plotvars: Variables to plot.
@@ -81,26 +81,36 @@ class TrellisPlot:
                                          showlegend=showlegend),
                               row=row, col=1)
                 if len(traces) > 1:
-                    fig.add_trace(go.Scatter(
-                        x=dates,
-                        y=traces[1],
-                        mode='lines',
-                        marker=dict(color="#444"),
-                        line=dict(width=0),
-                        showlegend=False), row=row, col=1)
-                    fillcolor = self.error_colours[self._ntraces[row]]
-                    fig.add_trace(go.Scatter(x=dates,
-                                             y=traces[2],
-                                             mode='lines',
-                                             marker=dict(color="#444"),
-                                             line=dict(width=0),
-                                             showlegend=False,
-                                             fillcolor=fillcolor,
-                                             fill='tonexty'), row=row, col=1)
+                    if filled_error:
+                        fig.add_trace(go.Scatter(
+                            x=dates,
+                            y=traces[1],
+                            mode='lines',
+                            marker=dict(color="#444"),
+                            line=dict(width=0),
+                            showlegend=False), row=row, col=1)
+                        fillcolor = self.error_colours[self._ntraces[row]]
+                        fig.add_trace(go.Scatter(x=dates,
+                                                 y=traces[2],
+                                                 mode='lines',
+                                                 marker=dict(color="#444"),
+                                                 line=dict(width=0),
+                                                 showlegend=False,
+                                                 fillcolor=fillcolor,
+                                                 fill='tonexty'), row=row, col=1)
+                    else:
+                        for tr in traces[1:]:
+                            fig.add_trace(go.Scatter(x=dates, y=tr,
+                                                     mode='lines',
+                                                     line = dict(color=lc,
+                                                                 width=.5,
+                                                                 dash='dash'),
+                                                      showlegend=False),
+                                          row=row, col=1)
                 fig.update_yaxes(title_text=ylabel, row=row, col=1)
 
 
-def trellis_plot(data, data2=None, filename=None):
+def trellis_plot(data, data2=None, filename=None, **kwds):
     """
     A trellis plot for inversion results.
 
@@ -123,14 +133,14 @@ def trellis_plot(data, data2=None, filename=None):
                             vertical_spacing=.01)
         tp = TrellisPlot()
         for i, p in enumerate(params):
-            tp.plot_trace(fig, data, p, labels.get(p, p), row=i+1)
+            tp.plot_trace(fig, data, p, labels.get(p, p), row=i+1, **kwds)
 
         if data2 is not None:
             xdf2 = data2.loc[dict(dates=slice(data.dates[0],
                                               data.dates[-1]))]
             for i, p in enumerate(params):
                 tp.plot_trace(fig, xdf2, p, labels.get(p, p), row=i+1,
-                              plotvars=[('exp', 'Benchmark')])
+                              plotvars=[('exp', 'Benchmark')], **kwds)
 
     fig.update_layout(template='ggplot2',
                       height=1000,
