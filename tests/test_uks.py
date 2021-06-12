@@ -7,7 +7,9 @@ import xarray as xr
 from filterpy.kalman import unscented_transform
 
 from pumahu.uks import UnscentedKalmanSmoother
-from pumahu.syn_model import (SynModel, setup_test)
+from pumahu.syn_model import (SynModel,
+                              setup_test,
+                              setup_realistic)
 from pumahu.data import LakeData
 from pumahu.sigma_points import MerweScaledSigmaPoints
 
@@ -67,6 +69,24 @@ class UKSTestCase(unittest.TestCase):
         res = uks(self.Q, test=True)
         log_lh = np.nansum(res['p_samples'].loc[dict(p_parameters='lh')].values)
         self.assertAlmostEqual(log_lh, -49.56340, 4)
+        
+    def test_synthetic_extensive(self):
+        """
+        Test with more extensive synthetic model.
+        """
+        xds3 = SynModel().run(setup_realistic(sinterval=24*60))
+        Q = OrderedDict(T=1e-3, M=1e-3, X=1e-3, q_in=1e0,
+                        m_in=1e1, m_out=1e1, h=1e-10, W=1e1,
+                        dqi=5e3, dMi=1e4, dMo=1e4, dH=1e-3, 
+                        dW=1e1)
+        Q = np.eye(len(Q))*list(Q.values())
+        P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e3,
+                         m_in=1e3, m_out=1e3, h=1e-1, W=1e-1,
+                         dqi=1e3, dMi=1e3, dMo=1e3, dH=1e-1, 
+                         dW=1e-1)
+        P0 = np.eye(len(P0))*list(P0.values())
+        uks = UnscentedKalmanSmoother(data=xds3.exp, P0=P0)
+        xds3_uks = uks(Q, test=True, smooth=True)
 
     def test_nans(self):
         """
