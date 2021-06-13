@@ -7,7 +7,8 @@ APP_SERVER="Vulkan"
 TEAM="Volcano"
 #################################################
 ####### Docker config ###########################
-DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
+DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }' \
+Cmd:='["python", "job_scheduler.py"]')
 #################################################
 ####### Aliases #################################
 PORTAINER_HOST='portainer:9000'

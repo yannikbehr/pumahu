@@ -306,7 +306,7 @@ def mainCore(args):
 
 
 def main(argv=None):
-    parser = ArgumentParser(prog='mcmc_heat.py',
+    parser = ArgumentParser(prog='heat_mcmc',
                             description=__doc__.strip())
     parser.add_argument('--rdir', type=str, default='./',
                         help='Directory to write results to.')
@@ -328,15 +328,8 @@ def main(argv=None):
                         default=get_data('data/outflow_prior.npz'),
                         help='File containing priors.')
     args = parser.parse_args(argv)
-    if not args.daemon:
-        mainCore(args)
-    else:
-        logging.info("Starting script in daemon mode.")
-        schedule.every().day.at("11:00").do(mainCore, args)
-        while True:
-            schedule.run_pending()
-            time.sleep(10)
- 
+    mainCore(args)
 
+    
 if __name__ == '__main__':
-   main()
+    main()
