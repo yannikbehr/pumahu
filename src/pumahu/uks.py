@@ -3,19 +3,25 @@ Solve the mass and energy balance model using
 the Unscented Kalman Smoother.
 """
 from collections import OrderedDict
+from datetime import datetime, timedelta
 from functools import partial
+import os
 
 from filterpy.kalman import (UnscentedKalmanFilter,
                              unscented_transform)
 
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 import xarray as xr
 
+from . import get_data 
 from .syn_model import SynModel
 from .forward_model import Forwardmodel
 from .sigma_points import MerweScaledSigmaPoints
-
+from .data import LakeData
+from .visualise import trellis_plot
+ 
 import ipdb
 
 
@@ -64,7 +70,7 @@ def h_x(x):
 
 class UnscentedKalmanSmoother:
 
-    def __init__(self, data, X0=None, P0=None,
+    def __init__(self, data, X0=None, P0=None, Q=None,
                  initvals={'qi':200., 'm_in': 10, 'm_out':10., 'X':2.}):
         self.dates = pd.to_datetime(data['dates'].values)
         self.ndates = len(self.dates)
@@ -79,7 +85,6 @@ class UnscentedKalmanSmoother:
             (T, M, X, Mo, H, W) = self.data.loc[:, ['T', 'M', 'X', 'm_out', 'h', 'W'], 'val'].values[0]
             qi, Mi, Mo, X = list(initvals.values())
             
-        
         dqi = 1e-1
         dMi = 1e-1
         dMo = 1e-1
@@ -90,10 +95,25 @@ class UnscentedKalmanSmoother:
         if X0 is not None:
             self.X0 = X0
         self.nvar = len(self.X0)
-        self.P0 = np.eye(self.nvar)*1e3
+                
+        _P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e3,
+                          m_in=1e3, m_out=1e3, h=1e-1, W=1e-1,
+                          dqi=1e3, dMi=1e3, dMo=1e3, dH=1e-1, 
+                          dW=1e-1)
+        _P0 = np.eye(len(_P0))*list(_P0.values())
+        self.P0 = _P0
         if P0 is not None:
             self.P0 = P0
-
+            
+        _Q = OrderedDict(T=1e-3, M=1e-3, X=1e-3, q_in=1e0,
+                         m_in=1e1, m_out=1e1, h=1e-3, W=1e1,
+                         dqi=1e5, dMi=1e4, dMo=1e4, dH=1e-3, 
+                         dW=1e1)
+        _Q = np.eye(len(_Q))*list(_Q.values())
+        self.Q = _Q
+        if Q is not None:
+            self.Q = Q
+            
     def residual_nan(self, x, y):
         """
         Compute the residual between x and y if one or both
@@ -124,7 +144,7 @@ class UnscentedKalmanSmoother:
         points[dpidx] = np.where(points[dpidx] < 0., 0., points[dpidx])
         return points
 
-    def __call__(self, Q, test=False, alpha=1e-1, beta=2., kappa=0.,
+    def __call__(self, test=False, alpha=.3, beta=2., kappa=0.,
                  results_file=None, smooth=True):
         points = MerweScaledSigmaPoints(n=self.nvar, alpha=alpha, beta=beta,
                                         kappa=kappa)
@@ -132,7 +152,10 @@ class UnscentedKalmanSmoother:
         kf = UnscentedKalmanFilter(dim_x=self.nvar, dim_z=5, dt=self.dt, fx=F.run,
                                    hx=h_x, points=points)
         kf.x = self.X0
-        kf.Q = Q*self.dt*self.dt
+        # The process noise should increase the larger
+        # the time step but I haven't found any literature
+        # on how to set the process noise properly
+        kf.Q = self.Q*self.dt*self.dt
         kf.P = self.P0
         nperiods = self.data.shape[0]-1
         Xs = np.zeros((nperiods, self.nvar))
@@ -143,7 +166,7 @@ class UnscentedKalmanSmoother:
         p_samples = np.zeros((self.ndates, npparams))*np.nan
 
         # Filtering
-        for i in range(nperiods):
+        for i in tqdm(range(nperiods)):
             _fx = partial(F.run, date=self.dates[i])
             kf.fx = _fx
 
@@ -227,7 +250,7 @@ class UnscentedKalmanSmoother:
             sigmas_f = np.zeros((num_sigmas, dim_x))
             res = np.zeros((n, dim_x))
 
-            for k in reversed(range(n-1)):
+            for k in tqdm(reversed(range(n-1))):
                 # ipdb.set_trace(cond=(self.dates[k] < pd.Timestamp(2020, 4, 28)))
                 # create sigma points from state estimate,
                 # pass through state func
@@ -331,3 +354,62 @@ class UnscentedKalmanSmoother:
             print(e)
             return 1e-10
         return log_lh
+
+    
+def mainCore(args):
+    ld = LakeData()
+    
+    # If the script runs in daemon mode update the start
+    # and end time
+    if args.daemon:
+        args.starttime = datetime.utcnow()-timedelta(days=365)
+        args.endtime = datetime.utcnow()
+    data = ld.get_data(args.starttime, args.endtime, smoothing='dv')
+    # Setup path for results file
+    tstart = pd.to_datetime(data['dates'].values[0])
+    tend = pd.to_datetime(data['dates'].values[-1])
+    res_fn = 'uks_{:s}_{:s}.nc'
+    res_fn = res_fn.format(tstart.strftime('%Y-%m-%d'),
+                           tend.strftime('%Y-%m-%d'))
+    if args.pretxt is not None:
+        res_fn = args.pretxt + '_' + res_fn
+    res_fn = os.path.join(args.rdir, res_fn)
+    
+    if args.fit:
+        uks = UnscentedKalmanSmoother(data=data)
+        xds_uks = uks(results_file=res_fn)
+    if args.plot:
+        xdf = xr.open_dataset(res_fn)
+        fout_trellis = os.path.join(args.rdir, 'uks_trellis.png')
+        trellis_plot(xdf, filename=fout_trellis)
+
+
+def main(argv=None):
+    from argparse import ArgumentParser
+    parser = ArgumentParser(prog='heat_uks',
+                            description=__doc__.strip())
+    parser.add_argument('--rdir', type=str, default='./',
+                        help='Directory to write results to.')
+    parser.add_argument('--pretxt', type=str, default=None,
+                        help='Text to prepend to file name.')
+    parser.add_argument('-s', '--starttime', type=str,
+                        default=datetime.utcnow()-timedelta(days=365),
+                        help='Start of the data window')
+    parser.add_argument('-e', '--endtime', type=str,
+                        default=datetime.utcnow(),
+                        help='End of the data window')
+    parser.add_argument('-f', '--fit', action='store_true',
+                        help='Run the Unscented Kalman smoother.')
+    parser.add_argument('-p', '--plot', action='store_true',
+                        help='Plot the results.')
+    parser.add_argument('-d', '--daemon', action='store_true',
+                        help='Run the script in daemon mode.')
+    parser.add_argument('--prior', type=str,
+                        default=get_data('data/outflow_prior.npz'),
+                        help='File containing priors.')
+    args = parser.parse_args(argv)
+    mainCore(args)
+
+    
+if __name__ == '__main__':
+    main()

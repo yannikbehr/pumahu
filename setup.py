@@ -20,5 +20,6 @@ setup(
     packages=['pumahu'],
     package_data={'pumahu': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']},
     entry_points={'console_scripts':
-                  ['heat_mcmc=pumahu.mcmc:main']}
+                  ['heat_mcmc=pumahu.mcmc:main',
+                   'heat_uks=pumahu.uks:main']}
 )
