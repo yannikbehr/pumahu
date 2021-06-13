@@ -6,7 +6,7 @@
 #########################################
 
 IMAGE=pumahu
-TAG=0.0.1
+TAG=0.0.2
 BUILD=false
 PUSH=false
 INTERACTIVE=false
@@ -44,6 +44,7 @@ done
 
 
 if [ "${BUILD}" == "true" ]; then
+    docker rmi "${IMAGE}:${TAG}"
     docker build --build-arg NB_USER=$(whoami) \
         --build-arg NB_UID=$(id -u) \
         -t "${IMAGE}:${TAG}" .
