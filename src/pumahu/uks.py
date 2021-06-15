@@ -105,9 +105,9 @@ class UnscentedKalmanSmoother:
         if P0 is not None:
             self.P0 = P0
             
-        _Q = OrderedDict(T=1e-3, M=1e-3, X=1e-3, q_in=1e0,
+        _Q = OrderedDict(T=1e-3, M=1e-3, X=1e-3, q_in=1e1,
                          m_in=1e1, m_out=1e1, h=1e-3, W=1e1,
-                         dqi=1e5, dMi=1e4, dMo=1e4, dH=1e-3, 
+                         dqi=1e3, dMi=1e4, dMo=1e4, dH=1e-3, 
                          dW=1e1)
         _Q = np.eye(len(_Q))*list(_Q.values())
         self.Q = _Q
