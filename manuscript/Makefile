@@ -3,3 +3,6 @@ pdf:
 
 figs:
 	$(MAKE) -C figures all
+
+clean:
+	@rm *.bbl *.aux *.blg *.log
