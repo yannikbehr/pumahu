@@ -54,6 +54,7 @@
 \usepackage[utf8]{inputenc} %unicode support
 %\usepackage[applemac]{inputenc} %applemac support if unicode package fails
 %\usepackage[latin1]{inputenc} %UNIX support if unicode package fails
+\usepackage{graphicx}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -99,7 +100,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \title{Continuous estimates of heat emission at Mt. Ruapehu using
-the unscented Kalman Smoother}
+the Unscented Kalman Smoother}
 
 %
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -126,6 +127,11 @@ the unscented Kalman Smoother}
    addressref={aff1},
    email={s.sherburn@gns.cri.nz}
 ]{\inits{SS}\fnm{Steve} \snm{Sherburn}}
+\author[
+   addressref={aff1},
+   email={t.hurst@gns.cri.nz}
+]{\inits{TH}\fnm{Tony} \snm{Hurst}}
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%                                          %%
@@ -283,6 +289,238 @@ the parameters in the mass and energy balance model using prior knowledge. Furth
 some observations and input parameters come with large uncertainties and are sampled
 irregularly.
 
+We propose a probabilistic (Bayesian) inference approach which naturally
+handles these difficulties and transparently propagates uncertainties of
+observations and prior assumptions into posterior uncertainties of heat and
+steam input. The accurate description of uncertainties is of particular
+importance when publishing automatically generated estimates of heat and steam
+input, as they could potentially be used in decision making or automatic
+alerting of monitoring staff.
+
+\begin{figure}
+\includegraphics[width=\textwidth]{figures/overview.png}  
+\caption{Image of Mt. Ruapehu's crater lake from 2008 (\textcopyright Karen
+	Britten, GNS Science). The red O marks the location of the lake outlet. The
+	location of Mt. Ruapehu is shown as a red triangle on the insert map.}
+  \label{overview}
+\end{figure}
+
+
+\section*{Probabilistic inference method}\label{Pim}
+
+\subsection*{Physical model}\label{phm}
+
+Following \citet{Hurst1991} and \citet{Stevenson1992} the mass and energy balance
+can be written in terms of three coupled ordinary differential equations. The
+rate of lake water mass change can be described as:
+\begin{equation}\label{ode_M}
+	\frac{dM}{dt} = M_s - M_o - M_e + M_i
+\end{equation}
+
+Where $M_s$ is the rate of water inflow through melt and precipitation, $M_o$
+is the outflow rate through seepage and overflow, $M_e$ is the rate of mass
+loss through evaporation and $M_i$ is the rate of steam input through the vent
+system beneath the lake.
+
+The thermal energy content of a mass flow can be described with the notion of
+enthalpy, $H$, which is the ratio of energy and mass. Enthalpy can also be defined
+on a relative scale as:
+\begin{equation}
+	H(T) = H(T_0) + \int_{T_0}^{T}c_p\tau d\tau
+\end{equation}
+
+where $T$ is temperature and $c_p$ is the specific heat. For all following
+equations we take $H(T_0=0)$ as our reference enthalpy and $c_p=c_w=constant$,
+with $c_w$ the specific heat of water, such that the enthalpy of lake water at
+temperature $T$ can be written as $H(T) = c_w T$. Because Ruapehu Crater Lake
+is at an altitude of ~2500 m and big parts of its catchment are covered by snow
+and ice all year round we assume the temperature of incoming water to be at 0
+$^{\circ}C$.
+
+The rate of energy change of the lake water can thus be written as:
+\begin{equation}\label{ode_E}
+    \frac{dE}{dt}=\frac{d(c_wTM)}{dt}=c_wT\frac{dM}{dt} + c_wM\frac{dT}{dt} =
+	-Q_e - c_wTM_o + Q_{eff} + Q_r
+\end{equation}
+      
+where $T$ is the lake water temperature, $M$ is the lake water mass, $Q_r$ is
+the rate of energy gain due to solar irradiation (short-wavelength radiation),
+and $c_wTM_o$ is the rate of energy loss through outflow/seepage. $Q_e$ is
+the rate of surface energy losses due to evaporation (forced and free
+convection), sensible heat, and long-wavelength radiation (net loss). Several
+empirical and theoretical equations exist to describe the surface losses and
+both \citet{Stevenson1992} and \citet{Hurst2015} discuss them in detail. We
+follow here mostly the choice of \citet{Hurst2015} as it includes the recent
+development by \citet{Sartori2000} on forced (i.e. wind-induced) convection
+(see Appendix \ref{A} for more details). $Q_{eff}$ is the effective rate of
+energy gain from volcanic sources after heating incoming water:
+\begin{equation}
+	Q_{eff}=Q_i - M_s c_w T
+\end{equation}
+with $Q_i$ the rate of energy input from volcanic sources.
+
+Following from Equation \ref{ode_E} the temperature change $\frac{dT}{dt}$ can then be written as:
+\begin{equation}\label{ode_T}
+	\frac{dT}{dt}=\frac{1}{c_wM}\left(-Q_e - c_wTM_o + Q_{eff} + Q_r\right )
+	-\frac{T}{M}\frac{dM}{dt}
+\end{equation}
+
+Finally, the change in ion concentration of, for example, $Mg^{2+}$ can be expressed as:
+\begin{equation}\label{ode_X}
+	\frac{dX}{dt}=-M_o\frac{X}{M}
+\end{equation}
+
+Where $X$ is the total ion amount in the lake. This equation is only true under
+the assumption that $X$ only changes due to dilution and there is no re-supply
+between eruptive episodes. Equation \ref{ode_X} gives an estimate of the average
+outflow over periods on the order of months but does not capture shorter term
+variations in the outflow. 
+
+\subsection*{Inference}\label{inf}
+
+The objective of the inference problem is to estimate the amount and energy
+content of steam and gas entering the lake from the hydrothermal system below.
+To constrain these we use the currently available observations of lake
+temperature ($T$), lake level ($L$), ion concentration ($X$) as well as
+numerical weather model data on windspeed. Putting it more concisely, we are
+looking for 
+
+\begin{equation}\label{bsm}
+    p(\bm{x}_k|\bm{y}_{1:T})
+\end{equation}
+
+where $\bm{y}_{1:T}$ is the time series of $m$ observations and $x_k$ comprises
+the $n$ model parameters described in Section \ref{phm} at time step $k$. Note
+that $x_k$ also includes the lake's temperature, lake level, and ion
+concentration. We distinguish here between the state of the lake and
+observations of this state ($T$, $L$, $X$) which are to some degree uncertain.
+
+The following equations are based on \citet{Sarkka2010} which we refer the
+reader to for more proofs and more detailed explanations.
+
+Equation \ref{bsm} is the marginal probability of $\bm{x}_k$ given all
+observations until time $T$. We assume that the states of the lake form a
+Markov chain, meaning that the state of the lake at time step $k$, $\bm{x}_k$,
+only depends on the state at adjacent time steps:
+
+\begin{equation}\label{markov1}
+    p(\bm{x}_k|\bm{x}_{1:k-1}, \bm{y}_{1:k-1}) = p(\bm{x}_k|\bm{x}_{k-1})
+\end{equation}
+
+and
+
+\begin{equation}\label{markov2}
+    p(\bm{x}_{k-1}|\bm{x}_{k:T}, \bm{y}_{k:T}) = p(\bm{x}_{k-1}|\bm{x}_{k})
+\end{equation}
+
+With this assumption and using \textit{Bayes' rule}, Equation \ref{bsm} can be
+rewritten as:
+
+\begin{equation}\label{bsm1}
+p(\bm{x}_k|\bm{y}_{1:T}) = p(\bm{x}_k|\bm{y}_{1:k})
+    \int\left[\frac{p(\bm{x}_{k+1}|\bm{x}_k)p(\bm{x}_{k+1}|\bm{y}_{1:T})}{p(\bm{x}_{k+1}|\bm{y}_{1:k})}\right]d\bm{x}_{k+1}
+\end{equation}
+
+with
+
+\begin{eqnarray}\label{bfilt1}
+p(\bm{x}_{k+1}|\bm{y}_{1:k}) & = & \int p(\bm{x}_{k+1}|\bm{x}_k)p(\bm{x}_k|\bm{y}_{1:k})d\bm{x}_k \\
+        \label{bfilt}
+    p(\bm{x}_k|\bm{y}_{1:k}) & = & \frac{1}{z_k} p(\bm{y}_k|\bm{x}_k)p(\bm{x}_k|\bm{y}_{1:k-1}) \\
+        \label{zetk}
+    z_k & = & \int p(\bm{y}_k|\bm{x}_k) p(\bm{x}_k| \bm{y}_{1:k-1}) d\bm{x}_k  
+\end{eqnarray}
+
+using the \textit{Chapman-Kolmogorov} equation we can write:
+
+\begin{equation}
+p(\bm{x}_k|\bm{y}_{1:k-1}) = \int p(\bm{x}_k|\bm{x}_{k-1})p(\bm{x}_{k-1}|\bm{y}_{1:k-1})d\bm{x}_{k-1} 
+\end{equation}
+
+Equations \ref{bsm1} to \ref{zetk} describe a recursive way to compute Equation
+\ref{bsm} in which we only need to know $\bm{x}_1$,
+$p(\bm{x}_k|\bm{x}_{k-1})$, and $p(\bm{y}_k|\bm{x}_k)$. Equation \ref{bsm} and
+\ref{bfilt} are also known as the Bayesian Smoothing and Bayesian Filtering
+equation, respectively. If $p(\bm{x}_k|\bm{x}_{k-1})$ and
+$p(\bm{y}_k|\bm{x}_k)$ are linear transformations with normally distributed
+errors, the \textit{Kalman filter} \citep{Kalman1960} and Kalman smoother
+\citep{Rauch1965} represent closed form solutions. In our case, these
+transformations are:
+
+\begin{eqnarray}
+p(\bm{x}_k|\bm{x}_{k-1}) & = & f(\bm{x}_{k-1}) + \bm{q}_{k-1} \\
+    p(\bm{y}_k|\bm{x}_k) & = & \bm{x}_k[1:m] + \bm{r}_k   
+\end{eqnarray}
+
+where $f(\bm{x}_{k-1})$ is the physical model described in Section \ref{phm}
+which is highly non-linear. If we assume the errors, $\bm{r}_k$ and
+$\bm{q}_{k-1}$, to be normally distributed ($\bm{q}_{k-1} \sim N(\bm{0},
+\bm{Q}_{k-1})$, $\bm{r}_k \sim N(\bm{0}, \bm{R}_k)$), we can compute an
+approximate solution to \ref{bsm} using the \textit{Unscented Kalman Filter}
+\citep{Merwe2004}.
+
+We estimate $\bm{R}_k$ from the daily variations in the observations but we do
+not know $\bm{x}_1$ and $\bm{Q}_{k-1}$. If $\bm{\theta}$ stands for all unknown
+parameters than we are looking for $p(\bm{\theta}|\bm{y}_{1:T})$. Using again
+\textit{Bayes' Theorem} and ignoring the normalising constant we can write:
+
+\begin{equation}\label{pe1}
+    p(\bm{\theta}|\bm{y}_{1:T}) \propto p(\bm{y}_{1:T}|\bm{\theta})p(\bm{\theta})
+\end{equation}
+
+Assuming that $\bm{Y}_{1:T}$ form a Markov chain and that $p(\bm{\theta})$ follows
+a uniform distribution we can rewrite Equation \ref{pe1} as:
+
+\begin{equation}\label{pe2}
+    p(\bm{\theta}|\bm{y}_{1:T}) \propto \prod_{k=1}^Tp(\bm{y}_{k}|\bm{y}_{k-1}, \bm{\theta})
+\end{equation}
+
+Each factor on the right-hand side of Equation \ref{pe2} can be written as:
+\begin{equation}
+    p(\bm{y}_k|\bm{y}_{1:k-1}, \bm{\theta}) = \int p(\bm{y}_k|\bm{x}_k, \bm{\theta})p(\bm{x}_k|\bm{y}_{1:k-1})d\bm{x}_k
+\end{equation}
+
+which is readily computed as a by-product of Equation \ref{bfilt}. We then run
+a non-linear optimisation to find the \textit{maximum a posteriori (MAP)}
+estimate of Equation \ref{pe2}. 
+
+* sensitivity analysis: high vs. low lake temperature; windspeed dependence;
+  enthalpy dependence
+
+\section*{Results}
+\subsection*{Synthetic test}\label{syn_test}
+To test the inversion scheme we design a synthetic test, consisting of a very
+large cylinder, the same volume as Ruapehu Crater Lake. We keep the windspeed
+and surface water inflow constant at 4.5 m/s and 10 kt/day, respectively. To
+model the outflow we assume the outlet to be a pipe 0.2 $m^2$ in cross section
+and then use Bernoulli's equation to model the water outflow based on the water
+level in the cylinder above the pipe. We assume that the incoming heat follows
+a combination of a third-order polynomial and a sinusoid function and that the
+enthalpy of the incoming steam is 2.8 which corresponds to the enthalpy of
+saturated steam at hydrostatic pressures similar to those at the bottom of the
+lake \ref{Mayhew1978}. To the resulting synthetic observations we add
+uncertainties similar to those estimated from real observations (see Section
+\ref{realdata}).
+
+Figure \ref{syn_example} shows the result of the probabilistic inference of
+heat input compared to the true input of the synthetic model. The observations
+are well fit within their error bounds but we see some descrepancies between
+the original and the recovered heat input rates, especially for very steep
+changes in the input rate. This is the result of preferring a smooth solution
+as already mentioned in \ref{inf}.
+
+It is noteworthy that the mass influx and outflux rates are recovered quite accurately despite having no data in the former and very little data in the latter case.
+
+\begin{figure}
+	\includegraphics[width=.9\textwidth]{figures/synthetic_inversion_uks.png}  
+    \caption{Inversion result for the synthetic test described in Section 
+        \ref{syn_test}. Turquoise lines and markers represent hypothetical
+        observations; red dashed lines are the inversion results and black
+        dashed lines are the true input to the synthetic test.}
+  \label{syn_example}
+\end{figure}
+
+
 \section*{Section title}
 Text for this section \ldots
 \subsection*{Sub-heading for section}
@@ -356,8 +594,8 @@ Thus we observe that this expected value is finite for all $v>0$ (also see \cite
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % if your bibliography is in bibtex format, use those commands:
-\bibliographystyle{bmc_template/bmc-mathphys} % Style BST file (bmc-mathphys, vancouver, spbasic).
-\bibliography{zotero.bib}      % Bibliography file (usually '*.bib' )
+\bibliographystyle{bmc-mathphys} % Style BST file (bmc-mathphys, vancouver, spbasic).
+\bibliography{zotero}      % Bibliography file (usually '*.bib' )
 % for author-year bibliography (bmc-mathphys or spbasic)
 % a) write to bib file (bmc-mathphys only)
 % @settings{label, options="nameyear"}
