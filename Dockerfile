@@ -23,7 +23,10 @@ RUN pip install --user -r requirements.txt
 FROM python:3.7-slim
 
 #Install Cron
-RUN apt-get -y update && apt-get -y install cron make
+RUN apt-get -y update && apt-get -y install \
+    make && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* 
 
 # Setup new user
 ARG NB_USER="pumahu"
