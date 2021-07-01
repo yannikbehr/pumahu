@@ -78,57 +78,12 @@ def setup_realistic(q_in=1000., tmax=90., sinterval=10):
     # Mi
     data[1, :] = np.ones(t.size)*10.
     # H
-    data[2, :] = np.ones(t.size)*6
+    data[2, :] = np.ones(t.size)*2.8
     # W
     data[3, :] = np.ones(t.size)*4.5
     return xr.DataArray(data, coords=[('params', params),
                                       ('times', dates)])
-#        if mode == 'sinus':
-#            qi = np.sin(2.*np.pi*self.f*t + np.deg2rad(15))*q_in/2.+q_in/2.
-#            qi *= tukey(nsteps, 0.9)
-#        if mode == 'tukey':
-#            tail = int(10/dt)
-#            qi = np.ones(nsteps-tail)*q_in
-#            qi *= tukey(nsteps-tail, 0.9)
-#            qi_tmp = np.zeros(nsteps)
-#            qi_tmp[0:nsteps-tail] = qi
-#            qi = qi_tmp
-#        if mode == 'step':
-#            tail = int(10/dt)
-#            qi = np.ones(nsteps-tail)*q_in
-#            qi_tmp = np.zeros(nsteps)
-#            qi_tmp[0:nsteps-tail] = qi
-#            qi = qi_tmp
-#        if mode == 'constant':
-#            qi = np.ones(nsteps)*q_in
-#        if mode == 'gamma':
-#            y = gamma.pdf(t, 3., loc=4)
-#            y /= y.max()
-#            y *= q_in
-#            qi = y
-#
-#        if mode == 'observed':
-#            # a polynomial model of a real inversion
-#            z = np.array([-6.93795125e-30,  1.17673746e-26, -9.19940930e-24,
-#                          4.39229128e-21, -1.43037875e-18,  3.36004438e-16,
-#                          -5.87098984e-14,  7.75486512e-12, -7.79213224e-10,
-#                          5.94657977e-08, -3.41657063e-06,  1.45392771e-04,
-#                          -4.46901292e-03,  9.56540064e-02, -1.35189993e+00,
-#                          1.16488040e+01, -5.37668791e+01,  1.05017651e+02,
-#                          2.91772946e+01])
-#            p = np.poly1d(z)
-#            dates = pd.date_range(start='2018-4-1', end='2018-9-30',
-#                                  periods=183)
-#            t = np.r_[0, np.cumsum(np.diff(dates)/np.timedelta64(1, 'D'))]
-#            qi = p(t)
-#            nsteps = 183
-#
-#        if mode == 'test':
-#            qi = np.array([0., .2, .6, 1.])*q_in
-#            dates = pd.date_range(start='2017-01-01', end='2017-01-04',
-#                                  freq='D')
-#            nsteps = 4
-#            
+
 def myhash(args, kwds):
     key = []
     key.append(args[0].integration_method)
@@ -232,7 +187,7 @@ class SynModel:
         exp = np.zeros((nsteps, nprms, 2))
         error = {'T': 0.4, 'z': 0.01, 'M': 2.,
                  'X': 0.4, 'A': 30., 'V': 2.0,
-                 'Mg': 50, 'm_out': .25, 'W':.5,
+                 'Mg': 50, 'm_out': 5, 'W':.5,
                  'h': .01}
  
         V = 8800
@@ -294,7 +249,7 @@ class SynModel:
         return xds
 
 
-def resample(xds, parameters=['T', 'M', 'X', 'z', 'W', 'h'], sinterval='1D'):
+def resample(xds, parameters=['T', 'M', 'X', 'm_out', 'z', 'W', 'h'], sinterval='1D'):
     """
     Resample a synthetic model to a given sampling interval.
     
@@ -307,6 +262,9 @@ def resample(xds, parameters=['T', 'M', 'X', 'z', 'W', 'h'], sinterval='1D'):
     sinterval : str
                 The resampling interval. Currently, only downsampling
                 supported.
+    Returns:
+    --------
+        :class:`xarray.Dataset`
     """
     nxds = xds.loc[dict(parameters=parameters, val_std='val')].resample(dates=sinterval)
     mn = nxds.mean().to_array().values
@@ -320,6 +278,31 @@ def resample(xds, parameters=['T', 'M', 'X', 'z', 'W', 'h'], sinterval='1D'):
     rxds[idx[0], idx[1], 1] = rxds[:, :, 1].mean(axis=0)
     return rxds
 
+
+def make_sparse(xds, parameters, perc=0.8, seed=42):
+    """
+    Make observations sparse to more realistically represent real
+    sampling schedules.
+    
+    Parameters:
+    -----------
+    xds : :class:`xarray.Dataset`
+    parameters : list
+                 The parameters which should be made sparse.
+    perc : float
+           Percentage, as a value between 0 and 1, of values to remove
+    seed : int
+           random seed
+    Returns:
+    --------
+        :class:`xarray.Dataset` 
+    """
+    orig = xds.loc[:, parameters, ['val', 'std']].values
+    rs = np.random.default_rng(42)
+    idx = rs.integers(0, orig.shape[0], int(0.8*orig.shape[0]))
+    orig[idx] = np.nan
+    xds.loc[:, parameters, ['val', 'std']] = orig
+    return xds
 
 def lhs(dim, nsamples, centered=False):
     """
