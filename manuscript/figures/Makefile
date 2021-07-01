@@ -1,5 +1,6 @@
 
-FIGURES = sensitivity_analysis.png
+FIGURES = sensitivity_analysis.png \
+		  synthetic_inversion_uks.png
 
 %.png : %.py
 	python $<
