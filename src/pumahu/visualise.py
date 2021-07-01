@@ -27,26 +27,53 @@ class TrellisPlot:
         self.line_colours = ['rgb(26,166,183)',
                              'rgb(255,65,77)',
                              'rgb(0,45,64)']
+        self.line_dash = ['solid', 'dash', 'dash'] 
         self.error_colours = ['rgba(26,166,183,.3)',
                               'rgba(255,65,77, .3)',
                               'rgba(0,45,64,.3)']
         self.legend_traces = []
         self._ntraces = defaultdict(lambda: -1)
 
-    def get_traces(self, data, key, err_min=1e-3):
+    def get_traces(self, data, key, err_min=1e-3,
+                   nanthresh=0.4):
+        """
+        Extract traces
+        
+        Parameters:
+        -----------
+        data : :class:`xarray.DataArray`
+               Data structure that contains the values
+               and error estimates.
+        key : str
+              Dimension name of the data to extract.
+        err_min : float
+                  Minimum error to plot in case max
+                  and min traces are too close.
+        nanthresh : float
+                    Interpolate if the number of NaNs is
+                    less than nanthresh.
+        """
         if 'val_std' in data.dims:
             # ignore warnings due to NaNs
-            with np.errstate(invalid='ignore'):
-                ymean = data.loc[:, key, 'val'].values
-                ymean = np.where(ymean < 0., 0., ymean)
-                yerr = np.sqrt(data.loc[:, key, 'std'].values)
-                ymin = ymean - 3*yerr
-                ymin = np.where(ymin < 0., 0., ymin)
-                ymax = ymean + 3*yerr
-                if np.nanmax(ymax-ymin) < err_min:
-                    ymax = ymean + err_min
-                    ymin = ymean + err_min
-                return [ymean, ymin, ymax]
+            ymean = data.loc[:, key, 'val'].values
+            ymean = np.where(ymean < 0., 0., ymean)
+            yvar = data.loc[:, key, 'std'].values
+            yerr = np.sqrt(yvar, where=yvar>=0)
+            # Interpolate over negative values
+            idx = np.where(yerr<0)[0]
+            yerr[idx] = np.nan
+            # calculate the percentage of NaN values
+            nanperc = float(np.sum(data.loc[:, key, 'val'].isnull())/data.shape[0])
+            if nanperc < nanthresh:
+                yerr = pd.Series(yerr).interpolate().values
+                #yerr = yerr.interpolate_na(method='linear').values
+            ymin = ymean - 3*yerr
+            ymin = np.where(ymin < 0., 0., ymin)
+            ymax = ymean + 3*yerr
+            if np.nanmax(ymax-ymin) < err_min:
+                ymax = ymean + err_min
+                ymin = ymean + err_min
+            return [ymean, ymin, ymax]
         else:
             ymean = data.loc[:, key].values
             with np.errstate(invalid='ignore'):
@@ -54,7 +81,7 @@ class TrellisPlot:
             return [ymean]
 
     def plot_trace(self, fig, data, key, ylabel, row, filled_error=True,
-                   plotvars=[('exp', 'Result'), ('input', 'Input')]):
+                   plotvars=[('input', 'Input'),('exp', 'Result')]):
         """
         :param plotvars: Variables to plot.
         """
@@ -74,14 +101,30 @@ class TrellisPlot:
                 else:
                     self.legend_traces.append(name)
                 lc = self.line_colours[self._ntraces[row]]
-                fig.add_trace(go.Scatter(x=dates, y=traces[0],
-                                         line_color=lc,
-                                         legendgroup=name,
-                                         name=name,
-                                         showlegend=showlegend),
-                              row=row, col=1)
+                dash = self.line_dash[self._ntraces[row]]
+                if not np.any(np.isnan(traces[0])):
+                    fig.add_trace(go.Scatter(x=dates, y=traces[0],
+                                             line=dict(color=lc,
+                                                       dash=dash),
+                                             legendgroup=name,
+                                             name=name,
+                                             showlegend=showlegend),
+                                  row=row, col=1)
                 if len(traces) > 1:
-                    if filled_error:
+                    if np.any(np.isnan(traces[0])):
+                        error_y = (traces[2] - traces[1])/2.
+                        fig.add_trace(go.Scatter(x=dates, y=traces[0],
+                                                 mode='markers',
+                                                 legendgroup=name,
+                                                 name=name,
+                                                 showlegend=showlegend,
+                                                 error_y=dict(type='data',
+                                                              color=lc,
+                                                              array=error_y,
+                                                              visible=True),
+                                                 marker=dict(color=lc, size=5)),
+                                      row=row, col=1)
+                    elif filled_error:
                         fig.add_trace(go.Scatter(
                             x=dates,
                             y=traces[1],
@@ -110,7 +153,8 @@ class TrellisPlot:
                 fig.update_yaxes(title_text=ylabel, row=row, col=1)
 
 
-def trellis_plot(data, data2=None, filename=None, **kwds):
+def trellis_plot(data, data2=None, data2_params=None,
+                 filename=None, **kwds):
     """
     A trellis plot for inversion results.
 
@@ -128,18 +172,22 @@ def trellis_plot(data, data2=None, filename=None, **kwds):
     labels = dict(q_in='Qi [MW]', m_in='Mi [kt/day]',
                   m_out='Mo [kt/day]', T='T [C]',
                   M='M [kt]', X='X [kt]', h='H [MJ/kg]')
+    rowdict = {}
     with plt.style.context('bmh'):
         fig = make_subplots(rows=nparams, cols=1, shared_xaxes=True,
                             vertical_spacing=.01)
         tp = TrellisPlot()
         for i, p in enumerate(params):
             tp.plot_trace(fig, data, p, labels.get(p, p), row=i+1, **kwds)
+            rowdict[p] = i+1
 
         if data2 is not None:
             xdf2 = data2.loc[dict(dates=slice(data.dates[0],
                                               data.dates[-1]))]
-            for i, p in enumerate(params):
-                tp.plot_trace(fig, xdf2, p, labels.get(p, p), row=i+1,
+            if data2_params is None:
+                data2_params = params
+            for i, p in enumerate(data2_params):
+                tp.plot_trace(fig, xdf2, p, labels.get(p, p), row=rowdict[p],
                               plotvars=[('exp', 'Benchmark')], **kwds)
 
     fig.update_layout(template='ggplot2',
@@ -147,7 +195,7 @@ def trellis_plot(data, data2=None, filename=None, **kwds):
                       width=1200)
 
     fig.update_xaxes(showticklabels=False, ticks='inside')
-    fig.update_xaxes(showticklabels=True, row=nparams+1)
+    fig.update_xaxes(showticklabels=True, row=nparams)
     if filename is not None:
         fig.write_image(file=filename)
     return fig
