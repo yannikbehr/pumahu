@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ######## Set up default project variables #######
-IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu:0.0.1'
+IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu:0.0.2'
 APP_NAME=Pumahu
 APP_SERVER="Vulkan"
 TEAM="Volcano"
