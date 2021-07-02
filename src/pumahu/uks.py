@@ -20,7 +20,7 @@ from .syn_model import SynModel
 from .forward_model import Forwardmodel
 from .sigma_points import MerweScaledSigmaPoints
 from .data import LakeData
-from .visualise import trellis_plot
+from .visualise import trellis_plot, plot_qin_uks
  
 import ipdb
 
@@ -105,10 +105,9 @@ class UnscentedKalmanSmoother:
         if P0 is not None:
             self.P0 = P0
             
-        _Q = OrderedDict(T=1e-3, M=1e-3, X=1e-3, q_in=1e1,
-                         m_in=1e1, m_out=1e1, h=1e-3, W=1e1,
-                         dqi=1e3, dMi=1e4, dMo=1e4, dH=1e-3, 
-                         dW=1e1)
+        _Q = OrderedDict(T=1e-1, M=1e1, X=1e-3, q_in=1e2,
+                         m_in=1e1, m_out=1e1, h=1e-3, W=1e-3,
+                         dqi=0, dMi=0, dMo=0, dH=0, dW=0)
         _Q = np.eye(len(_Q))*list(_Q.values())
         self.Q = _Q
         if Q is not None:
@@ -366,11 +365,7 @@ def mainCore(args):
         args.endtime = datetime.utcnow()
     data = ld.get_data(args.starttime, args.endtime, smoothing='dv')
     # Setup path for results file
-    tstart = pd.to_datetime(data['dates'].values[0])
-    tend = pd.to_datetime(data['dates'].values[-1])
-    res_fn = 'uks_{:s}_{:s}.nc'
-    res_fn = res_fn.format(tstart.strftime('%Y-%m-%d'),
-                           tend.strftime('%Y-%m-%d'))
+    res_fn = 'uks.nc'
     if args.pretxt is not None:
         res_fn = args.pretxt + '_' + res_fn
     res_fn = os.path.join(args.rdir, res_fn)
@@ -381,7 +376,14 @@ def mainCore(args):
     if args.plot:
         xdf = xr.open_dataset(res_fn)
         fout_trellis = os.path.join(args.rdir, 'uks_trellis.png')
-        trellis_plot(xdf, filename=fout_trellis)
+        if args.benchmark is not None:
+            data2 = xr.open_dataset(args.benchmark)
+            trellis_plot(xdf, data2=data2, filename=fout_trellis)
+            plot_qin_uks(xdf, data_mcmc=data2,
+                         filename=os.path.join(args.rdir, 'uks_exp.png'))
+        else:
+            trellis_plot(xdf, filename=fout_trellis)
+            plot_qin_uks(xdf, filename=os.path.join(args.rdir, 'uks_exp.png'))
 
 
 def main(argv=None):
@@ -404,9 +406,9 @@ def main(argv=None):
                         help='Plot the results.')
     parser.add_argument('-d', '--daemon', action='store_true',
                         help='Run the script in daemon mode.')
-    parser.add_argument('--prior', type=str,
-                        default=get_data('data/outflow_prior.npz'),
-                        help='File containing priors.')
+    parser.add_argument('--benchmark', type=str,
+                        default=None,
+                        help='File containing benchmark solution.')
     args = parser.parse_args(argv)
     mainCore(args)
 
