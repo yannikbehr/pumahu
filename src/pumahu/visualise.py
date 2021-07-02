@@ -63,10 +63,10 @@ class TrellisPlot:
             idx = np.where(yerr<0)[0]
             yerr[idx] = np.nan
             # calculate the percentage of NaN values
-            nanperc = float(np.sum(data.loc[:, key, 'val'].isnull())/data.shape[0])
+            nanperc = float(np.sum(np.isnan(ymean))/data.shape[0])
             if nanperc < nanthresh:
                 yerr = pd.Series(yerr).interpolate().values
-                #yerr = yerr.interpolate_na(method='linear').values
+                ymean = pd.Series(ymean).interpolate().values
             ymin = ymean - 3*yerr
             ymin = np.where(ymin < 0., 0., ymin)
             ymax = ymean + 3*yerr
@@ -275,6 +275,41 @@ def mcmc_heat_input(data, filename=None):
     axs[1].set_ylim(0, 1100)
     if filename is not None:
         plt.savefig(filename, dpi=300, bbox_inches='tight')
+    return fig
+
+
+def plot_qin_uks(data_uks, data_mcmc=None, data2y=None, filename=None):
+    """
+    Plot the MAP of the heat input rate for the 
+    Unscented Kalman Smoother solution.
+    Parameters:
+    -----------
+    data_uks: :class:`xarray.DataArray`
+              The MAP values from the UKS solution.
+    data_mcmc: :class:`xarray.DataArray`
+               The MAP values from the MCMC solution
+    data2y: (list-like, list-like, str)
+            Data to plot on the secondary y-axes in order
+            to compare it to the heat input rate. The last
+            entry in the tuple defines the legend name.
+    filename : str
+               Filename to save output to.
+    """
+    tp = TrellisPlot()
+    with plt.style.context('bmh'):
+        fig = make_subplots(rows=1, cols=1, specs=[[{"secondary_y": True}]])
+        tp.plot_trace(fig, data_uks, 'q_in', 'Qi [MW]', 1, filled_error=True,
+                      plotvars=[('exp', 'UKS')])
+        if data_mcmc is not None:
+            tp.plot_trace(fig, data_mcmc, 'q_in', 'Qi [MW]', 1, filled_error=True,
+                          plotvars=[('exp', 'MCMC')])
+        if data2y is not None:
+            x, y, name = data2y
+            fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=name),
+                          secondary_y=True)
+            fig.update_yaxes(title_text=name, secondary_y=True)
+    if filename is not None:
+        fig.write_image(filename, width=1500)
     return fig
 
 
