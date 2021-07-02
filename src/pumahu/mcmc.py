@@ -279,11 +279,7 @@ def mainCore(args):
         args.endtime = datetime.utcnow()
     data = ld.get_data(args.starttime, args.endtime)
     # Setup path for results file
-    tstart = pd.to_datetime(data['dates'].values[0])
-    tend = pd.to_datetime(data['dates'].values[-1])
-    res_fn = 'mcmc_sampling_{:s}_{:s}.nc'
-    res_fn = res_fn.format(tstart.strftime('%Y-%m-%d'),
-                           tend.strftime('%Y-%m-%d'))
+    res_fn = 'mcmc_sampling.nc'
     if args.pretxt is not None:
         res_fn = args.pretxt + '_' + res_fn
     res_fn = os.path.join(args.rdir, res_fn)
