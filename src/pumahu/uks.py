@@ -179,9 +179,11 @@ class UnscentedKalmanSmoother:
                 try:
                     kf.sigmas_f[k] = kf.fx(s, self.dt)
                 except ValueError as ve:
+                    print(ve)
                     print(s)
                     print(kf.sigmas_f)
                     print(kf.fx)
+                    ipdb.set_trace()
                     raise ve
             kf.x, kf.P = unscented_transform(kf.sigmas_f,
                                              weights[0],
@@ -356,14 +358,12 @@ class UnscentedKalmanSmoother:
 
     
 def mainCore(args):
-    ld = LakeData()
     
     # If the script runs in daemon mode update the start
     # and end time
     if args.daemon:
         args.starttime = datetime.utcnow()-timedelta(days=365)
         args.endtime = datetime.utcnow()
-    data = ld.get_data(args.starttime, args.endtime, smoothing='dv')
     # Setup path for results file
     res_fn = 'uks.nc'
     if args.pretxt is not None:
@@ -371,6 +371,8 @@ def mainCore(args):
     res_fn = os.path.join(args.rdir, res_fn)
     
     if args.fit:
+        ld = LakeData()
+        data = ld.get_data(args.starttime, args.endtime, smoothing='dv')
         uks = UnscentedKalmanSmoother(data=data)
         xds_uks = uks(results_file=res_fn)
     if args.plot:
