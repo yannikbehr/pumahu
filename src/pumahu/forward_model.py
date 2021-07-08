@@ -167,8 +167,8 @@ class Forwardmodel:
         """
 
         h = hgt.copy()
-        a = np.zeros(h.shape)
-        vol = np.zeros(h.shape)
+        a = np.zeros(h.shape)*np.nan
+        vol = np.zeros(h.shape)*np.nan
         idx1 = np.where(h < 2400.)
         idx2 = np.where(h >= 2400.)
         h[idx1] = 2529.4
