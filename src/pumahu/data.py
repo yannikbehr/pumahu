@@ -152,32 +152,29 @@ class LakeData:
         with open(filename, 'w') as fh:
             fh.writelines(lines)
 
-    def df_resample(self, df):
+    def relative2absolutell(self, ll_df):
         """
-        Resample dataframe to daily sample rate.
+        Convert relative to absolute (m a.s.l) lake level.
+        
+        Parameter:
+        ----------
+        ll_df : :class:`pandas.DataFrame`
+                Relative lake level in meters above the sensor.
+        
+        Returns:
+        --------
+        :class:`pandas.DataFrame`
+        Absolute lake level in meters a.s.l.
         """
-        # First upsample to 15 min intervals combined with a
-        # linear interpolation
-        ndates = pd.date_range(start=df.index.date[0], end=df.index.date[-1],
-                               freq='15T')
-        ndf = df.reindex(ndates, method='nearest',
-                         tolerance=np.timedelta64(15, 'm')).interpolate()
-        # Then downsample to 1 day intervals assigning the new values
-        # to mid day
-        ndf = ndf.resample('1D', label='left').mean()
-        return ndf
-
-    def common_date(self, date):
-        """
-        Function used for pandas group-by.
-        If there are several measurements in
-        one day, take the mean.
-        """
-        ndt = pd.Timestamp(year=date.year,
-                           month=date.month,
-                           day=date.day)
-        return ndt
-
+        t1 = '1997-01-01'
+        t2 = '2012-12-31'
+        t3 = '2016-01-01'
+        ll_df.loc[ll_df.index < t1, 'obs'] = 2530. + \
+            ll_df.loc[ll_df.index < t1, 'obs']
+        ll_df.loc[(ll_df.index > t1) & (ll_df.index < t2), 'obs'] = 2529.5 + (ll_df.loc[(ll_df.index > t1) & (ll_df.index < t2), 'obs'] - 1.3)
+        ll_df.loc[ll_df.index > t3, 'obs'] = 2529.35 + (ll_df.loc[ll_df.index > t3, 'obs'] - 2.0)
+        return ll_df
+    
     @lru_cache(maxsize=4)
     def FITS_request(self, obs, lake='RCL'):
         """
@@ -236,14 +233,7 @@ class LakeData:
                                    parse_dates=True)
                 ll_df = ldf.combine_first(ldf1)
                 ll_df = ll_df.tz_localize(None)
-                t1 = '1997-01-01'
-                t2 = '2012-12-31'
-                t3 = '2016-01-01'
-                ll_df.loc[ll_df.index < t1, 'obs'] = 2530. + \
-                    ll_df.loc[ll_df.index < t1, 'obs']
-                ll_df.loc[(ll_df.index > t1) & (ll_df.index < t2), 'obs'] = 2529.5 + (ll_df.loc[(ll_df.index > t1) & (ll_df.index < t2), 'obs'] - 1.3)
-                ll_df.loc[ll_df.index > t3, 'obs'] = 2529.35 + (ll_df.loc[ll_df.index > t3, 'obs'] - 2.0)
-                return ll_df
+                return self.relative2absolutell(ll_df)
 
             if obs == 'Mg':
                 # Get Mg++ concentration
@@ -365,7 +355,7 @@ class LakeData:
                                        df.iloc[i]['Mg']])
                     dates.append(d1)
             stds_mean = np.mean(list(stds.values()))
-            mg_df = df.groupby(self.common_date, axis=0).mean()
+            mg_df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
             for d in mg_df.index:
                 dt = d.date()
                 if dt in dates:
@@ -428,10 +418,16 @@ class LakeData:
         else:
             tstart = df.index.min()
         df.rename(columns={'obs': 't', 'obs_err': 't_err'}, inplace=True)
-        t_df = df.groupby(pd.Grouper(freq='D')).mean()
-        t_df_std = df.groupby(pd.Grouper(freq='D')).std()
-        t_df['t_err'] = t_df_std['t']
-        t_df['t_orig'] = t_df['t']
+        g = df['t'].groupby(pd.Grouper(freq='D'))
+        _mean = g.mean()
+        _std = g.std()
+        # get index of all days that have less than 2 values
+        idx = g.count() < 2
+        _mean[idx] = np.nan
+        _std[idx] = np.nan
+
+        t_df = pd.DataFrame({'t': _mean, 't_err': _std},
+                            index=_mean.index)
         t_df = t_df.loc[(t_df.index >= tstart) & (t_df.index <= tend)]
         new_dates = pd.date_range(start=tstart, end=tend, freq='D')
         t_df = t_df.reindex(index=new_dates)
@@ -493,10 +489,16 @@ class LakeData:
             tstart = max(df.index.min(), pd.Timestamp(tstart))
         else:
             tstart = df.index.min()
-        ll_df = df.groupby(self.common_date, axis=0).mean()
-        ll_df_std = df.groupby(self.common_date, axis=0).std()
-        ll_df['h_err'] = ll_df_std['h']
-        ll_df['h_orig'] = ll_df['h']
+        g = df['h'].groupby(pd.Grouper(freq='D'))
+        _mean = g.mean()
+        _std = g.std()
+        # get index of all days that have less than 2 values
+        idx = g.count() < 2
+        _mean[idx] = np.nan
+        _std[idx] = np.nan
+
+        ll_df = pd.DataFrame({'h': _mean, 'h_err': _std},
+                             index=_mean.index)
         ll_df = ll_df.loc[(ll_df.index >= tstart) & (ll_df.index <= tend)]
         new_dates = pd.date_range(start=tstart, end=tend, freq='D')
         ll_df = ll_df.reindex(index=new_dates)
