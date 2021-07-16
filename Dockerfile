@@ -8,6 +8,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3-pip \
     git \
+    gfortran \
     cmake && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
@@ -24,6 +25,7 @@ FROM python:3.7-slim
 
 #Install Cron
 RUN apt-get -y update && apt-get -y install \
+    gfortran \
     make && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
