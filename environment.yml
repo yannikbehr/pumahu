@@ -2,27 +2,30 @@ name: pumahu
 channels:
     - conda-forge
 dependencies:
-    - python=3.6
-    - bqplot
+    - python=3.7
+    - ipdb
+    - seaborn
     - cartopy
+    - pytest
+    - sphinx
+    - mtspec
     - scikit-learn
     - tqdm
     - numpy
     - scipy
     - matplotlib
     - plotly=4.14.3
-    - kaleido
+    - python-kaleido
     - pandas
     - netcdf4
     - xarray
     - obspy
-    - panel
-    - param
-    - pip
-    - ipykernel
     - pytest
+    - nbformat
+    - ipykernel
+    - pip
     - pip:
         - filterpy
         - cachier
-        - schedule
+        - schedule>=1.1*
         - git+ssh://git@github.com/yannikbehr/nsampling.git
