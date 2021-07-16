@@ -268,17 +268,16 @@ volume of the lake, it has been largely unchanged since then and the lake's
 bathymetry is well known from times when it was empty [Tony Hurst, personal
 communication].
 
-Increases in heat and steam input may be caused by the ascent of magma or
+Increases in heat input may be caused by the ascent of magma or
 changes in the permeability of the hydrothermal system and are, therefore,
 important parameters to be monitored. First attempts to quantify the amount of
-heat and steam entering the lake date back to \citep{Dibble1966}. Over the past
-decade water temperature and lake level have been monitored continuously
+heat entering the lake date back to \citep{Dibble1966}. Since 2016
+water temperature and lake level have been monitored continuously
 and water samples for ion concentration measurements have been taken roughly
-every two to three months. This enables us to continuously estimate heat and
-steam input into the lake and, in principle, automatically detect changes in
-these variables as soon as they occur.
+every two to three months. This enables us to continuously estimate heat input
+into the lake and, in principle, automatically detect changes as soon as they occur.
 
-Inference of the heat and steam input is typically done through a mass and
+Inference of the heat input is typically done through a mass and
 energy balance calculation: the sum of mass and energy flow into and out of the
 lake has to account for the observed changes in lake temperature, water level
 and ion dilution \citep[e.g.,][]{Hurst1981, Hurst1991, Stevenson1992,
@@ -289,13 +288,9 @@ the parameters in the mass and energy balance model using prior knowledge. Furth
 some observations and input parameters come with large uncertainties and are sampled
 irregularly.
 
-We propose a probabilistic (Bayesian) inference approach which naturally
-handles these difficulties and transparently propagates uncertainties of
-observations and prior assumptions into posterior uncertainties of heat and
-steam input. The accurate description of uncertainties is of particular
-importance when publishing automatically generated estimates of heat and steam
-input, as they could potentially be used in decision making or automatic
-alerting of monitoring staff.
+In the following, we propose a probabilistic (Bayesian) inference approach which
+naturally handles these difficulties and transparently propagates uncertainties of
+observations and prior assumptions into posterior uncertainties of heat input.
 
 \begin{figure}
 \includegraphics[width=\textwidth]{figures/overview.png}  
@@ -310,96 +305,116 @@ alerting of monitoring staff.
 
 \subsection*{Physical model}\label{phm}
 
-Following \citet{Hurst1991} and \citet{Stevenson1992} the mass and energy balance
+Following \cite{Hurst1991} and \cite{Stevenson1992} the mass and energy balance
 can be written in terms of three coupled ordinary differential equations. The
-rate of lake water mass change can be described as:
+rate of lake water mass ($M$) change can be described as:
 \begin{equation}\label{ode_M}
-	\frac{dM}{dt} = M_s - M_o - M_e + M_i
+	\frac{dM}{dt} = \dot{M_s} - \dot{M_o} - \dot{M_e} + \dot{M_i}
 \end{equation}
 
-Where $M_s$ is the rate of water inflow through melt and precipitation, $M_o$
-is the outflow rate through seepage and overflow, $M_e$ is the rate of mass
-loss through evaporation and $M_i$ is the rate of steam input through the vent
+Where $\dot{M_s}$ is the rate of water inflow through melt and precipitation,
+$\dot{M_o}$
+is the outflow rate through seepage and overflow, $\dot{M_e}$ is the rate of mass
+loss through evaporation and $\dot{M_i}$ is the rate of steam input through the vent
 system beneath the lake.
 
-The thermal energy content of a mass flow can be described with the notion of
-enthalpy, $H$, which is the ratio of energy and mass. Enthalpy can also be defined
-on a relative scale as:
+The energy content of the lake can be described with the notion of
+enthalpy, $H$. At constant pressure, enthalpy is defined as:
 \begin{equation}
-	H(T) = H(T_0) + \int_{T_0}^{T}c_p\tau d\tau
+	H(T) = H(T_0) + \int_{T_0}^{T}c_pM\tau d\tau
 \end{equation}
 
 where $T$ is temperature and $c_p$ is the specific heat. For all following
 equations we take $H(T_0=0)$ as our reference enthalpy and $c_p=c_w=constant$,
 with $c_w$ the specific heat of water, such that the enthalpy of lake water at
-temperature $T$ can be written as $H(T) = c_w T$. Because Ruapehu Crater Lake
-is at an altitude of ~2500 m and big parts of its catchment are covered by snow
+temperature $T$ can be written as $H(T) = c_wMT$. Because Ruapehu Crater Lake is
+ at an altitude of $\sim$~2500~m and big parts of its catchment are covered by snow
 and ice all year round we assume the temperature of incoming water to be at 0
 $^{\circ}C$.
 
-The rate of energy change of the lake water can thus be written as:
+The rate of enthalpy change of the lake water can thus be written as:
 \begin{equation}\label{ode_E}
-    \frac{dE}{dt}=\frac{d(c_wTM)}{dt}=c_wT\frac{dM}{dt} + c_wM\frac{dT}{dt} =
-	-Q_e - c_wTM_o + Q_{eff} + Q_r
+    \frac{dH}{dt}=\frac{d(c_wTM)}{dt}=c_wT\dot{M} + c_wM\dot{T} =
+	-\dot{Q_e} - c_wT\dot{M_o} + \dot{Q_{eff}} + \dot{Q_r}
 \end{equation}
       
-where $T$ is the lake water temperature, $M$ is the lake water mass, $Q_r$ is
+where $T$ is the lake water temperature, $\dot{Q_r}$ is
 the rate of energy gain due to solar irradiation (short-wavelength radiation),
-and $c_wTM_o$ is the rate of energy loss through outflow/seepage. $Q_e$ is
+and $c_wT\dot{M_o}$ is the rate of energy loss through outflow/seepage. $\dot{Q_e}$ is
 the rate of surface energy losses due to evaporation (forced and free
 convection), sensible heat, and long-wavelength radiation (net loss). Several
 empirical and theoretical equations exist to describe the surface losses and
-both \citet{Stevenson1992} and \citet{Hurst2015} discuss them in detail. We
-follow here mostly the choice of \citet{Hurst2015} as it includes the recent
-development by \citet{Sartori2000} on forced (i.e. wind-induced) convection
-(see Appendix \ref{A} for more details). $Q_{eff}$ is the effective rate of
+both \cite{Stevenson1992} and \cite{hurstCraterLakeEnergy2015} discuss them in detail. We
+follow here mostly the choice of \cite{hurstCraterLakeEnergy2015} as it includes the recent
+development by \cite{sartoriCriticalReviewEquations2000} on forced (i.e. wind-induced) convection
+(see Appendix \ref{A} for more details). $\dot{Q_{eff}}$ is the effective rate of
 energy gain from volcanic sources after heating incoming water:
 \begin{equation}
-	Q_{eff}=Q_i - M_s c_w T
+	\dot{Q_{eff}}=\dot{Q_i} - c_wT\dot{M_s}
 \end{equation}
-with $Q_i$ the rate of energy input from volcanic sources.
+with $\dot{Q_i}$ the rate of energy input from volcanic sources.
 
 Following from Equation \ref{ode_E} the temperature change $\frac{dT}{dt}$ can then be written as:
 \begin{equation}\label{ode_T}
-	\frac{dT}{dt}=\frac{1}{c_wM}\left(-Q_e - c_wTM_o + Q_{eff} + Q_r\right )
-	-\frac{T}{M}\frac{dM}{dt}
+	\frac{dT}{dt}=\frac{1}{c_wM}\left(-\dot{Q_e} - c_wT\dot{M_o} + \dot{Q_{eff}} + \dot{Q_r}\right )
+	-\frac{T}{M}\dot{M}
 \end{equation}
 
 Finally, the change in ion concentration of, for example, $Mg^{2+}$ can be expressed as:
 \begin{equation}\label{ode_X}
-	\frac{dX}{dt}=-M_o\frac{X}{M}
+	\frac{dX}{dt}=-\dot{M_o}\frac{X}{M}
 \end{equation}
 
 Where $X$ is the total ion amount in the lake. This equation is only true under
 the assumption that $X$ only changes due to dilution and there is no re-supply
 between eruptive episodes. Equation \ref{ode_X} gives an estimate of the average
 outflow over periods on the order of months but does not capture shorter term
-variations in the outflow. 
+variations in the outflow.
+
+In a sensitivity analysis for $\dot{T}$ (Figure \ref{sens}) we can see a linear
+relationship with respect to $\dot{Q_i}$ and $\dot{M_o}$ and a mildly
+non-linear relationship with respect to $\dot{Q_i}$ and current season
+(note that this assumes southern hemisphere seasons). The relationship with respect
+to $T$ and windspeed, however, is strongly non-linear. This is because $\dot{Q_e}$
+and $\dot{M_e}$ are non-linear functions of windspeed and $\dot{Q_i}$. This further 
+complicates the inference of $\dot{Q_i}$.
+
+\begin{figure}
+    \includegraphics[width=\textwidth]{figures/sensitivity_analysis.png}  
+    \caption{Sensitivity analysis of $\dot{T}$ with respect to $\dot{Q_i}$ 
+             and $\dot{M_o}$ (top panel), $\dot{Q_i}$ and season 
+             (center panel), and $T$ and windspeed (bottom panel). The model
+              parameters that have been held fixed are described in each 
+              panel's title. Warmer colors indicate a temperature increase
+              ($\dot{T} > 0$) and cooler colors a temperature decrease
+              ($\dot{T} < 0$)}
+      \label{sens}
+\end{figure}
+    
 
 \subsection*{Inference}\label{inf}
 
-The objective of the inference problem is to estimate the amount and energy
-content of steam and gas entering the lake from the hydrothermal system below.
-To constrain these we use the currently available observations of lake
-temperature ($T$), lake level ($L$), ion concentration ($X$) as well as
-numerical weather model data on windspeed. Putting it more concisely, we are
-looking for 
+The objective of the inference problem is to estimate the rate at which heat
+is entering the lake from the hydrothermal system below.
+To constrain this we use the currently available observations of $T$, $M$,
+$X$, and $\dot{M_o}$ as well as numerical weather model data on windspeed.
+Putting it more concisely, we are looking for 
 
 \begin{equation}\label{bsm}
-    p(\bm{x}_k|\bm{y}_{1:T})
+    p(\bm{x}_k|\bm{y}_{1:t})
 \end{equation}
 
-where $\bm{y}_{1:T}$ is the time series of $m$ observations and $x_k$ comprises
+where $\bm{y}_{1:t}$ is the time series of $m$ observations and $x_k$ comprises
 the $n$ model parameters described in Section \ref{phm} at time step $k$. Note
-that $x_k$ also includes the lake's temperature, lake level, and ion
-concentration. We distinguish here between the state of the lake and
-observations of this state ($T$, $L$, $X$) which are to some degree uncertain.
+that $x_k$ also includes $T$, $M$, $\dot{M_o}$, and $X$. We distinguish here
+between the state of the lake and observations of this state
+($T$, $M$, $X$, $\dot{M_o}$) which are to some degree uncertain.
 
-The following equations are based on \citet{Sarkka2010} which we refer the
-reader to for more proofs and more detailed explanations.
+The following equations are based on \cite{sarkkaBayesianFilteringSmoothing2013}
+which we refer the reader to for more proofs and detailed explanations.
 
 Equation \ref{bsm} is the marginal probability of $\bm{x}_k$ given all
-observations until time $T$. We assume that the states of the lake form a
+observations until time $t$. We assume that the states of the lake form a
 Markov chain, meaning that the state of the lake at time step $k$, $\bm{x}_k$,
 only depends on the state at adjacent time steps:
 
@@ -410,7 +425,7 @@ only depends on the state at adjacent time steps:
 and
 
 \begin{equation}\label{markov2}
-    p(\bm{x}_{k-1}|\bm{x}_{k:T}, \bm{y}_{k:T}) = p(\bm{x}_{k-1}|\bm{x}_{k})
+    p(\bm{x}_{k-1}|\bm{x}_{k:t}, \bm{y}_{k:t}) = p(\bm{x}_{k-1}|\bm{x}_{k})
 \end{equation}
 
 With this assumption and using \textit{Bayes' rule}, Equation \ref{bsm} can be
@@ -439,12 +454,12 @@ p(\bm{x}_k|\bm{y}_{1:k-1}) = \int p(\bm{x}_k|\bm{x}_{k-1})p(\bm{x}_{k-1}|\bm{y}_
 
 Equations \ref{bsm1} to \ref{zetk} describe a recursive way to compute Equation
 \ref{bsm} in which we only need to know $\bm{x}_1$,
-$p(\bm{x}_k|\bm{x}_{k-1})$, and $p(\bm{y}_k|\bm{x}_k)$. Equation \ref{bsm} and
+$p(\bm{x}_k|\bm{x}_{k-1})$, and $p(\bm{y}_k|\bm{x}_k)$. Equation \ref{bsm1} and
 \ref{bfilt} are also known as the Bayesian Smoothing and Bayesian Filtering
 equation, respectively. If $p(\bm{x}_k|\bm{x}_{k-1})$ and
 $p(\bm{y}_k|\bm{x}_k)$ are linear transformations with normally distributed
-errors, the \textit{Kalman filter} \citep{Kalman1960} and Kalman smoother
-\citep{Rauch1965} represent closed form solutions. In our case, these
+errors, the \textit{Kalman filter} \cite{Kalman1960} and Kalman smoother
+\cite{Rauch1965} represent closed form solutions. In our case, these
 transformations are:
 
 \begin{eqnarray}
@@ -453,43 +468,26 @@ p(\bm{x}_k|\bm{x}_{k-1}) & = & f(\bm{x}_{k-1}) + \bm{q}_{k-1} \\
 \end{eqnarray}
 
 where $f(\bm{x}_{k-1})$ is the physical model described in Section \ref{phm}
-which is highly non-linear. If we assume the errors, $\bm{r}_k$ and
+which is strongly non-linear as shown in Figure \ref{sens}. If we assume the errors, $\bm{r}_k$ and
 $\bm{q}_{k-1}$, to be normally distributed ($\bm{q}_{k-1} \sim N(\bm{0},
 \bm{Q}_{k-1})$, $\bm{r}_k \sim N(\bm{0}, \bm{R}_k)$), we can compute an
-approximate solution to \ref{bsm} using the \textit{Unscented Kalman Filter}
+approximate solution to \ref{bsm1} using the \textit{Unscented Kalman Filter}
 \citep{Merwe2004}.
 
 We estimate $\bm{R}_k$ from the daily variations in the observations but we do
-not know $\bm{x}_1$ and $\bm{Q}_{k-1}$. If $\bm{\theta}$ stands for all unknown
-parameters than we are looking for $p(\bm{\theta}|\bm{y}_{1:T})$. Using again
-\textit{Bayes' Theorem} and ignoring the normalising constant we can write:
-
-\begin{equation}\label{pe1}
-    p(\bm{\theta}|\bm{y}_{1:T}) \propto p(\bm{y}_{1:T}|\bm{\theta})p(\bm{\theta})
-\end{equation}
-
-Assuming that $\bm{Y}_{1:T}$ form a Markov chain and that $p(\bm{\theta})$ follows
-a uniform distribution we can rewrite Equation \ref{pe1} as:
-
-\begin{equation}\label{pe2}
-    p(\bm{\theta}|\bm{y}_{1:T}) \propto \prod_{k=1}^Tp(\bm{y}_{k}|\bm{y}_{k-1}, \bm{\theta})
-\end{equation}
-
-Each factor on the right-hand side of Equation \ref{pe2} can be written as:
-\begin{equation}
-    p(\bm{y}_k|\bm{y}_{1:k-1}, \bm{\theta}) = \int p(\bm{y}_k|\bm{x}_k, \bm{\theta})p(\bm{x}_k|\bm{y}_{1:k-1})d\bm{x}_k
-\end{equation}
-
-which is readily computed as a by-product of Equation \ref{bfilt}. We then run
-a non-linear optimisation to find the \textit{maximum a posteriori (MAP)}
-estimate of Equation \ref{pe2}. 
-
-* sensitivity analysis: high vs. low lake temperature; windspeed dependence;
-  enthalpy dependence
+not know $\bm{x}_1$ and $\bm{Q}_{k-1}$. Setting $\bm{x}_1$ to an arbitrary value
+within physically reasonable bounds but large uncertainty works well in practice.
+While $\bm{Q}_{k}$ can be formally optimised we treat it here as a design
+parameter that we modify such that the observations are matched within their
+error bounds and the inferred heat input rate varies smoothly. The latter is
+motivated by the fact that the physical model described in \ref{phm} is not
+able to model short-term transient changes in lake volume and temperature.
+These can be caused by rain or increased meltwater influx and the assumption
+of a perfectly mixed lake typically does not apply in these situations.
 
 \section*{Results}
 \subsection*{Synthetic test}\label{syn_test}
-To test the inversion scheme we design a synthetic test, consisting of a very
+To evaluate the inference scheme we design a synthetic test, consisting of a very
 large cylinder, the same volume as Ruapehu Crater Lake. We keep the windspeed
 and surface water inflow constant at 4.5 m/s and 10 kt/day, respectively. To
 model the outflow we assume the outlet to be a pipe 0.2 $m^2$ in cross section
@@ -498,7 +496,7 @@ level in the cylinder above the pipe. We assume that the incoming heat follows
 a combination of a third-order polynomial and a sinusoid function and that the
 enthalpy of the incoming steam is 2.8 which corresponds to the enthalpy of
 saturated steam at hydrostatic pressures similar to those at the bottom of the
-lake \ref{Mayhew1978}. To the resulting synthetic observations we add
+lake \cite{Mayhew1978}. To the resulting synthetic observations we add
 uncertainties similar to those estimated from real observations (see Section
 \ref{realdata}).
 
@@ -507,12 +505,14 @@ heat input compared to the true input of the synthetic model. The observations
 are well fit within their error bounds but we see some descrepancies between
 the original and the recovered heat input rates, especially for very steep
 changes in the input rate. This is the result of preferring a smooth solution
-as already mentioned in \ref{inf}.
+as already mentioned in Section \ref{inf}.
 
-It is noteworthy that the mass influx and outflux rates are recovered quite accurately despite having no data in the former and very little data in the latter case.
+It is noteworthy that the mass influx and outflux rates are recovered
+quite accurately despite having no data in the former and very little data
+in the latter case.
 
 \begin{figure}
-	\includegraphics[width=.9\textwidth]{figures/synthetic_inversion_uks.png}  
+	\includegraphics[width=\textwidth]{figures/synthetic_inversion_uks.png}  
     \caption{Inversion result for the synthetic test described in Section 
         \ref{syn_test}. Turquoise lines and markers represent hypothetical
         observations; red dashed lines are the inversion results and black
@@ -520,46 +520,193 @@ It is noteworthy that the mass influx and outflux rates are recovered quite accu
   \label{syn_example}
 \end{figure}
 
+\subsection*{Real data}\label{realdata}
+Temperature at RCL is measured by a integrated-circuit temperature device
+(Texas Instruments LM35) located roughly 1.9 m below the lake's current
+overflow level. The water level sensor is a hydrostatic pressure sensor (First
+Sensor KTE/KTU/KTW6000\ldots CS Series) and it is co-located with the
+temperature sensor. Both sensors have a sampling interval of 15 minutes and
+transmit data several times a day via satellite to GNS Science, which monitors
+New Zealand's geohazards through its GeoNet project (www.geonet.org.nz
+ last accessed 16/07/2021).
+Water samples are taken 8-10 times a year from which subsequently, among many
+other analytes, concentrations of $Mg^{++}$ and $Cl^-$ are determined at GNS
+Science's Geothermal Analytical Laboratory. We will focus here on $Mg^{++}$
+concentration as it shows less deviation from the assumption of constant
+dilution than $Cl^-$.
+ 
+To estimate uncertainties of temperature and water level observations, we 
+compute their daily averages and standard deviations. Uncertainties of $Mg^{++}$
+concentrations are estimated directly when two samples were taken on the same day.
+Otherwise, their uncertainty is taken to be the median of directly estimated
+uncertainties. $\dot{M_o}$ is measured once or twice per year and we further know
+from field observations that the lake is not overflowing beneath a certain water
+level. 
 
-\section*{Section title}
-Text for this section \ldots
-\subsection*{Sub-heading for section}
-Text for this sub-heading \ldots
-\subsubsection*{Sub-sub heading for section}
-Text for this sub-sub-heading \ldots
-\paragraph*{Sub-sub-sub heading for section}
-Text for this sub-sub-sub-heading \ldots
-In this section we examine the growth rate of the mean of $Z_0$, $Z_1$ and $Z_2$. In
-addition, we examine a common modeling assumption and note the
-importance of considering the tails of the extinction time $T_x$ in
-studies of escape dynamics.
-We will first consider the expected resistant population at $vT_x$ for
-some $v>0$, (and temporarily assume $\alpha=0$)
-%
-\[
- E \bigl[Z_1(vT_x) \bigr]= E
-\biggl[\mu T_x\int_0^{v\wedge
-1}Z_0(uT_x)
-\exp \bigl(\lambda_1T_x(v-u) \bigr)\,du \biggr].
-\]
-%
-If we assume that sensitive cells follow a deterministic decay
-$Z_0(t)=xe^{\lambda_0 t}$ and approximate their extinction time as
-$T_x\approx-\frac{1}{\lambda_0}\log x$, then we can heuristically
-estimate the expected value as
-%
-\begin{eqnarray}\label{eqexpmuts}
-E\bigl[Z_1(vT_x)\bigr] &=& \frac{\mu}{r}\log x
-\int_0^{v\wedge1}x^{1-u}x^{({\lambda_1}/{r})(v-u)}\,du
-\nonumber\\
-&=& \frac{\mu}{r}x^{1-{\lambda_1}/{\lambda_0}v}\log x\int_0^{v\wedge
-1}x^{-u(1+{\lambda_1}/{r})}\,du
-\nonumber\\
-&=& \frac{\mu}{\lambda_1-\lambda_0}x^{1+{\lambda_1}/{r}v} \biggl(1-\exp \biggl[-(v\wedge1) \biggl(1+
-\frac{\lambda_1}{r}\biggr)\log x \biggr] \biggr).
-\end{eqnarray}
-%
-Thus we observe that this expected value is finite for all $v>0$ (also see \cite{koon,khar,zvai,xjon,marg}).
+As there is no weather station close to RCL we assume the wind speed from the
+New Zealand Metservice's numerical weather prediction model with a standard
+deviation of ??.
+
+\begin{figure}
+% 	\includegraphics[width=.9\textwidth]{clemb_inference_result}  
+% 	\caption{Inference results for the energy input rate (A),
+% 		the steam input rate (B), the water inflow (C) and 
+% 		outflow rate (D) for temperature, water level and 
+% 		$Mg^{++}$ observations at RCL in 2018.
+% 		The color shows an interpolation of 1D kernel density 
+% 		estimates (kdes) of the posterior samples for each day's 
+% 		inference result. The solid black line marks the expected
+% 		energy input rate. (E) shows the Bhattacharyya distance 
+% 	        between the probability distributions of the observations
+% 	        and the probability distributions of the inference results.}
+\label{inference_result}
+\end{figure}
+
+\section*{Discussion and conclusion}
+Although we use a tighter constraint on the
+outflow than just the dilution of $Mg^{++}$, inflow and outflow are still
+poorly constraint, especially when the lake level is above overflow level. As we already
+showed in the synthetic test in Section \ref{syn_test}, the $MG^{++}$ alone has
+too large uncertainties to properly constrain outflow rate. The probabilistic
+inference results thus help us determine future priorities for field
+observations and work is underway to establish a quantitative relationship
+between lake level and outflow rate.
+
+\cite{hurstCraterLakeEnergy2015} and \cite{Stevenson1991} both found that they required very
+high values of enthalpy for the incoming steam to avoid violating physical
+boundary conditions such as negative values for the inflow rate of meteoric
+water. Their explanation was the existence of a heat pipe beneath the lake where
+gas and fluid phases coexist. As the rising gas enters the lake relatively cool
+lake water enters the vent leading to an overall lower addition of mass to the
+lake and resulting in an enthalpy value that is double than expected for
+saturated steam at hydrostatic pressures likely to be found at the bottom of the
+lake. By including uncertainties in our observations we no longer require the
+high enthalpy values to satisfy the physical constraints. In fact, since we \textit{a
+priori} only allow physically reasonable parameter ranges we find the
+combinations of parameter values that reproduce the observations within their
+respective uncertainties. 
+
+Inferring the heat input rate into a crater lake is a corner piece in estimating the
+total energy budget of a volcanic system as, for example, described by \cite{Adams1989a}
+for Po\'as volcano in Costa Rica. Similar to a volcano's gas budget, it can either
+indicate migration of magma or changes in permeability within the vent system. To
+answer whether it is one or the other requires more detailed numerical modelling
+of the magmatic and hydrothermal system. Many studies have demonstrated the 
+value of non-linear Kalman Filters for data assimilation with very complex numerical 
+models \citep{}. The next logical step, therefore, is to include models of magma
+degassing and hydrothermal fluid flow to model the heat input rate, volume, and
+enthalpy of the steam entering the lake. Because Kalman Filters return a probabilistic
+estimate of model parameters, even crude, first-order models could be used
+as long as appropriate model uncertainties are assigned.
+
+
+* probabilistic approach allows for Bayesian comparison between evaporation models
+
+
+
+
+Although an increased heat input rate at Ruapehu
+often goes along with an increase in seismic tremor levels (see Figure ??), this is
+not always the case and so it is an independent indicator of potential changes in
+the volcano.
+
+
+Figure ?? shows the comparison of daily averages of volcanic tremor amplitudes
+(RSAM; reference), heat input rate and water temperature. We can see that heat
+input rate correlates well with tremor values with a correlation coefficient of
+?. If we only consider heat pulses above ? MW (see dashed line in Figure ?), the
+correlation coefficient increases to ?. Although correlation does not imply
+causality it would seem plausible that high heat, and therefore gas, fluxes
+could generate volcanic tremor. A mechanism of heat flow generating tremor
+has been described by \citet{Iwamura2005}.
+
+In conclusion, the combination of the mass and energy model of \citet{Hurst2015}
+and \citet{Stevenson1992} combined with the probabilistic inference method we
+developed here provides a powerful method to continuously infer the heat input
+rate into Ruapehu Crater Lake. It allows us to combine disparate data streams,
+quantify our beliefs in the results and thereby augment our monitoring
+capabilities.
+
+\appendix
+\section{Surface losses}\label{A}
+\subsection{long-wavelength radiation}
+The net loss through long-wavelength radiation can be written as:
+\begin{equation}
+    Q_{rad} = A\sigma(\epsilon_w T_s^4 - \epsilon_a T_a^4)
+\end{equation}
+
+where
+
+\begin{tabular}{cp{8cm}}
+    A & is the surface of the lake (in $m^2$) \\
+    $\sigma$ & is the Stefan-Boltzmann coefficient ($5.67e^{-8} \frac{W}{m^2 K^4}$) \\
+    $\epsilon_w$ & is the lake emissivity \\
+    $T_s$ & is the water surface temperature (here assumed to be 1 $^{\circ}C$ less than the
+    measured temperature) \\
+    $\epsilon_a$ & is the effective atmospheric emissivity \\
+    $T_a$ & is the effective air temperature (here assumed to be 0.9 $^{\circ}C$) \\ 
+\end{tabular}
+
+\subsection{Evaporation}
+As proposed by \citet{Hurst2015} we use the equation of \citet{Adams1990} but
+replace the term for forced convection by that of \citet{Sartori2000}:
+
+\begin{equation}
+    Q_{evap} = [(2.2(T_{sv} - T_{av})^{1/3}(e_s - e_a))^2 + 
+    (L(0.00407u^{0.8}X_0^{-0.2})(e_s - e_a)/P_a)^2]^{1/2}
+\end{equation}
+
+where
+
+\begin{tabular}{cp{8cm}}
+    $T_{sv}$, $T_{av}$ & are the virtual surface and air temperatures respectively.
+    This correction accounts for the extra buoyancy of water vapour compared to air
+    (see Equation \ref{vtemp} for details) \\
+    $e_s$, $e_a$ & are the saturation vapour pressure and the ambient air vapour
+    pressure respectively \\
+    $L$ & is the latent heat of evaporation \\
+    $u$ & is the wind speed \\
+    $X_0$ & is the fetch, or characteristic length, of the lake\\
+    $P_a$ & is the atmospheric pressure \\
+\end{tabular}
+
+\begin{equation}\label{vtemp}
+T_{xv} = \frac{T_x}{(1-0.378e_x/P_a)} \qquad \mathrm{for}\quad x = s\ \mathrm{or}\ a
+\end{equation}
+
+\subsection{Sensible heat}
+This describes the heat loss due to conduction and convection above a hot lake and according to
+\citet{Stevenson1992} the ratio between sensible heat, $Q_{sh}$, and heat loss due
+to evaporation, $Q_{evap}$ can be written as:
+
+\begin{equation}
+    \frac{Q_{sh}}{Q_{evap}}=R_{sh}=\frac{\rho c_a}{L} \frac{(T_s - T_a)}{(e_s - e_a)}
+    \underbrace{\left [ \frac{(T_s-T_a)}{(T_{sv} - T_{av})} \right ]^{1/3}}_A 
+\end{equation}
+
+where
+
+\begin{tabular}{cp{8cm}}
+    $\rho$ & is the air density \\
+    $c_a$ & is the specific heat of air\\
+\end{tabular}
+
+We decided to ignore term A as it tends to be very close to 1.
+
+\subsection{Putting it all together}
+The final equation to compute surface heat losses is then:
+\begin{equation}
+    Q_e = Q_{rad} + Q_{evap}(1+R_{sh})
+\end{equation}
+
+and the mass-loss due to evaporation is:
+\begin{equation}
+    M_e = Q_{evap}/L
+\end{equation}
+
+
+
+
 %\nocite{oreg,schn,pond,smith,marg,hunn,advi,koha,mouse}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
