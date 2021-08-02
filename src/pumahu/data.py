@@ -17,6 +17,14 @@ import xarray as xr
 
 from . import Forwardmodel, get_data
 
+def fits_hash(args, kwargs):
+    key = []
+    for _a in args[1:]:
+        key.append(_a)
+    key = tuple(key)    
+    key += tuple(sorted(kwargs.items()))
+    hashValue = hash(key)
+    return hashValue
 
 class LakeData:
     """
@@ -24,7 +32,7 @@ class LakeData:
     """
 
     def __init__(self, url="https://fits.geonet.org.nz/observation",
-                 csvfile=None, windspeed=4.5, m_out=10.,
+                 csvfile=None, windspeed=5., m_out=10.,
                  enthalpy=3.):
         """
         Parameters:
@@ -59,7 +67,7 @@ class LakeData:
 
 
     @cachier(stale_after=timedelta(weeks=2),
-             cache_dir='~/.cache')
+             cache_dir='~/.cache', hash_params=fits_hash)
     def get_data_fits(self, start, end, smoothing='kf'):
         """
         Request data from the FITS database unless it has been already cached.
