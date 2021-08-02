@@ -197,7 +197,7 @@ def trellis_plot(data, data2=None, data2_params=None,
     fig.update_xaxes(showticklabels=False, ticks='inside')
     fig.update_xaxes(showticklabels=True, row=nparams)
     if filename is not None:
-        fig.write_image(file=filename)
+        fig.write_image(file=filename, width=1500)
     return fig
 
 
