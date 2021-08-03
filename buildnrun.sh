@@ -6,7 +6,7 @@
 #########################################
 
 IMAGE=pumahu
-TAG=0.0.2
+TAG=0.1
 BUILD=false
 PUSH=false
 INTERACTIVE=false
