@@ -623,8 +623,8 @@ class LakeData:
         m_out = f_m_out_mean(new_z)
         m_err = (f_m_out_min(new_z) + f_m_out_max(new_z))/2.
         
-        self.xdf.loc[:, 'Mo', 'val'] = m_out 
-        self.xdf.loc[:, 'Mo', 'std'] = m_err
+        self.xdf.loc[:, 'm_out', 'val'] = m_out 
+        self.xdf.loc[:, 'm_out', 'std'] = m_err
 
     def get_MetService_wind(self, elev=3000, volcano='Ruapehu'):
         """
