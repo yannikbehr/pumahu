@@ -19,5 +19,4 @@ cachier
 obspy
 sphinx
 schedule>=1.1*
-mtspec
 git+https://github.com/yannikbehr/nsampling.git
