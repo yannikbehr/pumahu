@@ -29,27 +29,27 @@ class MCMCTestCase(unittest.TestCase):
         z_val = rs.p_samples.loc[:, :, 'Z'].max(axis=1).data 
         z_var = rs.p_samples.loc[:, :, 'Z_var'].max(axis=1).data 
         np.testing.assert_array_almost_equal(q_in_val,
-                                             np.array([163.982627,
-                                                       294.531580,
-                                                       620.161183,
+                                             np.array([150.20788797,
+                                                       308.42346672,
+                                                       626.16570884,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(q_in_var,
-                                             np.array([12335.374329,
-                                                       38283.162623,
-                                                       68156.742499,
+                                             np.array([10452.13754637,
+                                                       39601.25850057,
+                                                       54910.75889361,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_val,
-                                             np.array([-9.892624,
-                                                       -9.829991,
-                                                       -9.863981,
+                                             np.array([-9.54064536,
+                                                       -9.92588325,
+                                                       -9.33493868,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_var,
-                                             np.array([0.180277,
-                                                       0.174511,
-                                                       0.171636,
+                                             np.array([0.17426234,
+                                                       0.17471695,
+                                                       0.1573276,
                                                        np.nan]),
                                              decimal=6)
 
@@ -111,33 +111,34 @@ class MCMCTestCase(unittest.TestCase):
         z_val = rs.p_samples.loc[:, :, 'Z'].max(axis=1).data 
         z_var = rs.p_samples.loc[:, :, 'Z_var'].max(axis=1).data 
         np.testing.assert_array_almost_equal(q_in_val,
-                                             np.array([162.698348,
-                                                       339.231364,
-                                                       614.788254,
+                                             np.array([143.67839003,
+                                                       315.51390907,
+                                                       614.56922148,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(q_in_var,
-                                             np.array([11269.343358,
-                                                       39485.261664,
-                                                       66673.434449,
+                                             np.array([10255.19277908,
+                                                       37474.98777957,
+                                                       49952.45786385,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_val,
-                                             np.array([-9.645880,
-                                                       -9.674900,
-                                                       -9.774130,
-                                                        np.nan]),
+                                             np.array([-9.61335748,
+                                                       -9.555548,
+                                                       -9.38333698,
+                                                       np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_var,
-                                             np.array([0.176319,
-                                                       0.169456,
-                                                       0.167194,
+                                             np.array([0.17608661,
+                                                       0.16448248,
+                                                       0.16198946,
                                                        np.nan]),
                                              decimal=6)
 
     def test_main(self):
         rdir = tempfile.gettempdir()
-        main(['-p', '-f', '--rdir', rdir])
+        main(['-p', '-f', '--rdir', rdir,
+             '-s', '20210801', '-e', '20210818'])
 
 
 if __name__ == '__main__':
