@@ -16,11 +16,16 @@ def setup_test(q_in=1000.):
     """
     A synthetic scenario for unit testing.
 
-    :param q_in: Maximum heat input rate [MW]
-    :type q_in: float
-    :returns: An xarray DataFrame containing the input
-              data for the synthetic model
-    :rtype: :class:`xarray.DataArray`
+    Parameters:
+    -----------
+    q_in: float 
+          Maximum heat input rate [MW]
+
+    Returns:
+    --------
+    :class:`xarray.DataArray`
+            An xarray DataFrame containing the input
+            data for the synthetic model
     """
     dates = pd.date_range(start='2017-01-01', end='2017-01-04',
                           freq='D')
