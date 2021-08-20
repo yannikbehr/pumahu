@@ -573,17 +573,20 @@ class LakeData:
         df = self.df.loc[start:end]
         return df
 
-    def derived_obs(self, df1, df2, df3, nsamples=100):
+    def derived_obs(self, df1, df2, df3, nsamples=100, seed=42):
         """
         Compute absolute amount of Mg++, volume, lake area,
         water density and lake mass using Monte Carlo sampling
         """
-        rn1 = np.random.randn(df1['Mg'].size, nsamples)
+        rs = np.random.default_rng(seed)
+        rn1 = rs.normal(size=df1['Mg'].size * nsamples)
+        rn1 = rn1.reshape(df1['Mg'].size, nsamples)
         rn1 = rn1*np.tile(df1['Mg_err'].values,
                           (nsamples, 1)).T + np.tile(df1['Mg'].values,
                                                      (nsamples, 1)).T
 
-        rn2 = np.random.randn(df3['h'].size, nsamples)
+        rn2 = rs.normal(size=df3['h'].size * nsamples)
+        rn2 = rn2.reshape(df3['h'].size, nsamples)
         rn2 = rn2*np.tile(df3['h_err'].values,
                           (nsamples, 1)).T + np.tile(df3['h'].values,
                                                      (nsamples, 1)).T
@@ -594,7 +597,8 @@ class LakeData:
         p_mean = 1.003 - 0.00033 * df2['t'].values
         p_std = 0.00033*df2['t_err'].values
 
-        rn3 = np.random.randn(p_mean.size, nsamples)
+        rn3 = rs.normal(size=p_mean.size * nsamples)
+        rn3 = rn3.reshape(p_mean.size, nsamples)
         rn3 = rn3*np.tile(p_std, (nsamples, 1)).T + np.tile(p_mean,
                                                             (nsamples, 1)).T
         M = rn3*vol
