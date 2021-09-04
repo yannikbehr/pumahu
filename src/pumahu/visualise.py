@@ -278,7 +278,8 @@ def mcmc_heat_input(data, filename=None):
     return fig
 
 
-def plot_qin_uks(data_uks, data_mcmc=None, data2y=None, filename=None):
+def plot_qin_uks(data_uks, data_mcmc=None, data2y=None, filename=None,
+                 annotations=False, showlegend=False):
     """
     Plot the MAP of the heat input rate for the 
     Unscented Kalman Smoother solution.
@@ -308,6 +309,19 @@ def plot_qin_uks(data_uks, data_mcmc=None, data2y=None, filename=None):
             fig.add_trace(go.Scatter(x=x, y=y, mode='lines', name=name),
                           secondary_y=True)
             fig.update_yaxes(title_text=name, secondary_y=True)
+        if annotations:
+            title = "Heat input rate Ruapehu Crater Lake (Te Wai A-Moe)"
+            fig.update_layout(title=dict(text=title, x=0.3, y=0.85,
+                                         xanchor='center', yanchor='top'))
+            ts = pd.to_datetime(data_uks['dates'][-1].values).strftime("%Y-%m-%d")
+            latest_val = data_uks.exp.isel(dict(dates=-1, parameters=3, val_std=0)).values
+            latest_std = np.sqrt(data_uks.exp.isel(dict(dates=-1, parameters=3, val_std=1)).values)
+            text="Latest ({}): {:.0f} +- {:.0f} MW".format(ts, latest_val, latest_std, ts)
+            fig.add_annotation(text=text, xref="paper", yref="paper",
+                               x=0.3, y=-0.2, showarrow=False)
+            fig.update_layout(title=dict(text=title, x=0.3, y=0.85,
+                                         xanchor='center', yanchor='top'))
+        fig.update_layout(showlegend=showlegend)
     if filename is not None:
         fig.write_image(filename, width=1500)
     return fig

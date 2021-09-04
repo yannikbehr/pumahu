@@ -381,11 +381,12 @@ def mainCore(args):
         if args.benchmark is not None:
             data2 = xr.open_dataset(args.benchmark)
             trellis_plot(xdf, data2=data2, filename=fout_trellis)
-            plot_qin_uks(xdf, data_mcmc=data2,
+            plot_qin_uks(xdf, annotations=True,
                          filename=os.path.join(args.rdir, 'uks_exp.png'))
         else:
             trellis_plot(xdf, filename=fout_trellis)
-            plot_qin_uks(xdf, filename=os.path.join(args.rdir, 'uks_exp.png'))
+            plot_qin_uks(xdf, annotations=True,
+                         filename=os.path.join(args.rdir, 'uks_exp.png'))
 
 
 def main(argv=None):
