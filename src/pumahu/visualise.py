@@ -310,7 +310,7 @@ def plot_qin_uks(data_uks, data_mcmc=None, data2y=None, filename=None,
                           secondary_y=True)
             fig.update_yaxes(title_text=name, secondary_y=True)
         if annotations:
-            title = "Heat input rate Ruapehu Crater Lake (Te Wai A-Moe)"
+            title = "Heat input rate Ruapehu Crater Lake (Te Wai a-moe)"
             fig.update_layout(title=dict(text=title, x=0.3, y=0.85,
                                          xanchor='center', yanchor='top'))
             ts = pd.to_datetime(data_uks['dates'][-1].values).strftime("%Y-%m-%d")
