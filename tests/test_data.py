@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import timezone
+from datetime import datetime
 import inspect
 import os
 import unittest
@@ -80,7 +80,7 @@ class DataTestCase(unittest.TestCase):
     def test_FITS_request(self):
         ld = LakeData()
         self.assertAlmostEqual(ld.FITS_request('Mg').iloc[0]['obs'],
-                               3050.0)
+                               780.0)
         self.assertAlmostEqual(ld.FITS_request('L').iloc[0]['obs'],
                                2503.0)
         self.assertAlmostEqual(ld.FITS_request('T').iloc[0]['obs'],
@@ -121,8 +121,8 @@ class DataTestCase(unittest.TestCase):
         df = ld.get_Mg(tend='2019-07-31', smoothing='dv')
         nans = np.where(df['Mg'].isna().values, 1, 0).sum()
         no_nans = np.where(df['Mg'].isna().values, 0, 1).sum()
-        self.assertEqual(no_nans, 137)
-        self.assertEqual(nans, 7670)
+        self.assertEqual(no_nans, 573)
+        self.assertEqual(nans, 19599)
         dkf = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03', smoothing='kf')
         ddv = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03', smoothing='dv')
         self.assertAlmostEqual(ddv.iloc[0]['Mg'], 344.0)
@@ -247,7 +247,25 @@ class DataTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(mean_ws,
                                              np.array([6.942369,
                                                        1.649878]), 6)
+                                             
 
+    def test_historic_data(self):
+        """
+        Test getting data for times when data collection was not
+        done continuously. 
+        """
+        startdate = datetime(1994, 1, 1)
+        enddate = datetime(1995, 12, 31)
+        ld = LakeData()
+        xdf = ld.get_data_fits(startdate, enddate,
+                               smoothing={'Mg': 2.6, 'T': 0.4, 'h': 0.01})
+        nTobs = 30
+        nZobs = 9
+        nMgobs = 27
+        self.assertEqual(nTobs, (~np.isnan(xdf.loc[:, 'T', 'val'].values)).sum()) 
+        self.assertEqual(nZobs, (~np.isnan(xdf.loc[:, 'z', 'val'].values)).sum()) 
+        self.assertEqual(nMgobs, (~np.isnan(xdf.loc[:, 'Mg', 'val'].values)).sum()) 
+ 
 
 def suite():
     return unittest.makeSuite(DataTestCase, 'test')

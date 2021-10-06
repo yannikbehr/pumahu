@@ -1,4 +1,4 @@
-from collections import defaultdict
+from collections import defaultdict, abc
 from datetime import date, datetime, timezone, timedelta
 from functools import lru_cache
 import inspect
@@ -20,9 +20,16 @@ from . import Forwardmodel, get_data
 def fits_hash(args, kwargs):
     key = []
     for _a in args[1:]:
-        key.append(_a)
+        if isinstance(_a, abc.Mapping):
+            key.append(sorted(_a.items()))
+        else:
+            key.append(_a)
     key = tuple(key)    
-    key += tuple(sorted(kwargs.items()))
+    for k,v in sorted(kwargs.items()):
+        if isinstance(v, abc.Mapping):
+            key += tuple((k, tuple(sorted(v.items()))))
+        else:
+            key += tuple((k,v))
     hashValue = hash(key)
     return hashValue
 
@@ -183,7 +190,8 @@ class LakeData:
         ll_df.loc[ll_df.index > t3, 'obs'] = 2529.35 + (ll_df.loc[ll_df.index > t3, 'obs'] - 2.0)
         return ll_df
     
-    @lru_cache(maxsize=4)
+    @cachier(stale_after=timedelta(hours=1),
+             cache_dir='~/.cache', hash_params=fits_hash)
     def FITS_request(self, obs, lake='RCL'):
         """
         Request measurements from FITS.
@@ -245,12 +253,21 @@ class LakeData:
 
             if obs == 'Mg':
                 # Get Mg++ concentration
-                url = self.base_url+"?siteID=RU003&typeID=Mg-w"
                 names = ['obs', 'obs_err']
-                mg_df = pd.read_csv(url, index_col=0, names=names, skiprows=1,
-                                    parse_dates=True)
-                mg_df = mg_df.tz_localize(None)
-                return mg_df
+                url = self.base_url + "?siteID={}&typeID={}-w"
+                df1 = pd.read_csv(url.format('RU003', 'Mg'), 
+                      index_col=0, names=names, skiprows=1,
+                      parse_dates=True)
+                df2 = pd.read_csv(url.format('RU004', 'Mg'), 
+                                  index_col=0, names=names, skiprows=1,
+                                  parse_dates=True)
+                df3 = pd.read_csv(url.format('RU001', 'Mg'), 
+                                  index_col=0, names=names, skiprows=1,
+                                  parse_dates=True)
+                df = df1.combine_first(df2)
+                df = df.combine_first(df3)
+                df = df.tz_localize(None)
+                return df
 
     def interpolate_mg(self, df, dt=1):
         """
@@ -347,9 +364,8 @@ class LakeData:
         if smoothing == 'kf':
             mg_df = df.groupby(pd.Grouper(freq='D')).mean()
             mg_df = mg_df.reindex(index=new_dates)
-            img_df = self.interpolate_mg(mg_df)
-            img_df = img_df.loc[(img_df.index >= _tstart) & (img_df.index <= tend)]
-            return img_df
+            mg_df = self.interpolate_mg(mg_df)
+            mg_df = mg_df.loc[(mg_df.index >= _tstart) & (mg_df.index <= tend)]
         elif smoothing == 'dv':
             # First compute the expected variance from the days
             # when we had two samples taken
@@ -371,9 +387,15 @@ class LakeData:
                 else:
                     mg_df.loc[str(dt), 'Mg_err'] = stds_mean
             mg_df = mg_df.reindex(index=new_dates)
-            return mg_df
+        elif isinstance(smoothing, abc.Mapping):
+            mg_df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
+            mg_df['Mg_err'] = np.where(mg_df['Mg'].isnull(), np.nan, smoothing['Mg'])
         else:
-            raise ValueError('smoothing has to be either "kf" or "dv".')
+            msg = 'smoothing must be one of "kf", "dv", '
+            msg += 'or a dictionary that maps data type to'
+            msg += 'uncertainty.'
+            raise ValueError(msg)
+        return mg_df
 
     def interpolate_T(self, df, dt=1):
         dts = np.r_[0, np.cumsum(np.diff(df.index).astype(int)/(86400*1e9))]
@@ -426,29 +448,38 @@ class LakeData:
         else:
             tstart = df.index.min()
         df.rename(columns={'obs': 't', 'obs_err': 't_err'}, inplace=True)
-        g = df['t'].groupby(pd.Grouper(freq='D'))
-        _mean = g.mean()
-        _std = g.std()
-        # get index of all days that have less than 2 values
-        idx = g.count() < 2
-        _mean[idx] = np.nan
-        _std[idx] = np.nan
+        if smoothing in ['kf', 'dv']:
+            g = df['t'].groupby(pd.Grouper(freq='D'))
+            _mean = g.mean()
+            _std = g.std()
+            # get index of all days that have less than 2 values
+            idx = g.count() < 2
+            _mean[idx] = np.nan
+            _std[idx] = np.nan
 
-        t_df = pd.DataFrame({'t': _mean, 't_err': _std},
-                            index=_mean.index)
-        t_df = t_df.loc[(t_df.index >= tstart) & (t_df.index <= tend)]
-        new_dates = pd.date_range(start=tstart, end=tend, freq='D')
-        t_df = t_df.reindex(index=new_dates)
-        # Find the first non-NaN entry
-        tstart_min = t_df.loc[~t_df['t'].isnull()].index[0]
-        # Ensure the time series starts with a non-NaN value
-        t_df = t_df.loc[t_df.index >= tstart_min]
+            t_df = pd.DataFrame({'t': _mean, 't_err': _std},
+                                index=_mean.index)
+            t_df = t_df.loc[(t_df.index >= tstart) & (t_df.index <= tend)]
+            new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+            t_df = t_df.reindex(index=new_dates)
+            # Find the first non-NaN entry
+            tstart_min = t_df.loc[~t_df['t'].isnull()].index[0]
+            # Ensure the time series starts with a non-NaN value
+            t_df = t_df.loc[t_df.index >= tstart_min]
         if smoothing == 'kf':
             return self.interpolate_T(t_df)
         elif smoothing == 'dv':
             return t_df
+        elif isinstance(smoothing, abc.Mapping):
+            df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
+            df['t_err'] = np.where(df['t'].isnull(), np.nan, smoothing['T'])
+            df = df.loc[(df.index >= tstart) & (df.index <= tend)]
+            return df
         else:
-            raise ValueError('smoothing has to be either "kf" or "dv".')
+            msg = 'smoothing must be one of "kf", "dv", '
+            msg += 'or a dictionary that maps data type to'
+            msg += 'uncertainty.'
+            raise ValueError(msg)
 
     def interpolate_ll(self, df, dt=1):
         dts = np.r_[0, np.cumsum(np.diff(df.index).astype(int)/(86400*1e9))]
@@ -497,29 +528,38 @@ class LakeData:
             tstart = max(df.index.min(), pd.Timestamp(tstart))
         else:
             tstart = df.index.min()
-        g = df['h'].groupby(pd.Grouper(freq='D'))
-        _mean = g.mean()
-        _std = g.std()
-        # get index of all days that have less than 2 values
-        idx = g.count() < 2
-        _mean[idx] = np.nan
-        _std[idx] = np.nan
+        if smoothing in ['kf', 'dv']:
+            g = df['h'].groupby(pd.Grouper(freq='D'))
+            _mean = g.mean()
+            _std = g.std()
+            # get index of all days that have less than 2 values
+            idx = g.count() < 2
+            _mean[idx] = np.nan
+            _std[idx] = np.nan
 
-        ll_df = pd.DataFrame({'h': _mean, 'h_err': _std},
-                             index=_mean.index)
-        ll_df = ll_df.loc[(ll_df.index >= tstart) & (ll_df.index <= tend)]
-        new_dates = pd.date_range(start=tstart, end=tend, freq='D')
-        ll_df = ll_df.reindex(index=new_dates)
-        # Find the first non-NaN entry
-        tstart_min = ll_df.loc[~ll_df['h'].isnull()].index[0]
-        # Ensure the time series starts with a non-NaN value
-        ll_df = ll_df.loc[ll_df.index >= tstart_min]
+            ll_df = pd.DataFrame({'h': _mean, 'h_err': _std},
+                                 index=_mean.index)
+            ll_df = ll_df.loc[(ll_df.index >= tstart) & (ll_df.index <= tend)]
+            new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+            ll_df = ll_df.reindex(index=new_dates)
+            # Find the first non-NaN entry
+            tstart_min = ll_df.loc[~ll_df['h'].isnull()].index[0]
+            # Ensure the time series starts with a non-NaN value
+            ll_df = ll_df.loc[ll_df.index >= tstart_min]
         if smoothing == 'kf':
             return self.interpolate_ll(ll_df)
         elif smoothing == 'dv':
             return ll_df
+        elif isinstance(smoothing, abc.Mapping):
+            df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
+            df['h_err'] = np.where(df['h'].isnull(), np.nan, smoothing['h'])
+            df = df.loc[(df.index >= tstart) & (df.index <= tend)]
+            return df
         else:
-            raise ValueError('smoothing has to be either "kf" or "dv".')
+            msg = 'smoothing must be one of "kf", "dv", '
+            msg += 'or a dictionary that maps data type to'
+            msg += 'uncertainty.'
+            raise ValueError(msg)
 
     def get_data_csv(self, start, end, buf=None):
         """
