@@ -3,7 +3,6 @@ from datetime import date, datetime, timezone, timedelta
 from functools import lru_cache
 import inspect
 import os
-import pkg_resources
 
 from cachier import cachier
 import numpy as np
@@ -67,17 +66,18 @@ class LakeData:
                      'A', 'p', 'M', 'dV', 'h', 
                      'W', 'm_out']
         if csvfile is None:
-            self.get_data = self.get_data_fits
+            self.get_raw_data = self.FITS_request
         else:
             self.csvfile = csvfile
-            self.get_data = self.get_data_csv
+            self.get_raw_data = self.load_csv
 
 
     @cachier(stale_after=timedelta(weeks=2),
              cache_dir='~/.cache', hash_params=fits_hash)
-    def get_data_fits(self, start, end, smoothing='kf'):
+    def get_data(self, start, end, smoothing='kf',
+                 nerrsamples=1000):
         """
-        Request data from the FITS database unless it has been already cached.
+        Request data from the FITS database or a csv file.
         
         Parameters:
         -----------
@@ -85,10 +85,16 @@ class LakeData:
                 The start date as a ISO 8601 compliant string.
         end : str
               The end date as a ISO 8601 compliant string.
-        smoothing : str
+        smoothing : (str, dict-like)
                     Can be either 'kf' for Kalman Filter smoothing
-                    or 'dv' to smooth by averaging over all values
-                    in a day.
+                    ,'dv' to smooth by averaging over all values
+                    in a day or a dictionary assigning fixed uncertainty
+                    values to temperature ('T'), magnesium content ('Mg'),
+                    and lake level ('z').
+        nerrsamples : int
+                      Number of samples to draw from measurement errors
+                      to estimate uncertainty of derived parameters
+                      such as lake volume, area, etc.
         
         Returns:
         --------
@@ -107,13 +113,13 @@ class LakeData:
         tend_min = min(min(df1.index[-1], df2.index[-1]), df3.index[-1])
         (X, X_err, v, v_err, p, p_err,
          M, M_err, a, a_err) = self.derived_obs(df1, df2, df3,
-                                                nsamples=20000)
+                                                nsamples=nerrsamples)
         dsize = X.size
         result = np.zeros((dsize, len(self.prms), 2))*np.nan
-        result[:, self.prms.index('T'), 0] = df2['t'].values
-        result[:, self.prms.index('T'), 1] = df2['t_err'].values
-        result[:, self.prms.index('z'), 0] = df3['h'].values
-        result[:, self.prms.index('z'), 1] = df3['h_err'].values
+        result[:, self.prms.index('T'), 0] = df2['T'].values
+        result[:, self.prms.index('T'), 1] = df2['T_err'].values
+        result[:, self.prms.index('z'), 0] = df3['z'].values
+        result[:, self.prms.index('z'), 1] = df3['z_err'].values
         result[:, self.prms.index('Mg'), 0] = df1['Mg'].values
         result[:, self.prms.index('Mg'), 1] = df1['Mg_err'].values
         result[:, self.prms.index('X'), 0] = X
@@ -232,7 +238,7 @@ class LakeData:
                 tdf3 = tdf3.tz_localize(None)
                 return tdf3
 
-            if obs == 'L':
+            if obs == 'z':
                 # Get lake level The lake level data is stored with respect to
                 # the overflow level of the lake. Unfortunately, that level has
                 # changed over time so to get the absolute lake level altitude,
@@ -268,6 +274,15 @@ class LakeData:
                 df = df.combine_first(df3)
                 df = df.tz_localize(None)
                 return df
+
+    def load_csv(self, obs):
+        """
+        Load the lake measurements from a CSV file.
+        """
+        names = ['T', 'z', 'Fl', 'Mg', 'Cl', 'dr', 'Oheavy', 'Deut']
+        df_tmp = pd.read_csv(self.csvfile, parse_dates=True, index_col=0, names=names)
+        vals = df_tmp[obs][:].astype(float)
+        return pd.DataFrame({'obs': vals, 'obs_err': np.zeros(vals.shape[0])}, index=df_tmp.index)
 
     def interpolate_mg(self, df, dt=1):
         """
@@ -345,7 +360,7 @@ class LakeData:
                     'dv' for daily variation. The latter computes the daily
                     mean and standard deviation.
         """
-        df = self.FITS_request('Mg')
+        df = self.get_raw_data('Mg')
         df.rename(columns={'obs': 'Mg', 'obs_err': 'Mg_err'}, inplace=True)
         if tstart is not None:
             # Find the sampling date that is closest to the requested
@@ -400,7 +415,7 @@ class LakeData:
     def interpolate_T(self, df, dt=1):
         dts = np.r_[0, np.cumsum(np.diff(df.index).astype(int)/(86400*1e9))]
         dts = dts[:, np.newaxis]
-        ny = df['t'].values
+        ny = df['T'].values
         ny = np.where(np.isnan(ny), None, ny)
         kf = KF(dim_x=2, dim_z=1)
         kf.F = np.array([[1, 1], [0, 1]])
@@ -417,9 +432,9 @@ class LakeData:
         Ms, P, _, _ = kf.rts_smoother(means, covariances)
         y_new = np.r_[ny[0], Ms[:, 0]]
         y_std = np.r_[.3, np.sqrt(P[:, 0, 0])]
-        return pd.DataFrame({'t': y_new,
-                             't_err': y_std,
-                             't_orig': df['t'].values},
+        return pd.DataFrame({'T': y_new,
+                             'T_err': y_std,
+                             'T_orig': df['T'].values},
                             index=df.index)
 
     def get_T(self, tstart=None, tend=datetime.utcnow(),
@@ -442,49 +457,52 @@ class LakeData:
                     'dv' for daily variation. The latter computes the daily
                     mean and standard deviation.
         """
-        df = self.FITS_request('T')
+        df = self.get_raw_data('T')
+        df.rename(columns={'obs': 'T', 'obs_err': 'T_err'}, inplace=True)
         if tstart is not None:
-            tstart = max(df.index.min(), pd.Timestamp(tstart))
+            _tstart = max(df.index.min(), pd.Timestamp(tstart))
         else:
-            tstart = df.index.min()
-        df.rename(columns={'obs': 't', 'obs_err': 't_err'}, inplace=True)
-        if smoothing in ['kf', 'dv']:
-            g = df['t'].groupby(pd.Grouper(freq='D'))
+            _tstart = df.index.min()
+        new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+        if smoothing == 'kf':
+            t_df = df.groupby(pd.Grouper(freq='D')).mean()
+            t_df = t_df.loc[(t_df.index >= _tstart) & (t_df.index <= tend)]
+            t_df = t_df.reindex(index=new_dates)
+            # Find the first non-NaN entry
+            tstart_min = t_df.loc[~t_df['T'].isnull()].index[0]
+            t_df = t_df.loc[t_df.index >= tstart_min]
+            t_df = self.interpolate_T(t_df)
+        elif smoothing == 'dv':
+            g = df['T'].groupby(pd.Grouper(freq='D'))
             _mean = g.mean()
             _std = g.std()
             # get index of all days that have less than 2 values
             idx = g.count() < 2
             _mean[idx] = np.nan
             _std[idx] = np.nan
-
-            t_df = pd.DataFrame({'t': _mean, 't_err': _std},
+            t_df = pd.DataFrame({'T': _mean, 'T_err': _std},
                                 index=_mean.index)
-            t_df = t_df.loc[(t_df.index >= tstart) & (t_df.index <= tend)]
-            new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+            t_df = t_df.loc[(t_df.index >= _tstart) & (t_df.index <= tend)]
             t_df = t_df.reindex(index=new_dates)
             # Find the first non-NaN entry
-            tstart_min = t_df.loc[~t_df['t'].isnull()].index[0]
+            tstart_min = t_df.loc[~t_df['T'].isnull()].index[0]
             # Ensure the time series starts with a non-NaN value
             t_df = t_df.loc[t_df.index >= tstart_min]
-        if smoothing == 'kf':
-            return self.interpolate_T(t_df)
-        elif smoothing == 'dv':
-            return t_df
         elif isinstance(smoothing, abc.Mapping):
             df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
-            df['t_err'] = np.where(df['t'].isnull(), np.nan, smoothing['T'])
-            df = df.loc[(df.index >= tstart) & (df.index <= tend)]
-            return df
+            df['T_err'] = np.where(df['T'].isnull(), np.nan, smoothing['T'])
+            t_df = df.loc[(df.index >= tstart) & (df.index <= tend)]
         else:
             msg = 'smoothing must be one of "kf", "dv", '
             msg += 'or a dictionary that maps data type to'
             msg += 'uncertainty.'
             raise ValueError(msg)
+        return t_df
 
     def interpolate_ll(self, df, dt=1):
         dts = np.r_[0, np.cumsum(np.diff(df.index).astype(int)/(86400*1e9))]
         dts = dts[:, np.newaxis]
-        ny = df['h'].values
+        ny = df['z'].values
         ny = np.where(np.isnan(ny), None, ny)
         kf = KF(dim_x=1, dim_z=1)
         kf.F = np.array([[1.]])
@@ -497,9 +515,9 @@ class LakeData:
         Ms, P, _, _ = kf.rts_smoother(means, covariances)
         y_new = np.r_[ny[0], Ms[:, 0]]
         y_std = np.r_[0.03, np.sqrt(P[:, 0, 0])]
-        return pd.DataFrame({'h': y_new,
-                             'h_err': y_std,
-                             'h_orig': df['h'].values},
+        return pd.DataFrame({'z': y_new,
+                             'z_err': y_std,
+                             'z_orig': df['z'].values},
                             index=df.index)
 
     def get_ll(self, tstart=None, tend=datetime.utcnow(),
@@ -522,14 +540,24 @@ class LakeData:
                     'dv' for daily variation. The latter computes the daily
                     mean and standard deviation.
         """
-        df = self.FITS_request('L')
-        df.rename(columns={'obs': 'h', 'obs_err': 'h_err'}, inplace=True)
+        df = self.get_raw_data('z')
+        df.rename(columns={'obs': 'z', 'obs_err': 'z_err'}, inplace=True)
         if tstart is not None:
-            tstart = max(df.index.min(), pd.Timestamp(tstart))
+            _tstart = max(df.index.min(), pd.Timestamp(tstart))
         else:
-            tstart = df.index.min()
-        if smoothing in ['kf', 'dv']:
-            g = df['h'].groupby(pd.Grouper(freq='D'))
+            _tstart = df.index.min()
+        new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+        if smoothing == 'kf':
+            z_df = df.groupby(pd.Grouper(freq='D')).mean()
+            z_df = z_df.loc[(z_df.index >= _tstart) & (z_df.index <= tend)]
+            z_df = z_df.reindex(index=new_dates) 
+            z_df = self.interpolate_ll(z_df)
+            # Find the first non-NaN entry
+            tstart_min = z_df.loc[~z_df['z'].isnull()].index[0]
+            # Ensure the time series starts with a non-NaN value
+            z_df = z_df.loc[z_df.index >= tstart_min]
+        elif smoothing == 'dv':
+            g = df['z'].groupby(pd.Grouper(freq='D'))
             _mean = g.mean()
             _std = g.std()
             # get index of all days that have less than 2 values
@@ -537,81 +565,25 @@ class LakeData:
             _mean[idx] = np.nan
             _std[idx] = np.nan
 
-            ll_df = pd.DataFrame({'h': _mean, 'h_err': _std},
-                                 index=_mean.index)
-            ll_df = ll_df.loc[(ll_df.index >= tstart) & (ll_df.index <= tend)]
-            new_dates = pd.date_range(start=tstart, end=tend, freq='D')
-            ll_df = ll_df.reindex(index=new_dates)
+            z_df = pd.DataFrame({'z': _mean, 'z_err': _std},
+                                index=_mean.index)
+            z_df = z_df.loc[(z_df.index >= _tstart) & (z_df.index <= tend)]
+            z_df = z_df.reindex(index=new_dates)
             # Find the first non-NaN entry
-            tstart_min = ll_df.loc[~ll_df['h'].isnull()].index[0]
+            tstart_min = z_df.loc[~z_df['z'].isnull()].index[0]
             # Ensure the time series starts with a non-NaN value
-            ll_df = ll_df.loc[ll_df.index >= tstart_min]
-        if smoothing == 'kf':
-            return self.interpolate_ll(ll_df)
-        elif smoothing == 'dv':
-            return ll_df
+            z_df = z_df.loc[z_df.index >= tstart_min]
         elif isinstance(smoothing, abc.Mapping):
             df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
-            df['h_err'] = np.where(df['h'].isnull(), np.nan, smoothing['h'])
-            df = df.loc[(df.index >= tstart) & (df.index <= tend)]
-            return df
+            df['z_err'] = np.where(df['z'].isnull(), np.nan, smoothing['z'])
+            z_df = df.loc[(df.index >= tstart) & (df.index <= tend)]
         else:
             msg = 'smoothing must be one of "kf", "dv", '
             msg += 'or a dictionary that maps data type to'
             msg += 'uncertainty.'
             raise ValueError(msg)
+        return z_df
 
-    def get_data_csv(self, start, end, buf=None):
-        """
-        Load the lake measurements from a CSV file.
-        """
-        if buf is not None:
-            _buf = buf
-        else:
-            _buf = pkg_resources.resource_stream(
-                    __name__, 'data/data.dat')
-        df = None
-
-        if df is None:
-            rd = defaultdict(list)
-            with _buf:
-                t0 = np.datetime64('2000-01-01')
-                while True:
-                    l = _buf.readline()
-                    if not l:
-                        break
-                    # ignore commented lines
-                    try:
-                        l = l.decode()
-                    except AttributeError:
-                        pass
-                    if not l.startswith(' '):
-                        continue
-                    a = l.split()
-                    y, m, d = map(int, a[0:3])
-                    te, hgt, fl, img, icl, dr, oheavy, deut = map(float, a[3:])
-                    dt = np.datetime64('{}-{:02d}-{:02d}'.format(y, m, d))
-                    no = (dt - t0).astype(int) - 1
-                    rd['date'].append(dt)
-                    rd['nd'].append(no)
-                    rd['T'].append(te)
-                    rd['z'].append(hgt)
-                    rd['f'].append(fl)
-                    rd['o18'].append(oheavy)
-                    rd['h2'].append(deut)
-                    rd['o18m'].append(oheavy)
-                    rd['h2m'].append(deut)
-                    rd['Mg'].append(img / 1000.)
-                    rd['c'].append(icl / 1000.)
-                    rd['dv'].append(1.0)
-            self.df = pd.DataFrame(rd, index=rd['date'])
-            self.df = self.df.reindex(
-                pd.date_range(start=self.df.index.min(),
-                              end=self.df.index.max())).interpolate()
-        start = max(self.df.index.min(), pd.Timestamp(start))
-        end = min(self.df.index.max(), pd.Timestamp(end))
-        df = self.df.loc[start:end]
-        return df
 
     def derived_obs(self, df1, df2, df3, nsamples=100, seed=42):
         """
@@ -625,17 +597,17 @@ class LakeData:
                           (nsamples, 1)).T + np.tile(df1['Mg'].values,
                                                      (nsamples, 1)).T
 
-        rn2 = rs.normal(size=df3['h'].size * nsamples)
-        rn2 = rn2.reshape(df3['h'].size, nsamples)
-        rn2 = rn2*np.tile(df3['h_err'].values,
-                          (nsamples, 1)).T + np.tile(df3['h'].values,
+        rn2 = rs.normal(size=df3['z'].size * nsamples)
+        rn2 = rn2.reshape(df3['z'].size, nsamples)
+        rn2 = rn2*np.tile(df3['z_err'].values,
+                          (nsamples, 1)).T + np.tile(df3['z'].values,
                                                      (nsamples, 1)).T
         fm = Forwardmodel()
         a, vol = fm.fullness(rn2)
         X = rn1*vol*1.e-6
 
-        p_mean = 1.003 - 0.00033 * df2['t'].values
-        p_std = 0.00033*df2['t_err'].values
+        p_mean = 1.003 - 0.00033 * df2['T'].values
+        p_std = 0.00033*df2['T_err'].values
 
         rn3 = rs.normal(size=p_mean.size * nsamples)
         rn3 = rn3.reshape(p_mean.size, nsamples)

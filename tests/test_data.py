@@ -81,7 +81,7 @@ class DataTestCase(unittest.TestCase):
         ld = LakeData()
         self.assertAlmostEqual(ld.FITS_request('Mg').iloc[0]['obs'],
                                780.0)
-        self.assertAlmostEqual(ld.FITS_request('L').iloc[0]['obs'],
+        self.assertAlmostEqual(ld.FITS_request('z').iloc[0]['obs'],
                                2503.0)
         self.assertAlmostEqual(ld.FITS_request('T').iloc[0]['obs'],
                                24.4)
@@ -91,27 +91,27 @@ class DataTestCase(unittest.TestCase):
         Test different ways of receiving and smoothing temperature readings.
         """
         index = pd.date_range('2019-01-01', '2019-01-03')
-        kf_test_frame = pd.DataFrame({'t': np.array([31.93833333,
+        kf_test_frame = pd.DataFrame({'T': np.array([31.93833333,
                                                      31.84910086,
                                                      31.78383591]),
-                                      't_err': np.array([0.3, 0.08860859,
+                                      'T_err': np.array([0.3, 0.08860859,
                                                          0.24334404]),
-                                      't_orig': np.array([31.93833333,
+                                      'T_orig': np.array([31.93833333,
                                                           31.82958333,
                                                           31.98681818])},
                                      index=index)
-        dv_test_frame = pd.DataFrame({'t': np.array([31.93833333,
+        dv_test_frame = pd.DataFrame({'T': np.array([31.93833333,
                                                      31.82958333,
                                                      31.98681818]),
-                                      't_err': np.array([0.35497295,
+                                      'T_err': np.array([0.35497295,
                                                          0.66342641,
                                                          0.3821915])},
                                      index=index)
         ld = LakeData()
         dkf = ld.get_T(tstart='2019-01-01', tend='2019-01-03', smoothing='kf')
         ddv = ld.get_T(tstart='2019-01-01', tend='2019-01-03', smoothing='dv')
-        pd.testing.assert_frame_equal(kf_test_frame, dkf)
         pd.testing.assert_frame_equal(dv_test_frame, ddv)
+        pd.testing.assert_frame_equal(kf_test_frame, dkf)
 
     def test_get_Mg(self):
         """
@@ -123,8 +123,10 @@ class DataTestCase(unittest.TestCase):
         no_nans = np.where(df['Mg'].isna().values, 0, 1).sum()
         self.assertEqual(no_nans, 573)
         self.assertEqual(nans, 19599)
-        dkf = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03', smoothing='kf')
-        ddv = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03', smoothing='dv')
+        dkf = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03',
+                        smoothing='kf')
+        ddv = ld.get_Mg(tstart='2018-01-01', tend='2019-01-03',
+                        smoothing='dv')
         self.assertAlmostEqual(ddv.iloc[0]['Mg'], 344.0)
         self.assertAlmostEqual(dkf.iloc[0]['Mg'], 344.0)
         self.assertAlmostEqual(dkf.iloc[0]['Mg_err'], 50.0)
@@ -135,20 +137,20 @@ class DataTestCase(unittest.TestCase):
 
     def test_get_ll(self):
         index = pd.date_range('2019-01-01', '2019-01-03')
-        kf_test_frame = pd.DataFrame({'h': np.array([2529.32191667,
+        kf_test_frame = pd.DataFrame({'z': np.array([2529.32191667,
                                                      2529.33634745,
                                                      2529.33609614]),
-                                      'h_err': np.array([0.03,
+                                      'z_err': np.array([0.03,
                                                          0.013484,
                                                          0.01401298]),
-                                      'h_orig': np.array([2529.32191667,
+                                      'z_orig': np.array([2529.32191667,
                                                           2529.343125,
                                                           2529.33509091])},
                                      index=index)
-        dv_test_frame = pd.DataFrame({'h': np.array([2529.32191667,
+        dv_test_frame = pd.DataFrame({'z': np.array([2529.32191667,
                                                      2529.343125,
                                                      2529.33509091]),
-                                      'h_err': np.array([0.00672385,
+                                      'z_err': np.array([0.00672385,
                                                          0.01236163,
                                                          0.01548243])},
                                      index=index)
@@ -163,7 +165,7 @@ class DataTestCase(unittest.TestCase):
         warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
         warnings.filterwarnings("ignore", message="can't resolve package from")
         ld = LakeData()
-        df = ld.get_data_fits('20160603', '20161231')
+        df = ld.get_data('20160603', '20161231')
         tdf = xr.open_dataset(os.path.join(self.data_dir,
                                'measurements_20160603_20161231.nc'))
         np.testing.assert_array_almost_equal(df.loc[:, 'T', 'val'],
@@ -173,41 +175,10 @@ class DataTestCase(unittest.TestCase):
         np.testing.assert_array_almost_equal(df.loc[:, 'Mg', 'val'],
                                              tdf['Mg'], 0)
 
-    @unittest.skip("CSV reading needs to be fixed")
     def test_lake_data_csv(self):
-        ti = self.load_input()
-        with open(get_data('data/data.dat')) as lb:
-            ld = LakeData()
-            vd = ld.get_data_csv(start='2003-01-16', end='2010-01-29', buf=lb)
-            temp = [t for d, t in vd['T'].iteritems()]
-            hgt = [h for d, h in vd['z'].iteritems()]
-            mg = [m for d, m in vd['Mg'].iteritems()]
-            cl = [c for d, c in vd['c'].iteritems()]
-            o18 = [o for d, o in vd['o18'].iteritems()]
-            h2 = [h for d, h in vd['h2'].iteritems()]
-            dno = [d for dt, d in vd['nd'].iteritems()]
-            dt = [dt for dt, d in vd['date'].iteritems()]
-            np.testing.assert_array_almost_equal(temp, ti['temp'], 1)
-            np.testing.assert_array_equal(dno, ti['nd'])
-            np.testing.assert_array_almost_equal(hgt, ti['hgt'], 2)
-            np.testing.assert_array_almost_equal(mg, ti['mg'], 3)
-            np.testing.assert_array_almost_equal(cl, ti['cl'], 3)
-            np.testing.assert_array_almost_equal(o18, ti['o18'], 2)
-            np.testing.assert_array_almost_equal(h2, ti['h2'], 2)
-            np.testing.assert_array_equal(
-                np.array(dt, dtype='datetime64[ns]'), ti['date'])
-
-        ld1 = LakeData()
-        vd = ld1.get_data_csv(start='2003-01-16', end='2010-01-29')
-        np.testing.assert_array_almost_equal(vd['T'], ti['temp'], 1)
-        np.testing.assert_array_equal(vd['nd'], ti['nd'])
-        np.testing.assert_array_almost_equal(vd['z'], ti['hgt'], 2)
-        np.testing.assert_array_almost_equal(vd['Mg'], ti['mg'], 3)
-        np.testing.assert_array_almost_equal(vd['c'], ti['cl'], 3)
-        np.testing.assert_array_almost_equal(vd['o18'], ti['o18'], 2)
-        np.testing.assert_array_almost_equal(vd['h2'], ti['h2'], 2)
-        np.testing.assert_array_almost_equal(vd['o18'], ti['o18'], 2)
-        np.testing.assert_array_almost_equal(vd['h2'], ti['h2'], 2)
+        ld = LakeData(csvfile=get_data('data/data.csv'))
+        xdf = ld.get_data('2000-1-1', '2021-1-1', ignore_cache=True)
+        print(xdf)
 
     def test_wind_data_csv(self):
         ti = self.load_input()
@@ -228,7 +199,7 @@ class DataTestCase(unittest.TestCase):
         """
         warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
         ld = LakeData()
-        ld.get_data_fits('20190101', '20191231')
+        ld.get_data('20190101', '20191231')
         ld.get_outflow()
         mean_mout = ld.xdf.loc[:, 'm_out', :].mean(axis=0).data 
         np.testing.assert_array_almost_equal(mean_mout,
@@ -241,7 +212,7 @@ class DataTestCase(unittest.TestCase):
         """
         warnings.filterwarnings("ignore", message="numpy.ufunc size changed")
         ld = LakeData()
-        ld.get_data_fits('20191201', '20191231')
+        ld.get_data('20191201', '20191231')
         ld.get_MetService_wind()
         mean_ws = ld.xdf.loc[:, 'W', :].mean(axis=0).data 
         np.testing.assert_array_almost_equal(mean_ws,
@@ -257,8 +228,8 @@ class DataTestCase(unittest.TestCase):
         startdate = datetime(1994, 1, 1)
         enddate = datetime(1995, 12, 31)
         ld = LakeData()
-        xdf = ld.get_data_fits(startdate, enddate,
-                               smoothing={'Mg': 2.6, 'T': 0.4, 'h': 0.01})
+        xdf = ld.get_data(startdate, enddate,
+                          smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.01})
         nTobs = 30
         nZobs = 9
         nMgobs = 27
