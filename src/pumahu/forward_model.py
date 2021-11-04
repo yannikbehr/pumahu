@@ -130,7 +130,7 @@ class Forwardmodel:
         # Evaporation (kg/s/m2) =
         # (0.00407 * W**0.8 / L**0.2 - 0.01107/L)(es-ea)/pa
 
-        w = max(0, w) # negative wind speeds break the model
+        w = np.where(w < 0, 0, w) # negative wind speeds break the model
         eforced = a * (0.00407 * w**0.8 / l**0.2 - 0.01107 / l) * \
             (vp - vp_air) / pa * lh  # W
 
@@ -210,27 +210,20 @@ class Forwardmodel:
         v = mass / p
 
         def f(h, v):
-            return ((4.747475*np.power(h, 3)-34533.8*np.power(h, 2)
-                    + 83773360.*h-67772125000.)/1000. - v)
+            a_calc, v_calc = self.fullness(np.array([h]))
+            return (v_calc - v)
         z = brentq(f, 2400, 2600, args=v)
-        if z >= 2400.:
-            v1 = f(z+1., 0.)
-            a = (v1 - v) * 1000.
-            return (a, v)
-        else:
-            return (193400., v)
+        return (*self.fullness(np.array([z])), z)
 
-    def esol(self, ndays, a, dtime):
+    def esol(self, a, dtime):
         """
-        Solar Incident Radiation based on yearly guess & month.
+        Solar Incident Radiation per day based on yearly guess & month.
 
         This is a rough estimate of the short wavelength
         solar incident radiation.
 
         Parameters
         ----------
-        ndays : float or array_like
-                Timespan over which energy accumulates [d]
         a : float
             Lake surface [m^2]
         month : int
@@ -243,17 +236,16 @@ class Forwardmodel:
 
         """
         month = dtime.month
-        pesol = (ndays * a * 0.000015 *
-                 (1 + 0.5 * np.cos(((month - 1) * 3.14) / 6.0)))
+        pesol = (a * 0.000015 * (1 + 0.5 * np.cos(((month - 1) * 3.14) / 6.0)))
         return pesol
 
     def rk2(self, y, time, dt, **kargs):
         """
         ODE integration with second-order Runge-Kutta
         """
-        k0 = dt * self.derivs(y, time, dt=dt, **kargs)
+        k0 = dt * self.derivs(y, time, **kargs)
         k1 = dt * self.derivs(y + 0.5 * k0, time + timedelta(days=0.5*dt),
-                              dt=dt, **kargs)
+                              **kargs)
         y_next = y + k1
         return y_next
 
@@ -261,13 +253,13 @@ class Forwardmodel:
         """
         ODE integration with fourth-order Runge-Kutta
         """
-        k0 = dt * self.derivs(y, time, dt=dt, **kargs)
+        k0 = dt * self.derivs(y, time, **kargs)
         k1 = dt * self.derivs(y + 0.5 * k0, time + timedelta(days=0.5*dt),
-                              dt=0.5*dt, **kargs)
+                              **kargs)
         k2 = dt * self.derivs(y + 0.5 * k1, time + timedelta(days=0.5*dt),
-                              dt=0.5*dt, **kargs)
+                              **kargs)
         k3 = dt * self.derivs(y + k2, time + timedelta(days=dt),
-                              dt=dt, **kargs)
+                              **kargs)
         y_next = y + 1./6.*(k0 + 2 * k1 + 2 * k2 + k3)
         return y_next
 
@@ -275,13 +267,14 @@ class Forwardmodel:
         """
         ODE integration with Euler's rule
         """
-        k0 = dt * self.derivs(y, time, dt=dt, **kargs)
+        k0 = dt * self.derivs(y, time, **kargs)
         y_next = y + k0
         return y_next
 
-    def derivs(self, state, time, dp=None, dt=None):
+    def derivs(self, state, time, dp=None):
         """
         ODEs describing the change in temperature, mass, and ion concentration
+        per day.
 
         Parameters
         ----------
@@ -300,8 +293,6 @@ class Forwardmodel:
              The gradient of the model parameters in the following
              [volcanic heat input rate, mass inflow rate,
               mass outflow rate, enthalpy, wind speed]
-        dt : float 
-             Time step
 
 
         Returns:
@@ -317,11 +308,11 @@ class Forwardmodel:
 
         """
         cw = 0.0042
-        a, v = self.mass2area(state[1], state[0])
-        qe, me = self.surface_loss(state[0], state[7], a)
+        a, v, z = self.mass2area(state[1], state[0])
+        qe, me = self.surface_loss(state[0], state[7], float(a))
         qi = state[3] - state[4] * state[0] * cw
         steam = state[3] / state[6]
-        solar = self.esol(dt, a, time)
+        solar = self.esol(float(a), time)
         self.steam = steam
         self.evap = (qe, me)
         # energy loss due to outflow
