@@ -9,7 +9,6 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from pumahu.data import LakeData, WindData
 from pumahu.mcmc import ns_sampling, main
 from pumahu.syn_model import SynModel, setup_test
 
@@ -18,7 +17,8 @@ class MCMCTestCase(unittest.TestCase):
 
     @pytest.mark.slow
     def test_synthetic_euler(self):
-        data = SynModel(integration_method='euler').run(setup_test())
+        data = SynModel(integration_method='euler').run(setup_test(),
+                                                        ignore_cache=True)
         rs = ns_sampling(data.exp, nsamples=2000, nresample=-1,
                          q_in_lim=(0., 1500.), m_in_lim=(0., 40.),
                          m_out_lim=(0., 40.), new=True, tolZ=1e-3, 
@@ -59,7 +59,8 @@ class MCMCTestCase(unittest.TestCase):
         Test the inversion of a synthetic model using fourth-order
         Runge-Kutta integration.
         """
-        data = SynModel(integration_method='rk2').run(setup_test())
+        data = SynModel(integration_method='rk2').run(setup_test(),
+                                                      ignore_cache=True)
         rs = ns_sampling(data.exp, nsamples=2000, nresample=-1,
                          q_in_lim=(0., 1500.), m_in_lim=(0., 40.),
                          m_out_lim=(0., 40.), new=True, tolZ=1e-3, 
@@ -100,7 +101,8 @@ class MCMCTestCase(unittest.TestCase):
         Test the inversion of a synthetic model using fourth-order
         Runge-Kutta integration.
         """
-        data = SynModel(integration_method='rk4').run(setup_test())
+        data = SynModel(integration_method='rk4').run(setup_test(),
+                                                      ignore_cache=True)
         rs = ns_sampling(data.exp, nsamples=2000, nresample=-1,
                          q_in_lim=(0., 1500.), m_in_lim=(0., 40.),
                          m_out_lim=(0., 40.), new=True, tolZ=1e-3, 
@@ -110,28 +112,31 @@ class MCMCTestCase(unittest.TestCase):
         q_in_var = rs['exp'].loc[:, 'q_in', 'std'].data
         z_val = rs.p_samples.loc[:, :, 'Z'].max(axis=1).data 
         z_var = rs.p_samples.loc[:, :, 'Z_var'].max(axis=1).data 
+        print(q_in_var)
+        print(z_val)
+        print(z_var)
         np.testing.assert_array_almost_equal(q_in_val,
-                                             np.array([143.67839003,
-                                                       315.51390907,
-                                                       614.56922148,
+                                             np.array([146.425372,
+                                                       312.342296,
+                                                       602.181171,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(q_in_var,
-                                             np.array([10255.19277908,
-                                                       37474.98777957,
-                                                       49952.45786385,
+                                             np.array([9803.17067379,
+                                                       30158.48878727,
+                                                       57226.03789478,
                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_val,
-                                             np.array([-9.61335748,
-                                                       -9.555548,
-                                                       -9.38333698,
-                                                       np.nan]),
+                                             np.array([-9.58004531,
+                                                       -9.56377742,
+                                                       -9.57715341,
+                                                        np.nan]),
                                              decimal=6)
         np.testing.assert_array_almost_equal(z_var,
-                                             np.array([0.17608661,
-                                                       0.16448248,
-                                                       0.16198946,
+                                             np.array([0.17710374,
+                                                       0.16817813,
+                                                       0.16235796,
                                                        np.nan]),
                                              decimal=6)
 

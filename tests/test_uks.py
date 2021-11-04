@@ -6,6 +6,7 @@ import xarray as xr
 
 from filterpy.kalman import unscented_transform
 
+from pumahu import get_data
 from pumahu.uks import UnscentedKalmanSmoother
 from pumahu.syn_model import (SynModel,
                               setup_test,
@@ -45,7 +46,7 @@ class UKSTestCase(unittest.TestCase):
         uks = UnscentedKalmanSmoother(data=self.xds.exp)
         res = uks(test=True)
         log_lh = np.nansum(res['p_samples'].loc[dict(p_parameters='lh')].values)
-        self.assertAlmostEqual(log_lh, -29.27124, 4)
+        self.assertAlmostEqual(log_lh, -29.2659392, 4) 
         
     def test_synthetic_extensive(self):
         """
@@ -65,7 +66,7 @@ class UKSTestCase(unittest.TestCase):
         uks = UnscentedKalmanSmoother(data=xds3.exp, P0=P0, Q=Q)
         rs = uks(test=True, smooth=True)
         logl_mean = np.nansum(rs.p_samples.values)/rs.dates.shape[0]
-        self.assertAlmostEqual(logl_mean, -12.570546, 4)
+        self.assertAlmostEqual(logl_mean, -12.56475, 4)
 
     def test_nans(self):
         """
@@ -76,18 +77,39 @@ class UKSTestCase(unittest.TestCase):
         logl = rs.p_samples[:, 0]
         np.testing.assert_array_almost_equal(logl,
                                              np.array([np.nan,
-                                                       -12.01820224,
-                                                       -8.8348393,
-                                                       -7.89880262]), 4)
+                                                       -12.0177,
+                                                       -8.8329,
+                                                       -7.8945]), 4)
 
     def test_real_data(self):
         ld = LakeData()
-        data = ld.get_data_fits('2019-01-01', '2019-02-01', smoothing='dv')
+        data = ld.get_data('2019-01-01', '2019-02-01', smoothing='dv')
         ld.get_outflow()
         uks = UnscentedKalmanSmoother(data=data)
         rs = uks(test=True)
         logl_mean = np.nansum(rs.p_samples.values)/rs.dates.shape[0]
-        self.assertAlmostEqual(logl_mean, -6.40296, 4)
+        self.assertAlmostEqual(logl_mean, -6.40177, 4)
+        
+    def test_historic_data(self):
+        """
+        Test with dataset used by Hurst et al. [2015]. 
+        """
+        ld = LakeData(csvfile=get_data('data/data.csv'))
+        xdf = ld.get_data('2000-1-1', '2021-1-1',
+                          smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.01})
+        xdf = xdf.dropna('dates', how='all')
+        P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e1,
+                         m_in=1e3, m_out=1e3, h=1e-1, W=1e-1,
+                         dqi=1e-1, dMi=1e-1, dMo=1e-1, dH=1e-1, 
+                         dW=1e-1)
+        P0 = np.eye(len(P0))*list(P0.values())
+
+        Q = OrderedDict(T=1e-1, M=1e1, X=1e-3, q_in=1e1,
+                        m_in=1e1, m_out=1e1, h=1e-3, W=1e-3,
+                        dqi=0, dMi=0, dMo=0, dH=0, dW=0)
+        Q = np.eye(len(Q))*list(Q.values())
+        uks = UnscentedKalmanSmoother(data=xdf, Q=Q, P0=P0)
+        xds_uks = uks() 
 
     def test_truncated_sigma_pts(self):
         """
