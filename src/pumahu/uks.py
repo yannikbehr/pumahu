@@ -154,7 +154,7 @@ class UnscentedKalmanSmoother:
         # The process noise should increase the larger
         # the time step but I haven't found any literature
         # on how to set the process noise properly
-        kf.Q = self.Q*self.dt*self.dt
+        kf.Q = self.Q
         kf.P = self.P0
         nperiods = self.data.shape[0]-1
         Xs = np.zeros((nperiods, self.nvar))
@@ -167,23 +167,24 @@ class UnscentedKalmanSmoother:
         # Filtering
         for i in tqdm(range(nperiods)):
             _fx = partial(F.run, date=self.dates[i])
+            dt = (self.dates[i+1] - self.dates[i])/pd.Timedelta('1D')
             kf.fx = _fx
 
             try:
                 weights, sigmas = points.sigma_points(kf.x, kf.P)
                 sigmas = self.sigma_point_constraints(sigmas)
             except Exception as e:
-                ipdb.set_trace()
+                print(e)
                 raise e
+
             for k, s in enumerate(sigmas):
                 try:
-                    kf.sigmas_f[k] = kf.fx(s, self.dt)
+                    kf.sigmas_f[k] = kf.fx(s, dt)
                 except ValueError as ve:
                     print(ve)
                     print(s)
                     print(kf.sigmas_f)
                     print(kf.fx)
-                    ipdb.set_trace()
                     raise ve
             kf.x, kf.P = unscented_transform(kf.sigmas_f,
                                              weights[0],
@@ -222,8 +223,8 @@ class UnscentedKalmanSmoother:
                 try:
                     Pxz = kf.cross_variance(kf.x, zp, kf.sigmas_f,
                                             kf.sigmas_h[:, z_mask])
-                except:
-                    ipdb.set_trace()
+                except Exception as e:
+                    print(e)
 
                 kf.K = np.dot(Pxz, kf.inv(Pz))        # Kalman gain
                 kf.y = np.subtract(z[z_mask], zp)   # residual
@@ -235,10 +236,8 @@ class UnscentedKalmanSmoother:
                 kf._log_likelihood = None
                 kf._likelihood = None
                 # update likelihood
-                try:
-                    p_samples[i+1, 0] = kf.log_likelihood
-                except:
-                    ipdb.set_trace()
+                p_samples[i+1, 0] = kf.log_likelihood
+
             Xs[i, :] = kf.x
             Ps[i, :, :] = kf.P
 
@@ -278,7 +277,6 @@ class UnscentedKalmanSmoother:
                 res[k] = kf.residual_x(xs[k+1], xb)
                 ps[k] += np.dot(K, ps[k+1] - Pb).dot(K.T)
 
-        #self.params = ['T', 'M', 'X', 'q_in', 'm_in', 'm_out', 'h', 'W']
         exp = np.zeros((self.ndates, self.nparams, 2))*np.nan
         T_idx = self.params.index('T')
         exp[:, T_idx, 0] = np.r_[self.X0[T_idx], xs[:, T_idx]]
@@ -322,35 +320,22 @@ class UnscentedKalmanSmoother:
             res.to_netcdf(results_file)
         return res
 
-    def likelihood(self, var, sid):
-        T_Q = var[0]
-        M_Q = var[1]
-        X_Q = var[2]
-        qi_Q = var[3]
-        Mi_Q = var[4]
-        Mo_Q = var[5]
-        dqi_Q = var[6]
-        dMi_Q = var[7]
-        dMo_Q = var[8]
+    def likelihood(self, var):
+        P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e1,
+                         m_in=1e3, m_out=1e3, h=1e-1, W=1e-1,
+                         dqi=1e-1, dMi=1e-1, dMo=1e-1, dH=1e-1, 
+                         dW=1e-1)
+        P0 = np.eye(len(P0))*list(P0.values())
 
-        qi0 = var[9]
-        Mi0 = var[10]
-        Mo0 = var[11]
-        dqi0 = var[12]
-        dMi0 = var[13]
-        dMo0 = var[14]
-        efact1 = var[15]
-        efact2 = var[16]
-        T0, M0, X0 = self.data.iloc[0][['T', 'M', 'X']]
-        P0 = np.eye(9)*[T0*efact1, M0*efact1, X0*efact1,
-                        qi0*efact2, Mi0*efact2, Mo0*efact2,
-                        dqi0*efact2, dMi0*efact2, dMo0*efact2]
-        Q = np.eye(9)*[T_Q, M_Q, X_Q, qi_Q, Mi_Q, Mo_Q,
-                       dqi_Q, dMi_Q, dMo_Q]*self.dt**2
-        X0 = [T0, M0, X0, qi0*0.0864, Mi0, Mo0,
-              dqi0, dMi0, dMo0]
+        Q = OrderedDict(T=var[0], M=var[1], X=var[2], q_in=var[3],
+                        m_in=var[4], m_out=var[5], h=var[6], W=var[7],
+                        dqi=var[8], dMi=var[9], dMo=var[10], dH=var[11],
+                        dW=var[12])
+        Q = np.eye(len(Q))*list(Q.values())
+        self.Q = Q
+        self.P0 = P0
         try:
-            log_lh = self.__call__(Q, X0, P0, test='True')
+            log_lh = self.__call__()
         except Exception as e:
             print(e)
             return 1e-10

@@ -141,6 +141,9 @@ class LakeData:
         result[:, self.prms.index('m_out'), 0] = np.ones(dsize)*self.m_out
         result[:, self.prms.index('m_out'), 1] = np.ones(dsize)*self.m_out_err
 
+        # If T is nan, set the rest of the data to nan
+        idx = np.isnan(result[:, self.prms.index('T'), 0])
+        result[idx] = np.nan
 
         self.xdf = xr.DataArray(result,
                                 dims=('dates', 'parameters', 'val_std'),
