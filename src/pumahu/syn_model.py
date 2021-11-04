@@ -166,14 +166,15 @@ class SynModel:
 
     def synth_fullness(self, level):
         vol = self.a * level
-        return self.a, vol/1e3
+        return np.ones(vol.size)*self.a, vol/1e3
 
     def mass2area(self, mass, temp):
         """
         Compute the lake surface area from the mass and temperature.
         """
         v = self.volume(mass, temp)
-        return self.a, v
+        z = self.level(v, self.a)
+        return self.a, v, z
 
     @cachier(stale_after=timedelta(weeks=2),
              cache_dir='.cache', hash_params=myhash)
