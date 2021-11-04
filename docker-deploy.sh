@@ -11,7 +11,7 @@ DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "p
 Cmd:='["python", "./pumahu/job_scheduler.py"]')
 #################################################
 ####### Aliases #################################
-PORTAINER_HOST='portainer:9000'
+PORTAINER_HOST='portainer'
 STD_HTTPS_OPTS="--verify no --ignore-stdin"
 STATUS_HTTPS_OPTS="--check-status $STD_HTTPS_OPTS"
 #################################################
