@@ -18,7 +18,7 @@ setup(
     license="GPL v3",
     package_dir={'': 'src'},
     packages=['pumahu'],
-    package_data={'pumahu': ['data/*.dat', 'data/*.npz', 'notebook/*.ipynb']},
+    package_data={'pumahu': ['data/*.dat', 'data/*.csv', 'data/*.npz', 'notebook/*.ipynb']},
     entry_points={'console_scripts':
                   ['heat_mcmc=pumahu.mcmc:main',
                    'heat_uks=pumahu.uks:main']}
