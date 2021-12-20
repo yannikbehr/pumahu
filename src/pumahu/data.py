@@ -38,7 +38,7 @@ class LakeData:
     """
 
     def __init__(self, url="https://fits.geonet.org.nz/observation",
-                 csvfile=None, windspeed=5., m_out=10.,
+                 csvfile=None, windspeed=5., m_out=10., m_out_err=.25,
                  enthalpy=3.):
         """
         Parameters:
@@ -59,7 +59,7 @@ class LakeData:
         self.ws = windspeed
         self.ws_err = 0.5
         self.m_out = m_out
-        self.m_out_err = .25
+        self.m_out_err = m_out_err 
         self.h = enthalpy
         self.h_err = 0.01
         self.prms = ['T', 'z', 'Mg', 'X', 'V',
@@ -466,7 +466,7 @@ class LakeData:
             _tstart = max(df.index.min(), pd.Timestamp(tstart))
         else:
             _tstart = df.index.min()
-        new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+        new_dates = pd.date_range(start=_tstart, end=tend, freq='D')
         if smoothing == 'kf':
             t_df = df.groupby(pd.Grouper(freq='D')).mean()
             t_df = t_df.loc[(t_df.index >= _tstart) & (t_df.index <= tend)]
@@ -494,7 +494,7 @@ class LakeData:
         elif isinstance(smoothing, abc.Mapping):
             df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
             df['T_err'] = np.where(df['T'].isnull(), np.nan, smoothing['T'])
-            t_df = df.loc[(df.index >= tstart) & (df.index <= tend)]
+            t_df = df.loc[(df.index >= _tstart) & (df.index <= tend)]
         else:
             msg = 'smoothing must be one of "kf", "dv", '
             msg += 'or a dictionary that maps data type to'
@@ -549,7 +549,7 @@ class LakeData:
             _tstart = max(df.index.min(), pd.Timestamp(tstart))
         else:
             _tstart = df.index.min()
-        new_dates = pd.date_range(start=tstart, end=tend, freq='D')
+        new_dates = pd.date_range(start=_tstart, end=tend, freq='D')
         if smoothing == 'kf':
             z_df = df.groupby(pd.Grouper(freq='D')).mean()
             z_df = z_df.loc[(z_df.index >= _tstart) & (z_df.index <= tend)]
@@ -579,7 +579,7 @@ class LakeData:
         elif isinstance(smoothing, abc.Mapping):
             df = df.groupby(pd.Grouper(freq='D'), axis=0).mean()
             df['z_err'] = np.where(df['z'].isnull(), np.nan, smoothing['z'])
-            z_df = df.loc[(df.index >= tstart) & (df.index <= tend)]
+            z_df = df.loc[(df.index >= _tstart) & (df.index <= tend)]
         else:
             msg = 'smoothing must be one of "kf", "dv", '
             msg += 'or a dictionary that maps data type to'
