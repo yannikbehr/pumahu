@@ -35,7 +35,7 @@ class TrellisPlot:
         self._ntraces = defaultdict(lambda: -1)
 
     def get_traces(self, data, key, err_min=1e-3,
-                   nanthresh=0.4):
+                   nanthresh=0.4, dropzeros=True):
         """
         Extract traces
         
@@ -56,9 +56,9 @@ class TrellisPlot:
         if 'val_std' in data.dims:
             # ignore warnings due to NaNs
             ymean = data.loc[:, key, 'val'].values
-            ymean = np.where(ymean < 0., 0., ymean)
-            yvar = data.loc[:, key, 'std'].values
-            yerr = np.sqrt(yvar, where=yvar>=0)
+            if dropzeros:
+                ymean = np.where(ymean < 0., 0., ymean)
+            yerr = data.loc[:, key, 'std'].values
             # Interpolate over negative values
             idx = np.where(yerr<0)[0]
             yerr[idx] = np.nan
@@ -68,7 +68,8 @@ class TrellisPlot:
                 yerr = pd.Series(yerr).interpolate().values
                 ymean = pd.Series(ymean).interpolate().values
             ymin = ymean - 3*yerr
-            ymin = np.where(ymin < 0., 0., ymin)
+            if dropzeros:
+                ymin = np.where(ymin < 0., 0., ymin)
             ymax = ymean + 3*yerr
             if np.nanmax(ymax-ymin) < err_min:
                 ymax = ymean + err_min
@@ -77,11 +78,13 @@ class TrellisPlot:
         else:
             ymean = data.loc[:, key].values
             with np.errstate(invalid='ignore'):
-                ymean = np.where(ymean < 0., 0., ymean)
+                if dropzeros:
+                    ymean = np.where(ymean < 0., 0., ymean)
             return [ymean]
 
     def plot_trace(self, fig, data, key, ylabel, row, filled_error=True,
-                   plotvars=[('input', 'Input'),('exp', 'Result')]):
+                   plotvars=[('input', 'Input'),('exp', 'Result')],
+                   dropzeros=True):
         """
         :param plotvars: Variables to plot.
         """
@@ -91,7 +94,8 @@ class TrellisPlot:
             self._ntraces[row] += 1
             if source in data.variables:
                 try:
-                    traces = self.get_traces(data[source], key)
+                    traces = self.get_traces(data[source], key,
+                                             dropzeros=dropzeros)
                 except KeyError:
                     msg = "{} not in {}".format(key, data[source].coords)
                     print(msg)
