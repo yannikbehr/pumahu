@@ -280,32 +280,32 @@ class UnscentedKalmanSmoother:
         exp = np.zeros((self.ndates, self.nparams, 2))*np.nan
         T_idx = self.params.index('T')
         exp[:, T_idx, 0] = np.r_[self.X0[T_idx], xs[:, T_idx]]
-        exp[:, T_idx, 1] = np.r_[self.P0[T_idx, T_idx], ps[:, T_idx, T_idx]]
+        exp[:, T_idx, 1] = np.sqrt(np.r_[self.P0[T_idx, T_idx], ps[:, T_idx, T_idx]])
         M_idx = self.params.index('M')
         exp[:, M_idx, 0] = np.r_[self.X0[M_idx], xs[:, M_idx]]
-        exp[:, M_idx, 1] = np.r_[self.P0[M_idx, M_idx], ps[:, M_idx, M_idx]]
+        exp[:, M_idx, 1] = np.sqrt(np.r_[self.P0[M_idx, M_idx], ps[:, M_idx, M_idx]])
         X_idx = self.params.index('X')
         exp[:, X_idx, 0] = np.r_[self.X0[X_idx], xs[:, X_idx]]
-        exp[:, X_idx, 1] = np.r_[self.P0[X_idx, X_idx], ps[:, X_idx, X_idx]]
+        exp[:, X_idx, 1] = np.sqrt(np.r_[self.P0[X_idx, X_idx], ps[:, X_idx, X_idx]])
         q_in_idx = self.params.index('q_in')
         exp[:, q_in_idx, 0] = np.r_[self.X0[q_in_idx] / 0.0864,
                                     xs[:, q_in_idx] / 0.0864]
-        exp[:, q_in_idx, 1] = np.r_[self.P0[q_in_idx, q_in_idx] / 0.0864,
-                                    ps[:, q_in_idx, q_in_idx] / 0.0864]
+        exp[:, q_in_idx, 1] = np.sqrt(np.r_[self.P0[q_in_idx, q_in_idx] / 0.0864,
+                                      ps[:, q_in_idx, q_in_idx] / 0.0864])
         m_in_idx = self.params.index('m_in')
         exp[:, m_in_idx, 0] = np.r_[self.X0[m_in_idx], xs[:, m_in_idx]]
-        exp[:, m_in_idx, 1] = np.r_[self.P0[m_in_idx, m_in_idx],
-                                    ps[:, m_in_idx, m_in_idx]]
+        exp[:, m_in_idx, 1] = np.sqrt(np.r_[self.P0[m_in_idx, m_in_idx],
+                                      ps[:, m_in_idx, m_in_idx]])
         m_out_idx = self.params.index('m_out')
         exp[:, m_out_idx, 0] = np.r_[self.X0[m_out_idx], xs[:, m_out_idx]]
-        exp[:, m_out_idx, 1] = np.r_[self.P0[m_out_idx, m_out_idx],
-                                     ps[:, m_out_idx, m_out_idx]]
+        exp[:, m_out_idx, 1] = np.sqrt(np.r_[self.P0[m_out_idx, m_out_idx],
+                                       ps[:, m_out_idx, m_out_idx]])
         h_idx = self.params.index('h')
         exp[:, h_idx, 0] = np.r_[self.X0[h_idx], xs[:, h_idx]]
-        exp[:, h_idx, 1] = np.r_[self.P0[h_idx, h_idx], ps[:, h_idx, h_idx]]
+        exp[:, h_idx, 1] = np.sqrt(np.r_[self.P0[h_idx, h_idx], ps[:, h_idx, h_idx]])
         W_idx = self.params.index('W')
         exp[:, W_idx, 0] = np.r_[self.X0[W_idx], xs[:, W_idx]]
-        exp[:, W_idx, 1] = np.r_[self.P0[W_idx, W_idx], ps[:, W_idx, W_idx]]
+        exp[:, W_idx, 1] = np.sqrt(np.r_[self.P0[W_idx, W_idx], ps[:, W_idx, W_idx]])
         res = xr.Dataset({'exp': (('dates', 'parameters', 'val_std'), exp),
                           'p_samples': (('dates', 'p_parameters'), p_samples),
                           'input': (('dates', 'i_parameters', 'val_std'),
