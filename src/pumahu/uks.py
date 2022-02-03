@@ -19,7 +19,7 @@ from . import get_data
 from .syn_model import SynModel
 from .forward_model import Forwardmodel
 from .sigma_points import MerweScaledSigmaPoints
-from .data import LakeData
+from .data import LakeData, get_outflow
 from .visualise import trellis_plot, plot_qin_uks
  
 import ipdb
@@ -65,25 +65,19 @@ def h_x(x):
     """
     Measurement function
     """
-    return [x[0], x[1], x[2], x[5], x[6], x[7]]
+    return [x[0], x[1], x[2], x[4], x[5], x[6], x[7]]
 
 
 class UnscentedKalmanSmoother:
 
-    def __init__(self, data, X0=None, P0=None, Q=None,
-                 initvals={'qi':200., 'm_in': 10, 'm_out':10., 'X':2.}):
+    def __init__(self, data, X0=None, P0=None, Q=None):
         self.dates = pd.to_datetime(data['dates'].values)
         self.ndates = len(self.dates)
         self.dt = (self.dates[1] - self.dates[0])/pd.Timedelta('1D')
         self.params = ['T', 'M', 'X', 'q_in', 'm_in', 'm_out', 'h', 'W']
         self.nparams = len(self.params)
-        try:
-            self.data = data.loc[:, self.params, :]
-            (T, M, X, Mi, Mo, qi, H, W) = self.data.loc[:,  self.params, 'val'].values[0]
-        except KeyError:
-            self.data = data.loc[:, ['T', 'M', 'X', 'm_out', 'h', 'W'], :]
-            (T, M, X, Mo, H, W) = self.data.loc[:, ['T', 'M', 'X', 'm_out', 'h', 'W'], 'val'].values[0]
-            qi, Mi, Mo, X = list(initvals.values())
+        self.data = data.loc[:, self.params, :]
+        (T, M, X, Mi, Mo, qi, H, W) = self.data.loc[:,  self.params, 'val'].values[0]
             
         dqi = 1e-1
         dMi = 1e-1
@@ -148,7 +142,7 @@ class UnscentedKalmanSmoother:
         points = MerweScaledSigmaPoints(n=self.nvar, alpha=alpha, beta=beta,
                                         kappa=kappa)
         F = Fx(self.nparams, self.ngrads, test=test)
-        kf = UnscentedKalmanFilter(dim_x=self.nvar, dim_z=5, dt=self.dt, fx=F.run,
+        kf = UnscentedKalmanFilter(dim_x=self.nvar, dim_z=7, dt=self.dt, fx=F.run,
                                    hx=h_x, points=points)
         kf.x = self.X0
         # The process noise should increase the larger
@@ -174,7 +168,10 @@ class UnscentedKalmanSmoother:
                 weights, sigmas = points.sigma_points(kf.x, kf.P)
                 sigmas = self.sigma_point_constraints(sigmas)
             except Exception as e:
-                print(e)
+                print(kf.x)
+                print(kf.P)
+                print(weights)
+                print(sigmas)
                 raise e
 
             for k, s in enumerate(sigmas):
@@ -193,8 +190,8 @@ class UnscentedKalmanSmoother:
             kf.x_prior = np.copy(kf.x)
             kf.P_prior = np.copy(kf.P)
             dtpoint = self.data.isel(dates=i+1)
-            z = dtpoint.loc[['T', 'M', 'X', 'm_out', 'h', 'W'], 'val'].values
-            z_err = dtpoint.loc[['T', 'M', 'X', 'm_out', 'h', 'W'], 'std'].values
+            z = dtpoint.loc[['T', 'M', 'X', 'm_in', 'm_out', 'h', 'W'], 'val'].values
+            z_err = dtpoint.loc[['T', 'M', 'X', 'm_in', 'm_out', 'h', 'W'], 'std'].values
             kf.R = np.eye(z_err.size)*(z_err*z_err)
             # if measurements or measurement error are all
             # NaN, don't update
@@ -358,6 +355,7 @@ def mainCore(args):
     if args.fit:
         ld = LakeData()
         data = ld.get_data(args.starttime, args.endtime, smoothing='dv')
+        data = get_outflow(data) 
         uks = UnscentedKalmanSmoother(data=data)
         xds_uks = uks(results_file=res_fn)
     if args.plot:
