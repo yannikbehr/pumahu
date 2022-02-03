@@ -84,7 +84,7 @@ class TrellisPlot:
 
     def plot_trace(self, fig, data, key, ylabel, row, filled_error=True,
                    plotvars=[('input', 'Input'),('exp', 'Result')],
-                   dropzeros=True):
+                   dropzeros=True, showerror=True):
         """
         :param plotvars: Variables to plot.
         """
@@ -114,7 +114,7 @@ class TrellisPlot:
                                              name=name,
                                              showlegend=showlegend),
                                   row=row, col=1)
-                if len(traces) > 1:
+                if len(traces) > 1 and showerror:
                     if np.any(np.isnan(traces[0])):
                         error_y = (traces[2] - traces[1])/2.
                         fig.add_trace(go.Scatter(x=dates, y=traces[0],
@@ -158,7 +158,8 @@ class TrellisPlot:
 
 
 def trellis_plot(data, data2=None, data2_params=None,
-                 filename=None, **kwds):
+                 filename=None, data2_showerror=True,
+                 **kwds):
     """
     A trellis plot for inversion results.
 
@@ -174,7 +175,7 @@ def trellis_plot(data, data2=None, data2_params=None,
     params = list(data.parameters.values)
     nparams = len(params)
     labels = dict(q_in='Qi [MW]', m_in='Mi [kt/day]',
-                  m_out='Mo [kt/day]', T='T [C]',
+                  m_out='Mo [kt/day]', T='T [C]',W='W [m/s]',
                   M='M [kt]', X='X [kt]', h='H [MJ/kg]')
     rowdict = {}
     with plt.style.context('bmh'):
@@ -182,7 +183,12 @@ def trellis_plot(data, data2=None, data2_params=None,
                             vertical_spacing=.01)
         tp = TrellisPlot()
         for i, p in enumerate(params):
-            tp.plot_trace(fig, data, p, labels.get(p, p), row=i+1, **kwds)
+            # Don't show q_in as a data input
+            plotvars=[('input', 'Input'),('exp', 'Result')]
+            if p == 'q_in':
+                plotvars=[('NaN', 'NaN'),('exp', 'Result')]
+            tp.plot_trace(fig, data, p, labels.get(p, p),
+                          plotvars=plotvars, row=i+1, **kwds)
             rowdict[p] = i+1
 
         if data2 is not None:
@@ -192,7 +198,8 @@ def trellis_plot(data, data2=None, data2_params=None,
                 data2_params = params
             for i, p in enumerate(data2_params):
                 tp.plot_trace(fig, xdf2, p, labels.get(p, p), row=rowdict[p],
-                              plotvars=[('exp', 'Benchmark')], **kwds)
+                              plotvars=[('exp', 'Benchmark')],
+                              showerror=data2_showerror, **kwds)
 
     fig.update_layout(template='ggplot2',
                       height=1000,
