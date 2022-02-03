@@ -193,7 +193,7 @@ class SynModel:
         exp = np.zeros((nsteps, nprms, 2))
         error = {'T': 0.4, 'z': 0.01, 'M': 2.,
                  'X': 0.4, 'A': 30., 'V': 2.0,
-                 'Mg': 50, 'm_out': 5, 'W':.5,
+                 'Mg': 50, 'm_in': 5., 'm_out': 5, 'W':.5,
                  'h': .01}
  
         V = 8800
@@ -255,7 +255,7 @@ class SynModel:
         return xds
 
 
-def resample(xds, parameters=['T', 'M', 'X', 'm_out', 'z', 'W', 'h'], sinterval='1D'):
+def resample(xds, parameters=['T', 'M', 'X', 'q_in', 'm_in', 'm_out', 'z', 'W', 'h', 'Mg'], sinterval='1D'):
     """
     Resample a synthetic model to a given sampling interval.
     
@@ -276,12 +276,13 @@ def resample(xds, parameters=['T', 'M', 'X', 'm_out', 'z', 'W', 'h'], sinterval=
     mn = nxds.mean().to_array().values
     st = nxds.std().to_array().values
     new_data = np.concatenate((mn[:,:,:,np.newaxis], st[:,:,:,np.newaxis]), axis=3)
-    rxds = xr.DataArray(new_data[0], dims=('dates', 'parameters', 'val_std'),
-                        coords=(nxds.mean().dates, parameters,['val', 'std']) )
     # fill fields with zero variance with the average
     # variance for the respective parameter
-    idx = np.where(rxds.loc[dict(val_std='std')] == 0.)
-    rxds[idx[0], idx[1], 1] = rxds[:, :, 1].mean(axis=0)
+    idx = np.where(new_data[0, :, :, 1] == 0.)
+    std_mn = new_data[0, :, :, 1].mean(axis=0)
+    new_data[0, idx[0], idx[1], 1] = std_mn[idx[1]]
+    rxds = xr.DataArray(new_data[0], dims=('dates', 'parameters', 'val_std'),
+                        coords=(nxds.mean().dates, parameters,['val', 'std']) )
     return rxds
 
 
@@ -305,10 +306,29 @@ def make_sparse(xds, parameters, perc=0.8, seed=42):
     """
     orig = xds.loc[:, parameters, ['val', 'std']].values
     rs = np.random.default_rng(42)
-    idx = rs.integers(0, orig.shape[0], int(0.8*orig.shape[0]))
+    idx = rs.integers(1, orig.shape[0], int(0.8*orig.shape[0]))
     orig[idx] = np.nan
     xds.loc[:, parameters, ['val', 'std']] = orig
     return xds
+
+
+def remove_inputs(xds, parameters):
+    """Set chosen inputs to nan.
+       
+    Parameters:
+    -----------
+    xds : :class:`xarray.Dataset`
+    parameters : list
+                 The parameters which should be made sparse.
+    Returns:
+    --------
+        :class:`xarray.Dataset` 
+    """
+    orig = xds.loc[:, parameters, ['val', 'std']].values
+    orig[1:, :, :] = np.nan
+    xds.loc[:, parameters, ['val', 'std']] = orig
+    return xds
+
 
 def lhs(dim, nsamples, centered=False):
     """
@@ -422,7 +442,7 @@ def sensitivity_analysis_grid(nsteps=10, mi=10, Mo_lim=(0, 90),
                             y = [T, M, X, q*0.0864,
                                  Mi, mo, h, w]
                             dp = [0.] * 5
-                            y_new = s.fm.derivs(y, dt, dp, 1)
+                            y_new = s.fm.derivs(y, dt, dp)
                             qe, me = s.fm.evap
                             results[i, 0] = q
                             results[i, 1] = Mi
