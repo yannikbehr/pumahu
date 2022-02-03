@@ -120,7 +120,6 @@ the Unscented Kalman Smoother}
 \author[
    addressref={aff1},                   % id's of addresses, e.g. {aff1,aff2}
    corref={aff1},                       % id of corresponding address, if any
-   noteref={n1},                        % id's of article notes, if any
    email={y.behr@gns.cri.nz}   % email address
 ]{\inits{YB}\fnm{Yannik} \snm{Behr}}
 \author[
@@ -180,11 +179,19 @@ the Unscented Kalman Smoother}
 \begin{abstractbox}
 
 \begin{abstract} % abstract
-\parttitle{First part title} %if any
-Text for this section.
-
-\parttitle{Second part title} %if any
-Text for this section.
+    Volcanic lakes often capture a significant amount of volcanic heat emission
+    and thus provide a unique opportunity to monitor changes inside the volcano.
+    We present a Bayesian inversion method to automatically infer volcanic heat
+    emission at the base of a volcanic lake from lake monitoring data using a
+    non-linear Kalman Smoother. Our method accounts for the, in parts large,
+    uncertainties in observations and the underlying physics-based model to
+    generate probabilistic estimates of heat emission. We verify our results
+    using a synthetic test case and then estimate the daily heat input rate into
+    Mt. Ruapehu's Crater Lake, New Zealand, between 2016 and 2022. Time-frequency
+    analysis of the heat input rate shows dominant periods of heating cycles
+    ranged between 100 - 250 days. Some years are dominated by shorter cycles
+    and others by longer cycles which potentially points to changes in the
+    magmatic heat supply and the hydrothermal system.
 \end{abstract}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -196,9 +203,9 @@ Text for this section.
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 \begin{keyword}
-\kwd{sample}
-\kwd{article}
-\kwd{author}
+\kwd{Crater lakes}
+\kwd{Non-linear Kalman Smoother}
+\kwd{Volcanic heat emission}
 \end{keyword}
 
 % MSC classifications codes, if any
@@ -254,8 +261,8 @@ volcano's heat and gas output passes through the crater lake. Crater lakes act t
 like a filter, integrating heat and gas input from the vents entering the lake.
 
 Monitoring changes in temperature, water mass, and ion concentration in these
-lakes can thus serve as proxies for changes in gas- and steam-release by the
-hydrothermal system and, ultimately, the melt zone beneath the volcano. 
+lakes can, therefore, serve as proxies for changes in gas- and steam-release by
+the hydrothermal system and, ultimately, the melt zone beneath the volcano. 
 
 Ruapehu Crater Lake (Te Wai A-Moe in Te Reo Maori and referred to as RCL from
 hereon) on Mt. Ruapehu, an active andesitic stratovolcano in the center of New
@@ -302,9 +309,9 @@ observations and prior assumptions into posterior uncertainties of heat input.
 
 \subsection{Physical model}\label{phm}
 
-Following \cite{Hurst1991} and \cite{Stevenson1992} the mass and energy balance
-can be written in terms of three coupled ordinary differential equations. The
-rate of lake water mass ($M$) change can be described as:
+The mass and energy balance model can be written in terms of three coupled ordinary
+differential equations \cite{Hurst1991, Stevenson1992}. The rate of lake water
+mass ($M$) change is described as:
 \begin{equation}\label{ode_M}
 	\frac{dM}{dt} = \dot{M_s} - \dot{M_o} - \dot{M_e} + \dot{M_i}
 \end{equation}
@@ -347,7 +354,8 @@ best quantitative model of evaporation from warm lakes and, in fact, the most
 suited equation may depend on the location of and available observations from
 the lake. Appendix \ref{A} describes the equations used in this study in detail
 which include the recent development on forced (i.e. wind-induced) convection
-\cite{sartoriCriticalReviewEquations2000}. 
+\cite{sartoriCriticalReviewEquations2000}. It is important to note here that
+$Q_e$ is a function of $T$ and the windspeed above the lake. 
 
 $\dot{Q_{eff}}$ is the effective rate of energy gain from volcanic sources after
 heating incoming water:
@@ -373,23 +381,15 @@ between eruptive episodes. Equation \ref{ode_X} gives an estimate of the average
 outflow over periods on the order of months but does not capture shorter term
 variations in the outflow.
 
-In a sensitivity analysis for $\dot{T}$ (Figure \ref{sens}) we can see a linear
-relationship with respect to $\dot{Q_i}$ and $\dot{M_o}$ and a mildly
-non-linear relationship with respect to $\dot{Q_i}$ and current season
-(note that this assumes southern hemisphere seasons). The relationship with respect
-to $T$ and windspeed, however, is strongly non-linear. This is because $\dot{Q_e}$
-and $\dot{M_e}$ are non-linear functions of windspeed and $\dot{Q_i}$. This further 
-complicates the inference of $\dot{Q_i}$.
+The main challenge in solving the mass and energy balance equations for
+$\dot{Q_i}$ arises from the non-linear relationship between $Q_e$ and ${T}$
+as shown in Figure \ref{sens}.
 
 \begin{figure}
     \includegraphics[width=12 cm]{figures/sensitivity_analysis.png}  
-    \caption{Sensitivity analysis of $\dot{T}$ with respect to $\dot{Q_i}$ 
-             and $\dot{M_o}$ (top panel), $\dot{Q_i}$ and season 
-             (center panel), and $T$ and windspeed (bottom panel). The model
-              parameters that have been held fixed are described in each 
-              panel's title. Warmer colors indicate a temperature increase
-              ($\dot{T} > 0$) and cooler colors a temperature decrease
-              ($\dot{T} < 0$)}
+    \caption{Surface energy loss ($Q_e$) with respect to lake water temperature
+             ($T$). The model parameters that have been held fixed are shown in  
+             the title.}
       \label{sens}
 \end{figure}
     
@@ -407,16 +407,18 @@ $X$, and $\dot{M_o}$. Putting it more concisely, we are looking for
 
 where $\bm{y}_{1:t}$ is the time series of $m$ observations and $x_k$ comprises
 the $n$ model parameters described in Section \ref{phm} at time step $k$. Note
-that $x_k$ also includes $T$, $M$, $\dot{M_o}$, and $X$. We distinguish here
-between the state of the lake and observations of this state
-($T$, $M$, $X$, $\dot{M_o}$) which are to some degree uncertain.
+that $x_k$ also includes $T$, $M$, and $X$. We distinguish here between the
+state of the lake and observations of this state ($T$, $M$, $X$) which are to
+some degree uncertain. Equation \ref{bsm} can be seen as the probabilistic
+formulation of the inverse problem inferring $\dot{Q_i}$ from available
+observations.  
 
 Solving Equation \ref{bsm} using standard strategies like Markov Chain Monte
 Carlo is computationally very expensive as the number of variables grows
-exponentially with the length of the timeseries. An alternative are Bayesian
-Filtering and Smoothing algorithms of which the Kalman Filter and Smoother are
-the closed form solution for linear models \cite{Kalman1960, Rauch1965,
-sarkkaBayesianFilteringSmoothing2013}.
+exponentially with the length of the timeseries and the number of model
+parameters. An alternative are Bayesian Filtering and Smoothing algorithms of
+which the Kalman Filter and Smoother are the closed form solution for linear
+models \cite{Kalman1960, Rauch1965, sarkkaBayesianFilteringSmoothing2013}.
 
 Equation \ref{bsm} is the conditional probability of $\bm{x}_k$ given all
 observations until time $t$. We assume that the states of the lake form a
@@ -473,13 +475,13 @@ p(\bm{x}_k|\bm{x}_{k-1}) & = & f(\bm{x}_{k-1}) + \bm{q}_{k-1} \\
     p(\bm{y}_k|\bm{x}_k) & = & \bm{x}_k[1:m] + \bm{r}_k   
 \end{eqnarray}
 
-where $f(\bm{x}_{k-1})$ is the physical model described in Section \ref{phm}
-propagated forward in time using a fourth-order Runge-Kutta scheme. If we 
-assume the errors, $\bm{r}_k$ and $\bm{q}_{k}$, to be normally distributed
-($\bm{q}_{k} \sim N(\bm{0},
-\bm{Q}_{k})$, $\bm{r}_k \sim N(\bm{0}, \bm{R}_k)$), we can compute an
-approximate solution to \ref{bsm1} using the \textit{Unscented Kalman Filter}
-\citep{Merwe2004, sarkkaBayesianFilteringSmoothing2013}.
+where $f(\bm{x}_{k-1})$ is the non-linear physical model described in Section
+\ref{phm} propagated forward in time using a fourth-order Runge-Kutta scheme. If
+we assume the errors, $\bm{r}_k$ and $\bm{q}_{k}$, to be normally distributed
+($\bm{q}_{k} \sim N(\bm{0}, \bm{Q}_{k})$, $\bm{r}_k \sim N(\bm{0}, \bm{R}_k)$),
+we can compute an approximate solution to \ref{bsm1} using the \textit{Unscented
+Kalman Smoother} \citep{Merwe2004, sarkkaBayesianFilteringSmoothing2013}, a
+non-linear Kalman Smoother.
 
 We estimate $\bm{R}_k$ from the daily variations in the observations but we do
 not know $\bm{x}_1$ and $\bm{Q}_{k}$. Setting $\bm{x}_1$ to an arbitrary value
@@ -507,7 +509,12 @@ enthalpy of the incoming steam is 2.8 MJ/kg which corresponds to the enthalpy of
 saturated steam at hydrostatic pressures similar to those at the bottom of the
 lake \cite{Mayhew1978}. To the resulting synthetic observations we add
 uncertainties similar to those estimated from real observations (see Section
-\ref{realdata}).
+\ref{realdata}). As with real data, average and standard deviation of all values
+within a day are calculated. The standard deviation is taken as a proxy for the
+uncertainty in observations ($\bm{R}_k$). To simulate the disparity between sampling
+intervals of different data streams we randomly remove most of the observations
+of $X$, $\dot{M_o}$, and $\dot{M_s}$. This dataset is then inverted using the
+Unscented Kalman Smoother to recover the original heat input rate. 
 
 Figure \ref{syn_example} shows the result of the probabilistic inference of
 heat input compared to the true input of the synthetic model. The observations
@@ -516,16 +523,16 @@ the original and the recovered heat input rates, especially for very steep
 changes in the input rate. This is the result of preferring a smooth solution
 as already mentioned in Section \ref{inf}.
 
-It is noteworthy that the mass influx and outflux rates are recovered
-quite accurately despite having no data in the former and very little data
-in the latter case.
+It is noteworthy that the mass outflux rates are recovered quite accurately
+despite providing very little synthetic observations.
 
 \begin{figure}
 	\includegraphics[width=12 cm]{figures/synthetic_inversion_uks.png}  
     \caption{Inversion result for the synthetic test described in Section 
-        \ref{syn_test}. Turquoise lines and markers represent hypothetical
+        \ref{syn_test}. Turquoise lines and markers represent synthetic 
         observations; red dashed lines are the inversion results and black
-        dashed lines are the true input to the synthetic test.}
+        dashed lines are the true input to the synthetic test. Error bars 
+        represent $\pm$ 3 standard deviations.}
   \label{syn_example}
 \end{figure}
 
@@ -536,8 +543,7 @@ overflow level. The water level sensor is a hydrostatic pressure sensor (First
 Sensor KTE/KTU/KTW6000\ldots CS Series) and it is co-located with the
 temperature sensor. Both sensors have a sampling interval of 15 minutes and
 transmit data several times a day via satellite to GNS Science, which monitors
-New Zealand's geohazards through its GeoNet project (www.geonet.org.nz
- last accessed 16/07/2021).
+New Zealand's geohazards through its GeoNet project \cite{GeoNetHome}.
 Water samples are taken 8-10 times a year from which subsequently, among many
 other analytes, concentrations of $Mg^{++}$ and $Cl^-$ are determined at GNS
 Science's Geothermal Analytical Laboratory. We will focus here on $Mg^{++}$
@@ -561,79 +567,84 @@ to be 5 m/s. This was the average windspeed derived from a temporary deployment
 of a weather buoy on RCL and adjacent permanent weather stations
 \cite{hurstUseWeatherBuoy2012}.
 
-Figure \ref{inference_result} shows $\dot{Q_i}$ for RCL for lake measurements
-between 4 March 2016 and 7 July 2021. During this time the heat input rate
+Figure \ref{inference_result}a shows $\dot{Q_i}$ for RCL for lake measurements
+between 4 March 2016 and 1 February 2022. During this time the heat input rate
 reached a maximum of 753 MW and was on average 165 MW. The average standard
 deviation was 34 MW and generally increased for lower values of $\dot{Q_i}$. To
 put this in context, currently installed geothermal power plants in New Zealand
 have a combined output of $\sim$~1000MW.
 
+To also investigate changes in periodicity we computed the continuous wavelet
+transform of of $\dot{Q_i}$ using a complex Morlet wavelet (Figure
+\ref{inference_result}b). We chose the wavelet transform over the more common
+windowed Fourier transform for its ability to detect non-stationary signals
+\cite{torrencePracticalGuideWavelet1998}. Figure \ref{inference_result}c shows
+the global wavelet spectrum which is an average of the wavelet analysis in
+Figure \ref{inference_result}b over the whole analysis period. The global
+wavelet spectrum can be interpreted similarly to the Power Spectral Density.
+Figure \ref{inference_result} shows that periodicity is dominated by periods
+between 100 and 250 days. Which period is dominant at any one time changes
+significantly and we will expand on this further in the following section.  
+
 \begin{figure}
- 	\includegraphics[width=13 cm]{figures/uks_real_data.png}  
- 	\caption{Inference results for the heat input rate $\dot{Q_i}$ at RCL
-             between 4 March 2016 and 7 July 2021. The solid line shows the
+ 	\includegraphics[width=12 cm]{figures/time_frequency_analysis.png}  
+    \caption{ a) Inference results for the heat input rate $\dot{Q_i}$ at RCL
+             between 4 March 2016 and 1 February 2022. The solid line shows the
              marginal probability and the uncertainty is displayed as shaded
-             region.}
+             region; b) Continuous wavelet transform of the time series shown in
+             Panel a; c) Power spectral density of the heat input rate shown as a
+             solid line with uncertainty displayed as shaded region.}
 \label{inference_result}
 \end{figure}
 
 \section{Discussion and conclusion}
 Inferring the heat input rate into a crater lake is an important part in
 estimating the total energy budget of a volcanic system \cite{Brown1989a}.
-Similar to a volcano's gas budget, it can either indicate migration of magma or
-changes in permeability within the vent system.
+Similar to a volcano's gas budget, changes in the heat input rate can either
+indicate changes in the magmatic heat source or in the hydrothermal system
+above.  
 
-Figure \ref{psd} shows the power spectral density (PSD) for the marginal heat
-input rate shown in Figure \ref{inference_result}. It was computed using the
-multi taper method \cite{prietoComputersGeosciencesFortran2009} which provides
-not only an estimate of the PSD but also its uncertainty. The PSD shows that the
-dominant periods in the heat input rate lie between $\sim$100 and $\sim$250
-days. Whether these periods are due to cyclic processes in the magmatic system,
-the hydrothermal system, or a combination of both requires further modelling of
-these processes. Many studies have demonstrated the value of non-linear Kalman
-Filters for inference and data-assimilation with non-linear, high-dimension
-numerical models \cite{White2018a}. While beyond the scope of this study, the
-next logical step, therefore, is to include numerical models of magma degassing
-and hydrothermal fluid flow to model the heat input rate, volume, and enthalpy
-of the steam entering the lake.
-
-\begin{figure}
-    \includegraphics[width=12 cm]{figures/psd_analysis.png}  
- 	\caption{Power spectral density of the heat input rate 
-             (Figure \ref{inference_result}) shown as a solid line
-             with uncertainty displayed as shaded region.}
-    \label{psd}
-\end{figure}
-
-Irrespective of the process that is responsible for the periodicity, it appears
-that it has not changed significantly over the past five years. This may
-suggest that the volcano has been in a dynamic equilibrium during this time.
-This is further supported by the cumulative heat input (Figure \ref{cumheat}).
-It shows a slight increase in heat input in mid-2017 but a fairly constant rate
-since then. Of course this does not in any way forecast the volcano's future
-behaviour but it may serve as a useful baseline to detect changes in the
-volcano's state more easily.
+We would expect a significant change in the heat source to cause a change in
+slope of the cumulative heat input rate (Figure \ref{cumulative}). The fact that
+we do not observe such changes may indicate a more or less constant supply of
+heat during the studied period. Experiments on analog models of hydrothermal
+systems suggest that changes in the heat source and the hydrothermal system
+should also change the length of heating cycles
+\cite{vandemeulebrouckAnalogueModelingInstabilities2005,fitzgerald1997TwentySecondWorkshop}.
+Figure \ref{inference_result}b shows the heating cycles before mid-2017 and
+after mid-2019 were dominated by longer periods. From mid-2017 to mid-2019
+cycles were mostly of shorter periods which may indicate a change in the
+volcanic system during this time. 
 
 \begin{figure}
-    \includegraphics[width=12 cm]{figures/cumulative_heat.png}
-    \caption{Cumulative heat input into RCL (solid line) and its 
-    uncertainty (shaded region).}
-    \label{cumheat}
+ 	\includegraphics[width=12 cm]{figures/cumulative_heat.png}  
+    \caption{Cumulative heat input into RCL (solid line) and its uncertainty 
+             (shaded region) calculated for the time-series in
+             Figure \ref{inference_result} a.} 
+\label{cumulative}
 \end{figure}
+
+To further explore hypotheses like this, the next logical step is to include
+numerical models of magma degassing and hydrothermal heat and fluid flow. While
+beyond the scope of this study, our inversion method is well suited for such
+more complex models as its runtime scales linearly with the number of
+parameters. Several studies have demonstrated the value of non-linear Kalman
+Filters for inverse problems with non-linear, high-dimensional numerical models
+\cite[e.g.][]{White2018a,huangIteratedKalmanMethodology2022}. 
 
 Previous studies of RCL's mass and energy balance found that they required very
 high values of enthalpy for the incoming steam to avoid violating physical
 boundary conditions such as negative values for the inflow rate of meteoric
-water \cite{hurstCraterLakeEnergy2015, Stevenson1992}. Their explanation was the
-existence of a heat pipe beneath the lake where gas and fluid phases coexist. As
-the rising gas enters the lake relatively cool lake water enters the vent
-leading to an overall lower addition of mass to the lake and resulting in an
-enthalpy value that is double than expected for saturated steam at hydrostatic
-pressures likely to be found at the bottom of the lake. By including
-uncertainties in our observations we no longer require these high enthalpy
-values to satisfy the physical constraints. Numerical modelling of hydrothermal
-processes may also shed further light on the heating processes and whether or
-not a heat pipe is a plausible mechanism.
+water ($\dot{M_s}$) \cite{hurstCraterLakeEnergy2015, Stevenson1992}. Their
+explanation was that as rising hot fluids enter the lake, relatively cool lake
+water flows back into the vent. This would lead to an overall lower addition of
+mass to the lake and resulting in an enthalpy value that is double than expected
+for saturated steam at hydrostatic pressures likely to be found at the bottom of
+the lake. By including uncertainties in our observations, this explanation is
+still a possibility but no longer a requirement to satisfy the physical
+constraints. Numerical modelling of hydrothermal processes may also shed further
+light on the heating processes and whether or not the lake and the vent form a
+single or two separate convective systems.
 
 In conclusion, the combination of the mass and energy model, developed in
 previous studies \cite{hurstCraterLakeEnergy2015, Stevenson1992}, with the
