@@ -38,7 +38,8 @@ class LakeData:
     """
 
     def __init__(self, url="https://fits.geonet.org.nz/observation",
-                 csvfile=None, windspeed=5., m_out=10., m_out_err=.25,
+                 csvfile=None, windspeed=5., m_in=np.nan, m_in_err=np.nan,
+                 q_in=np.nan, q_in_err=np.nan, m_out=10., m_out_err=.25,
                  enthalpy=3.):
         """
         Parameters:
@@ -58,13 +59,17 @@ class LakeData:
         self.xdf = None
         self.ws = windspeed
         self.ws_err = 0.5
+        self.m_in = m_in
+        self.m_in_err = m_in_err 
         self.m_out = m_out
         self.m_out_err = m_out_err 
+        self.q_in = q_in
+        self.q_in_err = q_in_err 
         self.h = enthalpy
         self.h_err = 0.01
         self.prms = ['T', 'z', 'Mg', 'X', 'V',
                      'A', 'p', 'M', 'dV', 'h', 
-                     'W', 'm_out']
+                     'W', 'm_in', 'm_out', 'q_in']
         if csvfile is None:
             self.get_raw_data = self.FITS_request
         else:
@@ -75,7 +80,8 @@ class LakeData:
     @cachier(stale_after=timedelta(weeks=2),
              cache_dir='~/.cache', hash_params=fits_hash)
     def get_data(self, start, end, smoothing='kf',
-                 nerrsamples=1000):
+                 nerrsamples=1000,
+                 initvals={'q_in':200.,'m_in':10,'m_out':10.,'X':2.}):
         """
         Request data from the FITS database or a csv file.
         
@@ -138,12 +144,21 @@ class LakeData:
         result[:, self.prms.index('W'), 1] = np.ones(dsize)*self.ws_err
         result[:, self.prms.index('h'), 0] = np.ones(dsize)*self.h
         result[:, self.prms.index('h'), 1] = np.ones(dsize)*self.h_err
+        result[:, self.prms.index('m_in'), 0] = np.ones(dsize)*self.m_in
+        result[:, self.prms.index('m_in'), 1] = np.ones(dsize)*self.m_in_err
         result[:, self.prms.index('m_out'), 0] = np.ones(dsize)*self.m_out
         result[:, self.prms.index('m_out'), 1] = np.ones(dsize)*self.m_out_err
+        result[:, self.prms.index('q_in'), 0] = np.ones(dsize)*self.q_in
+        result[:, self.prms.index('q_in'), 1] = np.ones(dsize)*self.q_in_err
 
         # If T is nan, set the rest of the data to nan
         idx = np.isnan(result[:, self.prms.index('T'), 0])
         result[idx] = np.nan
+        
+        # Set initial values if first value is NaN
+        for key, val in initvals.items():
+            if np.isnan(result[0, self.prms.index(key), 0]):
+                result[0, self.prms.index(key), 0] = val
 
         self.xdf = xr.DataArray(result,
                                 dims=('dates', 'parameters', 'val_std'),
@@ -621,53 +636,45 @@ class LakeData:
                 vol.std(axis=1), p_mean, p_std, M.mean(axis=1),
                 M.std(axis=1), a.mean(axis=1), a.std(axis=1))
 
-    def get_outflow(self):
-        """
-        Get lake outflow data from CSV file.
-        """
-        if self.xdf is None:
-            msg = "First run self.get_data before running this."
-            raise TypeError(msg)
-        data_dir = os.path.join(os.path.dirname(os.path.abspath(
-                                inspect.getfile(inspect.currentframe()))),
-                                "data")
-        a = np.load(get_data('data/outflow_prior.npz'))
-        z, m_out_min, m_out_max, m_out_mean = (a['z'], a['o_min'],
-                                               a['o_max'], a['o_mean'])
-        f_m_out_min = interp1d(z, m_out_min, fill_value='extrapolate')
-        f_m_out_max = interp1d(z, m_out_max, fill_value='extrapolate')
-        f_m_out_mean = interp1d(z, m_out_max, fill_value='extrapolate')
-       
-        new_z = self.xdf.loc[:, 'z', 'val'].data
-        m_out = f_m_out_mean(new_z)
-        m_err = (f_m_out_min(new_z) + f_m_out_max(new_z))/2.
-        
-        self.xdf.loc[:, 'm_out', 'val'] = m_out 
-        self.xdf.loc[:, 'm_out', 'std'] = m_err
+def get_outflow(xdf):
+    """
+    Get lake outflow data from CSV file.
+    """
+    a = np.load(get_data('data/outflow_prior.npz'))
+    z, m_out_min, m_out_max, m_out_mean = (a['z'], a['o_min'],
+                                           a['o_max'], a['o_mean'])
+    f_m_out_min = interp1d(z, m_out_min, fill_value='extrapolate')
+    f_m_out_max = interp1d(z, m_out_max, fill_value='extrapolate')
+    f_m_out_mean = interp1d(z, m_out_max, fill_value='extrapolate')
+   
+    new_z = xdf.loc[:, 'z', 'val'].data
+    m_out = f_m_out_mean(new_z)
+    m_err = (f_m_out_min(new_z) + f_m_out_max(new_z))/2.
+    
+    xdf.loc[:, 'm_out', 'val'] = m_out 
+    xdf.loc[:, 'm_out', 'std'] = m_err
+    return xdf
 
-    def get_MetService_wind(self, elev=3000, volcano='Ruapehu'):
-        """
-        Get wind data from MetService wind model files.
-        """
-        if self.xdf is None:
-            msg = "First run self.get_data before running this."
-            raise TypeError(msg)
-
-        baseurl = 'http://vulkan.gns.cri.nz:9876/wind'
-        request = baseurl + '?starttime={}&endtime={}&volcano={}&elevation={}'
-        request = request.format(self.xdf.dates[0].data, self.xdf.dates[-1].data,
-                                 volcano, elev)
-        df = pd.read_csv(request, index_col=0, parse_dates=True,
-                         header=[0, 1])
-        mdf = df.groupby(pd.Grouper(freq='D')).mean()
-        sdf = df.groupby(pd.Grouper(freq='D')).std()
-        ndf = pd.DataFrame({'W': mdf['pmodel']['speed'],
-                            'W_err': sdf['pmodel']['speed']},
-                           index=mdf.index)
-        ndf.index = ndf.index.tz_convert(None)
-        ndf = ndf.reindex(self.xdf.dates.data).interpolate()
-        self.xdf.loc[:, 'W', 'val'] = ndf['W']
-        self.xdf.loc[:, 'W', 'std'] = ndf['W_err']
+def get_MetService_wind(xdf, elev=3000, volcano='Ruapehu'):
+    """
+    Get wind data from MetService wind model files.
+    """
+    baseurl = 'http://vulkan.gns.cri.nz:9876/wind'
+    request = baseurl + '?starttime={}&endtime={}&volcano={}&elevation={}'
+    request = request.format(xdf.dates[0].data, xdf.dates[-1].data,
+                             volcano, elev)
+    df = pd.read_csv(request, index_col=0, parse_dates=True,
+                     header=[0, 1])
+    mdf = df.groupby(pd.Grouper(freq='D')).mean()
+    sdf = df.groupby(pd.Grouper(freq='D')).std()
+    ndf = pd.DataFrame({'W': mdf['pmodel']['speed'],
+                        'W_err': sdf['pmodel']['speed']},
+                       index=mdf.index)
+    ndf.index = ndf.index.tz_convert(None)
+    ndf = ndf.reindex(xdf.dates.data).interpolate()
+    xdf.loc[:, 'W', 'val'] = ndf['W']
+    xdf.loc[:, 'W', 'std'] = ndf['W_err']
+    return xdf
 
 
 class WindData:
