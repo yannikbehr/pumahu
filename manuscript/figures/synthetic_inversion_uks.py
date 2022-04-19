@@ -30,5 +30,8 @@ fig = trellis_plot(xds_uks, data2=xds_ideal,
                    data2_params=['q_in', 'm_in', 'm_out'],
                    filled_error=True, data2_showerror=False)
 fig.update_layout(font_size=20, height=1200, showlegend=False)
+fig.update_yaxes(range=(0,40), row=5, col=1)
+fig.update_yaxes(range=(0,40), row=6, col=1)
+fig.update_yaxes(range=(2.5, 3.), row=7, col=1)
 filename="synthetic_inversion_uks.png"
 fig.write_image(filename, scale=2)
