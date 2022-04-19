@@ -4,7 +4,10 @@ import unittest
 import numpy as np
 
 from pumahu import Forwardmodel, SynModel
-from pumahu.syn_model import setup_test
+from pumahu.syn_model import (setup_test,
+                              setup_realistic,
+                              resample,
+                              make_sparse)
 
 
 class ForwardModelTestCase(unittest.TestCase):
@@ -249,6 +252,12 @@ class ForwardModelTestCase(unittest.TestCase):
         self.assertEqual(xds.shape, (4,4))
         self.assertEqual(list(xds.params.values),
                          ['q_in', 'm_in', 'h', 'W'])
+        
+
+    def test_resample(self):
+        xds = SynModel().run(setup_realistic(sinterval=120), addnoise=True, ignore_cache=True)        
+        na = resample(xds)
+        na = make_sparse(na, ['m_out', 'm_in', 'X'])
 
 
 if __name__ == '__main__':
