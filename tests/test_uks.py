@@ -90,7 +90,7 @@ class UKSTestCase(unittest.TestCase):
         logl_mean = np.nansum(rs.p_samples.values)/rs.dates.shape[0]
         self.assertAlmostEqual(logl_mean, -6.40177, 4)
         
-    def test_historic_data(self):
+    def test_Hurstetal_data(self):
         """
         Test with dataset used by Hurst et al. [2015]. 
         """
@@ -99,6 +99,29 @@ class UKSTestCase(unittest.TestCase):
         xdf = ld.get_data('2003-1-16', '2010-1-29',
                           smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.5})
         xdf = xdf.interpolate_na(dim='dates')
+        P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e1,
+                 m_in=1e1, m_out=1e1, h=1e-1, W=1e-1,
+                 dqi=1e-2, dMi=1e-3, dMo=1e-3, dH=1e-3, 
+                 dW=1e-3)
+        P0 = np.eye(len(P0))*list(P0.values())
+        Q = OrderedDict(T=1e0, M=1e2, X=1e-1, q_in=3e1,
+                        m_in=1e0, m_out=1e0, h=1e-3, W=1e-3,
+                        dqi=1e-3, dMi=0, dMo=0, dH=0, dW=0)
+        Q = np.eye(len(Q))*list(Q.values())
+        uks = UnscentedKalmanSmoother(data=xdf, Q=Q, P0=P0,
+                                      initvals={'qi': 0., 'm_in': 0., 'm_out': 20., 'X': 5.})
+        xds_uks = uks() 
+
+    def test_pre1995_data(self):
+        """
+        Test with dataset from before 1995-96 eruptions. 
+        """
+        startdate2 = '1993-4-20'
+        enddate2 = '1995-7-4'
+        ld = LakeData(enthalpy=3.0, windspeed=3.5, m_out=0, m_out_err=1.)
+        xdf = ld.get_data(startdate2, enddate2, smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.5}, ignore_cache=True)
+        xdf = xdf.interpolate_na(dim='dates')
+        
         P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e1,
                  m_in=1e1, m_out=1e1, h=1e-1, W=1e-1,
                  dqi=1e-2, dMi=1e-3, dMo=1e-3, dH=1e-3, 
