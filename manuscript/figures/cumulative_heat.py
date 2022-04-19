@@ -1,9 +1,16 @@
+import os
+
 import plotly.graph_objects as go
 import numpy as np
 import xarray as xr
 import pandas as pd
 
+from pumahu.uks import main as main_uks
+
 fn = './data/uks.nc'
+if not os.path.isfile(fn):
+    main_uks(['--rdir', './data', '-f', '-s', '2016-03-04', '-e', '2022-02-01'])
+
 xdf = xr.open_dataset(fn)
 data = xdf.exp.loc[:, 'q_in', 'val'].values
 sigma = xdf.exp.loc[:, 'q_in', 'std'].values
@@ -13,7 +20,7 @@ sigma *= 0.864
 # Convert to kWh by deviding with 3.6e6 J
 data /= 3.6
 sigma /= 3.6
-cum_mean = np.cumsum(data)
+cum_mean = np.cumsum(data - data.mean())
 cum_std = np.sqrt(np.cumsum(sigma))
 dates = pd.to_datetime(xdf.dates.values)
 fig = go.Figure()
