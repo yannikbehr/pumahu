@@ -11,3 +11,14 @@ dist
 *.swp
 *.nc
 *.png
+manuscript/manuscript.aux
+manuscript/manuscript.bbl
+manuscript/manuscript.blg
+manuscript/manuscript.docx
+manuscript/manuscript.log
+manuscript/manuscript.odt
+manuscript/manuscript.pdf
+manuscript/figures/.cache/.pumahu.syn_model.run
+manuscript/figures/.cache/.pumahu.syn_model.sensitivity_analysis_grid
+.cache/.pumahu.syn_model.run
+manuscript/figures/data/Windquery.log
