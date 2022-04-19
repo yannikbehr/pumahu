@@ -317,8 +317,8 @@ class Forwardmodel:
         self.evap = (qe, me)
         # energy loss due to outflow
         qo = state[5]*state[0]*cw
-        g0 = 1./(cw*state[1])*(-qe + solar + qi - qo)
         g1 = state[4] + steam - me - state[5]
+        g0 = 1./(cw*state[1])*(-qe + solar + qi - qo) - state[0]/state[1]*g1
         # dX/dt = -M_out*(X_t/m_t)
         # X_t is the total amount of a chemical
         # species at time t
