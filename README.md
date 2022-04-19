@@ -24,13 +24,6 @@ conda activate pumahu
 python setup.py install
 ```
 
-#### Docker
-To get an interactive prompt inside a container, run:
-
-```
-./buildnrun.sh -b -i
-```
-
 ### Contribute
 
 Documentation should follow the numpy documentation style:
