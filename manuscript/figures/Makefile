@@ -1,6 +1,5 @@
-
-FIGURES = sensitivity_analysis.png \
-		  synthetic_inversion_uks.png
+FIGURES = overview.png sensitivity_analysis.png \
+synthetic_inversion_uks.png time_frequency_analysis.png cumulative_heat.png
 
 %.png : %.py
 	python $<
@@ -8,5 +7,6 @@ FIGURES = sensitivity_analysis.png \
 all: $(FIGURES)
 	@echo $(FIGURES)
 
-clear:
+clean:
+	@rm data/uks.nc
 	@rm $(FIGURES)
