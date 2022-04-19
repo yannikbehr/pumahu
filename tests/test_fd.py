@@ -2,8 +2,10 @@ import unittest
 
 import numpy as np
 
+from pumahu import get_data
 from pumahu.fd import fd 
 from pumahu.syn_model import SynModel, setup_test
+from pumahu.data import LakeData
 
 
 class FDTestCase(unittest.TestCase):
@@ -18,6 +20,17 @@ class FDTestCase(unittest.TestCase):
         q_diff = (q_test[:-1] - q_exp[:-1])
         rmse = np.sqrt(((q_diff) ** 2).mean())
         self.assertAlmostEqual(rmse, 15.64, 2)
+
+    def test_historic_data(self):
+        """
+        Test with dataset used by Hurst et al. [2015]. 
+        """
+        ld = LakeData(csvfile=get_data('data/data.csv'))
+        xdf = ld.get_data('2000-1-1', '2021-1-1',
+                          smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.01})
+        xdf = xdf.dropna('dates', how='all')
+        rs = fd(xdf, results_file=None, new=False, use_drmg=False)
+        print(rs)
 
 
 if __name__ == '__main__':
