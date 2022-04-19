@@ -1,11 +1,5 @@
 #!/bin/bash
 
-######## Set up default project variables #######
-IMAGE='huta17-d.gns.cri.nz:5000/yannik/pumahu:0.1'
-APP_NAME=Pumahu
-APP_SERVER="Vulkan"
-TEAM="Volcano"
-#################################################
 ####### Docker config ###########################
 DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }' \
 Cmd:='["python", "./pumahu/job_scheduler.py"]')
@@ -95,23 +89,16 @@ then
 fi
 
 # Get the API auth token
-if [[ -z "$portainer_user" || -z "$portainer_auth" ]]
+if [[ -z "$portainer_auth" ]]
 then
-  echo "Environment variables undefined"
+  echo "Environment auth token undefined"
   exit 2
 else
-  echo "Building as $portainer_user and deploying to $APP_SERVER"
+  echo "Deploying to $APP_SERVER"
 fi
 
-TOKEN=$(https POST "$PORTAINER_HOST"/api/auth Username="$portainer_user" Password="$portainer_auth" $STD_HTTPS_OPTS | jq .jwt -r)
+AUTH="X-API-key:$portainer_auth"
 
-if [[ -z "$TOKEN" ]]
-then
-  echo "unauthorised access"
-  exit 3
-fi
-
-AUTH="Authorization: Bearer $TOKEN"
 ## Find the target server id
 APP_SERVER_ID=$( https GET "$PORTAINER_HOST"/api/endpoints "$AUTH" $STD_HTTPS_OPTS -b | jq --arg APP_SERVER "$APP_SERVER" '.[] | select(.Name == $APP_SERVER) | .Id')
 

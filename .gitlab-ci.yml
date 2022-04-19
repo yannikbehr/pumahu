@@ -1,3 +1,9 @@
+variables:
+  IMAGE: "artifactory.gns.cri.nz/gns/pumahu:0.1"
+  APP_NAME: "Pumahu"
+  APP_SERVER: "Vulkan"
+  TEAM: "Volcano"
+
 stages:
   - test
   - build
@@ -27,13 +33,12 @@ build:
     - linux
   stage: build
   script:
-    - ./buildnrun.sh -b 
-    - ./buildnrun.sh --push
+    - bash docker_build.sh -i "$IMAGE"
 
 deploy:
   tags:
     - linux
   stage: deploy
   script:
-    . ./docker-deploy.sh
+    - bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM"
 

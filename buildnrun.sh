@@ -8,7 +8,6 @@
 IMAGE=pumahu
 TAG=0.1
 BUILD=false
-PUSH=false
 INTERACTIVE=false
 
 function usage(){
@@ -22,8 +21,6 @@ Optional Arguments:
     -i, --interactive       Start the container with a bash prompt.
     --image                 Provide alternative image name.
     --tag                   Provide alternative tag
-    --push                  Push to registry. Note: the registry
-                            has to be part of the image name
 EOF
 }
 
@@ -35,7 +32,6 @@ do
         -i | --interactive) INTERACTIVE=true;;
         --image) IMAGE="$2";shift;;
         --tag) TAG="$2";shift;;
-        --push) PUSH=true;;
         -h) usage; exit 0;;
         -*) usage; exit 1;;
 esac
@@ -48,11 +44,6 @@ if [ "${BUILD}" == "true" ]; then
     docker build --build-arg NB_USER=$(whoami) \
         --build-arg NB_UID=$(id -u) \
         -t "${IMAGE}:${TAG}" .
-fi
-
-if [ "${PUSH}" != "false" ]; then
-    docker tag ${IMAGE}:${TAG} huta17-d.gns.cri.nz:5000/yannik/pumahu:${TAG}
-    docker push huta17-d.gns.cri.nz:5000/yannik/pumahu:${TAG}
 fi
 
 if [ "${INTERACTIVE}" == "true" ]; then
