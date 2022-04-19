@@ -44,7 +44,7 @@
 %%% loading packages, author definitions
 
 %\documentclass[twocolumn]{bmcart}% uncomment this for twocolumn layout and comment line below
-\documentclass{bmcart}
+\documentclass[doublespacing, linenumbers]{bmcart}
 
 %%% Load packages
 %\usepackage{amsthm,amsmath}
@@ -54,7 +54,7 @@
 \usepackage[utf8]{inputenc} %unicode support
 %\usepackage[applemac]{inputenc} %applemac support if unicode package fails
 %\usepackage[latin1]{inputenc} %UNIX support if unicode package fails
-\usepackage{graphicx}
+%\usepackage{graphicx}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -73,8 +73,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-% \def\includegraphic{}
-% \def\includegraphics{}
+\def\includegraphic{}
+\def\includegraphics{}
 
 
 
@@ -183,15 +183,16 @@ the Unscented Kalman Smoother}
     and thus provide a unique opportunity to monitor changes inside the volcano.
     We present a Bayesian inversion method to automatically infer volcanic heat
     emission at the base of a volcanic lake from lake monitoring data using a
-    non-linear Kalman Smoother. Our method accounts for the, in parts large,
+    non-linear Kalman Smoother. Our method accounts for the, sometimes large,
     uncertainties in observations and the underlying physics-based model to
     generate probabilistic estimates of heat emission. We verify our results
     using a synthetic test case and then estimate the daily heat input rate into
-    Mt. Ruapehu's Crater Lake, New Zealand, between 2016 and 2022. Time-frequency
-    analysis of the heat input rate shows dominant periods of heating cycles
-    ranged between 100 - 250 days. Some years are dominated by shorter cycles
-    and others by longer cycles which potentially points to changes in the
-    magmatic heat supply and the hydrothermal system.
+    Mt. Ruapehu's Crater Lake, New Zealand, between 2016 and 2022.
+    Time-frequency analysis of the heat input rate shows dominant periods of
+    heating cycles ranged between 100 - 250 days. The period between 2017 and
+    2020 was dominated by shorter cycles and greater-than-average heat input
+    rate which points to changes in the magmatic heat supply and the
+    hydrothermal system during this time.
 \end{abstract}
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -254,7 +255,8 @@ volcanic processes at depth. For example, a sudden rise in the heat output rate
 combined with increased microgravity signals may result from the emplacement of
 fresh magma at shallow depth \cite{Brown1991}. A slow decrease in the heat
 emission rate together with a high carbon-sulfur ratio of the emitted gas may
-point to the formation of a hydrothermal seal.
+point to the formation of a hydrothermal seal
+\cite{christensonCyclicProcessesFactors2010}.
 
 Volcanic lakes help with estimating heat emissions. Often, the majority of a
 volcano's heat and gas output passes through the crater lake. Crater lakes act thus
@@ -264,135 +266,113 @@ Monitoring changes in temperature, water mass, and ion concentration in these
 lakes can, therefore, serve as proxies for changes in gas- and steam-release by
 the hydrothermal system and, ultimately, the melt zone beneath the volcano. 
 
-Ruapehu Crater Lake (Te Wai A-Moe in Te Reo Maori and referred to as RCL from
+Ruapehu Crater Lake (Te Wai \={a}-moe in Te Reo Maori and referred to as RCL from
 hereon) on Mt. Ruapehu, an active andesitic stratovolcano in the center of New
 Zealand's North Island (Figure \ref{overview}), is one such example with records
 of observations dating back to the 19th century \cite{Friedlander1898}. Mt.
 Ruapehu erupted at least 602 times since 1830 with many phreatic and
-phreato-magmatic eruptions and two major magmatic episodes \citep{Scott2013}.
-Although the latest magmatic event between June 1995 to November 1997 and a
-subsequent dam collapse changed the shape and volume of the lake, it has been
-largely unchanged since then and the lake's bathymetry is well known from times
-when it was empty [Tony Hurst, personal communication].
+phreato-magmatic eruptions and two major magmatic episodes
+\citep{Scott2013,HistoricEruptiveActivity2022}. Although the latest magmatic
+event between June 1995 to November 1997 and a subsequent dam collapse changed
+the shape and volume of the lake, it has been largely unchanged since then and
+the lake's bathymetry is well known from times when it was empty.
 
 First attempts to quantify the amount of heat entering the lake date back to
 1966 \citep{Dibble1966}. Since 2016 water temperature and lake level have been
 monitored continuously and water samples for ion concentration measurements have
-been taken roughly every two to three months. This enables us to continuously
+been taken on an approximately monthly basis. This enables us to continuously
 estimate heat input into the lake and, in principle, automatically detect
 changes as soon as they occur.
 
-Inference of the heat input is typically done through a mass and energy balance
-calculation: the sum of mass and energy flow into and out of the lake has to
-account for the observed changes in lake temperature, water level and ion
-dilution \cite{Hurst1981, Hurst1991, Stevenson1992, Fournier2009, Scott1994}. At
-RCL, and probably at most other volcanic lakes, this is an underdetermined
-problem, that is the number of unknowns exceeds the number of constraints.
-Hence, it is necessary to constrain some of the parameters in the mass and
-energy balance model using prior knowledge. Further, some observations and input
-parameters come with large uncertainties and are sampled irregularly.
+We typically infer the heat input from a mass and energy balance calculation:
+the total mass and energy flow into and out of the lake has to account for the
+observed changes in lake temperature, water level and ion dilution
+\cite{Hurst1981, Hurst1991, Stevenson1992, Fournier2009, Scott1994}. At RCL, and
+probably at most other volcanic lakes, this is an underdetermined problem, that
+is the number of unknowns exceeds the number of constraints. Hence, it is
+necessary to constrain some of the parameters in the mass and energy balance
+model using prior knowledge. Further, some observations and input parameters
+come with large uncertainties and are sampled irregularly.
 
 In the following, we propose a probabilistic (Bayesian) inference approach which
 naturally handles these difficulties and transparently propagates uncertainties of
 observations and prior assumptions into posterior uncertainties of heat input.
 
-\begin{figure}
-\includegraphics[width=12 cm]{figures/overview.png}  
-\caption{Image of Mt. Ruapehu's crater lake from 2008 (\textcopyright Karen
-	Britten, GNS Science). The red O marks the location of the lake outlet. The
-	location of Mt. Ruapehu is shown as a red triangle on the insert map.}
-  \label{overview}
-\end{figure}
-
-
 \section{Probabilistic inference method}\label{Pim}
 
 \subsection{Physical model}\label{phm}
 
-The mass and energy balance model can be written in terms of three coupled ordinary
-differential equations \cite{Hurst1991, Stevenson1992}. The rate of lake water
-mass ($M$) change is described as:
+The mass and energy balance model can be written in terms of three coupled
+ordinary differential equations \cite{Hurst1991, Stevenson1992}. The rate of
+lake water mass change ($\dot{M}$) is the difference between the rate of steam
+input through the vent system beneath the lake ($\dot{M_i}$), the water inflow
+rate through melt and precipitation ($\dot{M_s}$), the outflow rate through
+seepage and overflow ($\dot{M_o}$), and the rate of mass loss through
+evaporation ($\dot{M_e}$): 
 \begin{equation}\label{ode_M}
-	\frac{dM}{dt} = \dot{M_s} - \dot{M_o} - \dot{M_e} + \dot{M_i}
+	\frac{dM}{dt} = \dot{M_i} + \dot{M_s} - \dot{M_o} - \dot{M_e} 
 \end{equation}
 
-Where $\dot{M_s}$ is the rate of water inflow through melt and precipitation,
-$\dot{M_o}$
-is the outflow rate through seepage and overflow, $\dot{M_e}$ is the rate of mass
-loss through evaporation and $\dot{M_i}$ is the rate of steam input through the vent
-system beneath the lake.
-
-The energy content of the lake can be described with the notion of
-enthalpy, $H$. At constant pressure, enthalpy is defined as:
+The energy content of the lake can be described with the notion of enthalpy,
+$H$, which is defined relative to a reference enthalpy. In the following we take
+the enthalpy of the lake at temperature $T=0~^{\circ}C=T_0$ as reference
+$H_0=H(T_0)$. At constant pressure, the enthalpy of the lake can then be written
+as a function of $T$, $T_0$, $M$ and the specific heat of water, $c_w$:
 \begin{equation}
-	H(T) = H(T_0) + \int_{T_0}^{T}c_pM\tau d\tau
+	H(T) = H_0 + \int_{T_0}^{T}c_wM\tau d\tau
 \end{equation}
 
-where $T$ is temperature and $c_p$ is the specific heat. For all following
-equations we take $H(T_0=0~^{\circ}C)$ as our reference enthalpy and
-$c_p=c_w=constant$, with $c_w$ the specific heat of water, such that the
-enthalpy of lake water at temperature $T$ can be written as $H(T) = c_wMT$.
-Because RCL is at an altitude of $\sim$~2500~m and big parts of its catchment
-are covered by snow and ice all year round we assume the temperature of incoming
-water to be at 0 $^{\circ}C$.
+For all following equations we take $c_w=constant$, such that the enthalpy of
+lake water at temperature $T$ can be written as $H(T) = H_0 + c_wMT$.
 
-The rate of enthalpy change of the lake water can thus be written as:
+The rate of enthalpy change of the lake water can then be defined as a function
+of the rate of energy input from volcanic sources ($\dot{Q_i}$), the rate of
+energy gain due to solar irradiation from short-wavelength radiation
+($\dot{Q_r}$), the rate of energy loss through outflow/seepage
+($c_wT\dot{M_o}$), the rate of surface energy losses due to evaporation (forced
+and free convection), sensible heat, and long-wavelength radiation
+($\dot{Q_e}$), and the rate of energy loss from heating incoming surface water
+($c_wT\dot{M_s}$): 
+
 \begin{equation}\label{ode_E}
     \frac{dH}{dt}=\frac{d(c_wTM)}{dt}=c_wT\dot{M} + c_wM\dot{T} =
-	-\dot{Q_e} - c_wT\dot{M_o} + \dot{Q_{eff}} + \dot{Q_r}
+	\dot{Q_i} + \dot{Q_r} - c_wT\dot{M_o} - \dot{Q_e} - c_wT\dot{M_s} 
 \end{equation}
       
-where $T$ is the lake water temperature, $\dot{Q_r}$ is the rate of energy gain
-due to solar irradiation (short-wavelength radiation), and $c_wT\dot{M_o}$ is
-the rate of energy loss through outflow/seepage. $\dot{Q_e}$ is the rate of
-surface energy losses due to evaporation (forced and free convection), sensible
-heat, and long-wavelength radiation (net loss). Several empirical and
-theoretical equations exist to describe the surface losses and we refer the
-reader to previous publications for more detailed discussions
-\cite{Stevenson1992, hurstCraterLakeEnergy2015}. There is no consensus on the
-best quantitative model of evaporation from warm lakes and, in fact, the most
-suited equation may depend on the location of and available observations from
-the lake. Appendix \ref{A} describes the equations used in this study in detail
-which include the recent development on forced (i.e. wind-induced) convection
-\cite{sartoriCriticalReviewEquations2000}. It is important to note here that
-$Q_e$ is a function of $T$ and the windspeed above the lake. 
+Because RCL is at an altitude of $\sim$~2500~m and big parts of its catchment
+are covered by snow and ice all year round we assume the temperature of incoming
+surface water to be at 0 $^{\circ}C$. Several empirical and theoretical equations exist
+to describe the surface losses and we refer the reader to previous publications
+for more detailed discussions \cite{Stevenson1992, hurstCraterLakeEnergy2015}.
+There is no consensus on the best quantitative model of evaporation from warm
+lakes and, in fact, the most suitable equation may depend on the location of and
+available observations from the lake. Appendix \ref{A} describes the equations
+used in this study in detail which include the recent development on forced
+(i.e. wind-induced) convection \cite{sartoriCriticalReviewEquations2000}. It is
+important to note here that $Q_e$ is a function of $T$ and the windspeed above
+the lake. 
 
-$\dot{Q_{eff}}$ is the effective rate of energy gain from volcanic sources after
-heating incoming water:
-\begin{equation}
-	\dot{Q_{eff}}=\dot{Q_i} - c_wT\dot{M_s}
-\end{equation}
-with $\dot{Q_i}$ the rate of energy input from volcanic sources.
-
-Following from Equation \ref{ode_E} the temperature change $\frac{dT}{dt}$ can then be written as:
+Following from Equation \ref{ode_E} the temperature change $\frac{dT}{dt}$ can
+then be written as:
 \begin{equation}\label{ode_T}
 	\frac{dT}{dt}=\frac{1}{c_wM}\left(-\dot{Q_e} - c_wT\dot{M_o} + \dot{Q_{eff}} + \dot{Q_r}\right )
 	-\frac{T}{M}\dot{M}
 \end{equation}
 
-Finally, the change in ion concentration of, for example, $Mg^{2+}$ can be expressed as:
+Finally, the change in ion concentration expressed in total ion amount ($X$) of,
+for example, $Mg^{2+}$ can be defined as:
 \begin{equation}\label{ode_X}
 	\frac{dX}{dt}=-\dot{M_o}\frac{X}{M}
 \end{equation}
 
-Where $X$ is the total ion amount in the lake. This equation is only true under
-the assumption that $X$ only changes due to dilution and there is no re-supply
-between eruptive episodes. Equation \ref{ode_X} gives an estimate of the average
-outflow over periods on the order of months but does not capture shorter term
-variations in the outflow.
+This equation is only true under the assumption that $X$ only changes due to
+dilution and there is no re-supply between eruptive episodes. Equation
+\ref{ode_X} gives an estimate of the average outflow over periods on the order
+of months but does not capture shorter term variations in the outflow.
 
 The main challenge in solving the mass and energy balance equations for
 $\dot{Q_i}$ arises from the non-linear relationship between $Q_e$ and ${T}$
 as shown in Figure \ref{sens}.
-
-\begin{figure}
-    \includegraphics[width=12 cm]{figures/sensitivity_analysis.png}  
-    \caption{Surface energy loss ($Q_e$) with respect to lake water temperature
-             ($T$). The model parameters that have been held fixed are shown in  
-             the title.}
-      \label{sens}
-\end{figure}
-    
 
 \subsection{Inference}\label{inf}
 
@@ -405,9 +385,9 @@ $X$, and $\dot{M_o}$. Putting it more concisely, we are looking for
     p(\bm{x}_k|\bm{y}_{1:t})
 \end{equation}
 
-where $\bm{y}_{1:t}$ is the time series of $m$ observations and $x_k$ comprises
+where $\bm{y}_{1:t}$ is the time series of $m$ observations and $\bm{x}_k$ comprises
 the $n$ model parameters described in Section \ref{phm} at time step $k$. Note
-that $x_k$ also includes $T$, $M$, and $X$. We distinguish here between the
+that $\bm{x}_k$ also includes $T$, $M$, and $X$. We distinguish here between the
 state of the lake and observations of this state ($T$, $M$, $X$) which are to
 some degree uncertain. Equation \ref{bsm} can be seen as the probabilistic
 formulation of the inverse problem inferring $\dot{Q_i}$ from available
@@ -416,7 +396,7 @@ observations.
 Solving Equation \ref{bsm} using standard strategies like Markov Chain Monte
 Carlo is computationally very expensive as the number of variables grows
 exponentially with the length of the timeseries and the number of model
-parameters. An alternative are Bayesian Filtering and Smoothing algorithms of
+parameters. Alternatives are Bayesian Filtering and Smoothing algorithms of
 which the Kalman Filter and Smoother are the closed form solution for linear
 models \cite{Kalman1960, Rauch1965, sarkkaBayesianFilteringSmoothing2013}.
 
@@ -461,13 +441,12 @@ p(\bm{x}_k|\bm{y}_{1:k-1}) = \int p(\bm{x}_k|\bm{x}_{k-1})p(\bm{x}_{k-1}|\bm{y}_
 \end{equation}
 
 Equations \ref{bsm1} to \ref{zetk} describe a recursive way to compute Equation
-\ref{bsm} in which we only need to know $\bm{x}_1$,
-$p(\bm{x}_k|\bm{x}_{k-1})$, and $p(\bm{y}_k|\bm{x}_k)$. Equation \ref{bsm1} and
-\ref{bfilt} are also known as the Bayesian Smoothing and Bayesian Filtering
-equation, respectively. If $p(\bm{x}_k|\bm{x}_{k-1})$ and
-$p(\bm{y}_k|\bm{x}_k)$ are linear transformations with normally distributed
-errors, the \textit{Kalman filter} \cite{Kalman1960} and Kalman smoother
-\cite{Rauch1965} represent closed form solutions. In our case, these
+\ref{bsm} in which we only need to know $\bm{x}_1$, $p(\bm{x}_k|\bm{x}_{k-1})$,
+and $p(\bm{y}_k|\bm{x}_k)$. Equation \ref{bsm1} and \ref{bfilt} are also known
+as the Bayesian Smoothing and Bayesian Filtering equation, respectively. If
+$p(\bm{x}_k|\bm{x}_{k-1})$ and $p(\bm{y}_k|\bm{x}_k)$ are linear transformations
+with normally distributed errors, the Kalman filter \cite{Kalman1960} and Kalman
+smoother \cite{Rauch1965} represent closed form solutions. In our case, these
 transformations are:
 
 \begin{eqnarray}
@@ -479,21 +458,26 @@ where $f(\bm{x}_{k-1})$ is the non-linear physical model described in Section
 \ref{phm} propagated forward in time using a fourth-order Runge-Kutta scheme. If
 we assume the errors, $\bm{r}_k$ and $\bm{q}_{k}$, to be normally distributed
 ($\bm{q}_{k} \sim N(\bm{0}, \bm{Q}_{k})$, $\bm{r}_k \sim N(\bm{0}, \bm{R}_k)$),
-we can compute an approximate solution to \ref{bsm1} using the \textit{Unscented
-Kalman Smoother} \citep{Merwe2004, sarkkaBayesianFilteringSmoothing2013}, a
-non-linear Kalman Smoother.
+we can compute an approximate solution to Equation \ref{bsm1} using the
+Unscented Kalman Smoother \citep{Merwe2004,
+sarkkaBayesianFilteringSmoothing2013}, a non-linear Kalman Smoother.
 
 We estimate $\bm{R}_k$ from the daily variations in the observations but we do
 not know $\bm{x}_1$ and $\bm{Q}_{k}$. Setting $\bm{x}_1$ to an arbitrary value
-within physically reasonable bounds but large uncertainty works well in
-practice. While $\bm{Q}_{k}$ can be formally optimised we treat it here as a
-design parameter that we modify such that the observations are matched within
-their error bounds and the inferred heat input rate varies smoothly. The latter
-is motivated by the fact that the physical model described in \ref{phm} is not
-able to model short-term transient changes in lake volume and temperature. These
-can be caused by rain or increased meltwater influx and the underlying
-assumption of a perfectly mixed lake typically does not apply in these
-situations.
+within physically reasonable bounds but large uncertainty works well in practice
+and has very little influence on the results. While $\bm{Q}_{k}$ can be formally
+optimised we treat it here as a design parameter that we modify such that the
+observations are matched within their error bounds and the inferred heat input
+rate varies smoothly. The latter is motivated by the fact that the physical
+model described in \ref{phm} is not able to model short-term transient changes
+in lake volume, temperature, and ion concentration. These can be caused by rain
+or increased meltwater influx, or the influx of ion-enriched fluids. The
+underlying assumption of a perfectly mixed lake typically does not apply in
+these situations. 
+
+The ability to account for these epistemic uncertainties explicitly is a
+particular strength of the Bayesian Filtering and Smoothing equations. It allows
+us to gain valuable insights even from very simple models. 
 
 \section{Results}
 \subsection{Synthetic test}\label{syn_test} 
@@ -516,51 +500,45 @@ intervals of different data streams we randomly remove most of the observations
 of $X$, $\dot{M_o}$, and $\dot{M_s}$. This dataset is then inverted using the
 Unscented Kalman Smoother to recover the original heat input rate. 
 
-Figure \ref{syn_example} shows the result of the probabilistic inference of
-heat input compared to the true input of the synthetic model. The observations
-are well fit within their error bounds but we see some descrepancies between
-the original and the recovered heat input rates, especially for very steep
-changes in the input rate. This is the result of preferring a smooth solution
-as already mentioned in Section \ref{inf}.
+Figure \ref{syn_example} shows the result of the probabilistic inference of heat
+input compared to the true input of the synthetic model. The observations fit
+well within their error bounds but we see some descrepancies between the
+original and the recovered heat input rates, especially for very steep changes
+in the input rate. This is the result of preferring a smooth solution as already
+mentioned in Section \ref{inf}.
 
 It is noteworthy that the mass outflux rates are recovered quite accurately
-despite providing very little synthetic observations.
+despite providing very few synthetic observations.
 
-\begin{figure}
-	\includegraphics[width=12 cm]{figures/synthetic_inversion_uks.png}  
-    \caption{Inversion result for the synthetic test described in Section 
-        \ref{syn_test}. Turquoise lines and markers represent synthetic 
-        observations; red dashed lines are the inversion results and black
-        dashed lines are the true input to the synthetic test. Error bars 
-        represent $\pm$ 3 standard deviations.}
-  \label{syn_example}
-\end{figure}
+\subsection{Real data}\label{realdata} 
 
-\subsection{Real data}\label{realdata}
 Temperature at RCL is measured by an integrated-circuit temperature device
-(Texas Instruments LM35) located roughly 1.9 m below the lake's current
-overflow level. The water level sensor is a hydrostatic pressure sensor (First
-Sensor KTE/KTU/KTW6000\ldots CS Series) and it is co-located with the
-temperature sensor. Both sensors have a sampling interval of 15 minutes and
-transmit data several times a day via satellite to GNS Science, which monitors
-New Zealand's geohazards through its GeoNet project \cite{GeoNetHome}.
-Water samples are taken 8-10 times a year from which subsequently, among many
-other analytes, concentrations of $Mg^{++}$ and $Cl^-$ are determined at GNS
-Science's Geothermal Analytical Laboratory. We will focus here on $Mg^{++}$
-concentration as it shows less deviation from the assumption of constant
-dilution than $Cl^-$.
+(Texas Instruments LM35) located roughly 1.9 m below the lake's current overflow
+level. The water level sensor is a hydrostatic pressure sensor (First Sensor
+KTE/KTU/KTW6000\ldots CS Series) and it is co-located with the temperature
+sensor. Both sensors have a sampling interval of 15 minutes and transmit data
+several times a day via satellite to GNS Science, which monitors New Zealand's
+geohazards through its GeoNet project \cite{GeoNetHome}. Due to the type of
+satellite connection only about 30\% of the temperature and level measurements
+arrive at GeoNet's datacenter; the rest of the data is lost. Water samples are
+taken manually 8-12 times a year from which subsequently, among many other
+analyses, concentrations of $Mg^{++}$ and $Cl^-$ are determined at GNS Science's
+Geothermal Analytical Laboratory. We will focus here on $Mg^{++}$ concentration
+as it shows less deviation from the assumption of constant dilution than $Cl^-$.
+Because of the sparse sampling, new information on $Mg^{++}$ concentration is
+available approximately once per month.
  
 To estimate uncertainties of temperature and water level observations, we 
 compute their daily averages and standard deviations. Uncertainties of $Mg^{++}$
 concentrations are estimated directly when two samples were taken on the same day.
 Otherwise, their uncertainty is taken to be the median of directly estimated
-uncertainties. 
+uncertainties from when multiple samples were taken. 
 
-$\dot{M_o}$ is measured once or twice per year and we further know from field
-observations that the lake is not overflowing beneath a certain water level. We
-fit a sigmoid function to these observations assuming a maximum outflow rate of
-250 l/s. We assume the uncertainty in $\dot{M_o}$ as the 95 percent confidence
-interval of the curve-fitting.
+Lake outflow ($\dot{M_o}$) is measured once or twice per year and we further
+know from field observations that the lake is not overflowing beneath a certain
+water level. We fit a sigmoid function to these observations assuming a maximum
+outflow rate of 250 l/s. We assume the uncertainty in $\dot{M_o}$ as the 95
+percent confidence interval of the curve-fitting.
 
 As there is no permanent weather station close to RCL we assume the wind speed
 to be 5 m/s. This was the average windspeed derived from a temporary deployment
@@ -582,63 +560,48 @@ windowed Fourier transform for its ability to detect non-stationary signals
 the global wavelet spectrum which is an average of the wavelet analysis in
 Figure \ref{inference_result}b over the whole analysis period. The global
 wavelet spectrum can be interpreted similarly to the Power Spectral Density.
-Figure \ref{inference_result} shows that periodicity is dominated by periods
+Figure \ref{inference_result}c shows that periodicity is dominated by periods
 between 100 and 250 days. Which period is dominant at any one time changes
 significantly and we will expand on this further in the following section.  
 
-\begin{figure}
- 	\includegraphics[width=12 cm]{figures/time_frequency_analysis.png}  
-    \caption{ a) Inference results for the heat input rate $\dot{Q_i}$ at RCL
-             between 4 March 2016 and 1 February 2022. The solid line shows the
-             marginal probability and the uncertainty is displayed as shaded
-             region; b) Continuous wavelet transform of the time series shown in
-             Panel a; c) Power spectral density of the heat input rate shown as a
-             solid line with uncertainty displayed as shaded region.}
-\label{inference_result}
-\end{figure}
-
 \section{Discussion and conclusion}
-Inferring the heat input rate into a crater lake is an important part in
-estimating the total energy budget of a volcanic system \cite{Brown1989a}.
-Similar to a volcano's gas budget, changes in the heat input rate can either
-indicate changes in the magmatic heat source or in the hydrothermal system
-above.  
+Inferring the heat input rate ($\dot{Q_i}$) into a crater lake is an important
+part of estimating the total energy budget of a volcanic system
+\cite{Brown1989a}. Similar to a volcano's gas budget, changes in the heat input
+rate can either indicate changes in the magmatic heat source or in the
+hydrothermal system.
 
-We would expect a significant change in the heat source to cause a change in
-slope of the cumulative heat input rate (Figure \ref{cumulative}). The fact that
-we do not observe such changes may indicate a more or less constant supply of
-heat during the studied period. Experiments on analog models of hydrothermal
-systems suggest that changes in the heat source and the hydrothermal system
-should also change the length of heating cycles
-\cite{vandemeulebrouckAnalogueModelingInstabilities2005,fitzgerald1997TwentySecondWorkshop}.
+Experiments on analog models of hydrothermal systems suggest that
+changes in the heat source and the hydrothermal system should also change the
+length of heating cycles
+\cite{vandemeulebrouckAnalogueModelingInstabilities2005,fitzgeraldStabilityTwoPhaseGeothermal1997}.
 Figure \ref{inference_result}b shows the heating cycles before mid-2017 and
 after mid-2019 were dominated by longer periods. From mid-2017 to mid-2019
 cycles were mostly of shorter periods which may indicate a change in the
 volcanic system during this time. 
 
-\begin{figure}
- 	\includegraphics[width=12 cm]{figures/cumulative_heat.png}  
-    \caption{Cumulative heat input into RCL (solid line) and its uncertainty 
-             (shaded region) calculated for the time-series in
-             Figure \ref{inference_result} a.} 
-\label{cumulative}
-\end{figure}
+This is further supported by the cumulative difference to the mean for the heat
+input rate as shown in Figure \ref{cumulative}. This type of graph helps
+highlighting periods when the heat input rate was above or below the long-term
+mean. Before 2017 and after 2019 the difference appears to fluctuate more or
+less around the mean value. After a dip beginning in 2017 a period of higher
+than mean values starts towards the end of 2017 and ends early 2020. 
 
 To further explore hypotheses like this, the next logical step is to include
-numerical models of magma degassing and hydrothermal heat and fluid flow. While
-beyond the scope of this study, our inversion method is well suited for such
-more complex models as its runtime scales linearly with the number of
-parameters. Several studies have demonstrated the value of non-linear Kalman
-Filters for inverse problems with non-linear, high-dimensional numerical models
+numerical models of magmatic gas and heat release as well as hydrothermal heat
+and fluid flow. Our inversion method is well suited for such more complex models
+as its runtime scales linearly with the number of parameters. Several studies
+have demonstrated the value of non-linear Kalman Filters for inverse problems
+with non-linear, high-dimensional numerical models
 \cite[e.g.][]{White2018a,huangIteratedKalmanMethodology2022}. 
 
 Previous studies of RCL's mass and energy balance found that they required very
 high values of enthalpy for the incoming steam to avoid violating physical
 boundary conditions such as negative values for the inflow rate of meteoric
-water ($\dot{M_s}$) \cite{hurstCraterLakeEnergy2015, Stevenson1992}. Their
+water ($\dot{M_s}$) \cite{Hurst1991, hurstCraterLakeEnergy2015}. Their
 explanation was that as rising hot fluids enter the lake, relatively cool lake
 water flows back into the vent. This would lead to an overall lower addition of
-mass to the lake and resulting in an enthalpy value that is double than expected
+mass to the lake and resulting in an enthalpy value that is double the expected
 for saturated steam at hydrostatic pressures likely to be found at the bottom of
 the lake. By including uncertainties in our observations, this explanation is
 still a possibility but no longer a requirement to satisfy the physical
@@ -647,11 +610,11 @@ light on the heating processes and whether or not the lake and the vent form a
 single or two separate convective systems.
 
 In conclusion, the combination of the mass and energy model, developed in
-previous studies \cite{hurstCraterLakeEnergy2015, Stevenson1992}, with the
+previous studies \cite{Hurst1991,hurstCraterLakeEnergy2015}, with the
 probabilistic inference method we developed here provides a powerful method to
 continuously infer the heat input rate into RCL. It allows us to combine
-disparate data streams, quantify our beliefs in the results and thereby augment
-our monitoring capabilities by keeping a finger on Mt. Ruapehu's energy budget.
+disparate data streams, invert them for probabilistic estimates of the heat
+input rate and thereby keep a finger on Mt. Ruapehu's energy budget.
 
 \appendix
 \section{Surface losses}\label{A}
@@ -722,6 +685,7 @@ where
 \end{tabular}
 \end{table}
 
+
 We decided to ignore term A as it tends to be very close to 1.
 
 \subsection{Putting it all together}
@@ -748,14 +712,29 @@ and the mass-loss due to evaporation is:
 
 \begin{backmatter}
 
+\section*{Acknowledgements}
+The authors would like to thank Nico Fournier for providing feedback and ideas
+throughout the project and Sophie Pearson-Grant for her constructive and
+insightful feedback on this manuscript. GNS Science's volcano monitoring group
+has been an invaluable team to test and improve this work. Graphs have been
+produced using the open-source graphing libraries Plotly
+(https://plotly.com/python/), matplotlib (https://matplotlib.org/) and cartopy
+(https://scitools.org.uk/cartopy/docs/latest/).
+
 \section*{Competing interests}
-  The authors declare that they have no competing interests.
+The authors declare that they have no competing interests.
 
 \section*{Author's contributions}
-    Text for this section \ldots
+  Y.B. wrote the main manuscript text, produced graphs, and implemented the
+  Kalman Smoothing. S.S. worked on data collection and interpretation. T.H.
+  developed and implemented the mass and energy balance model. All
+  authors reviewed the manuscript.
 
-\section*{Acknowledgements}
-  Text for this section \ldots
+\section*{Availability of data and materials}%% if any
+The source code for this work can be accessed at
+https://github.com/yannikbehr/pumahu. All data used in this study is provided
+free of charge by the GeoNet program (https://www.geonet.org.nz)
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%                  The Bibliography                       %%
 %%                                                         %%
@@ -798,8 +777,57 @@ and the mass-loss due to evaporation is:
 
 %%
 %% Do not use \listoffigures as most will included as separate files
+%\newpage
+\section*{Figures}
 
-%% \section*{Figures}
+\begin{figure}[h!]
+    %\includegraphics[width=12 cm]{figures/overview.png}  
+    \caption{Image of Mt. Ruapehu's crater lake from 2008 (\textcopyright Visual
+        Media Library, GNS Science, ID 6277, photographer Karen Britten). The red
+        circle marks the location of the lake outlet. The location of Mt. Ruapehu is
+        shown as a red triangle on the inset map.}
+      \label{overview}
+\end{figure}
+
+\begin{figure}[h!]
+   %\includegraphics[width=12 cm]{figures/sensitivity_analysis.png}  
+    \caption{Surface energy loss ($Q_e$) with respect to lake water temperature
+             ($T$). The model parameters that have been held fixed are shown in  
+             the title.}
+      \label{sens}
+\end{figure}
+    
+\begin{figure}[h!]
+	%\includegraphics[width=12 cm]{figures/synthetic_inversion_uks.png}  
+    \caption{Inversion result for the synthetic test described in Section
+        \ref{syn_test}. Turquoise lines and markers represent synthetic
+        observations; red dashed lines are the inversion results and black
+        dashed lines are the true input to the synthetic test. Error bars and
+        shaded areas represent $\pm$ 3 standard deviations.}
+  \label{syn_example}
+\end{figure}
+
+\begin{figure}[h!]
+ 	%\includegraphics[width=12 cm]{figures/time_frequency_analysis.png}  
+    \caption{ a) Inference results for the heat input rate $\dot{Q_i}$ at RCL
+             between 4 March 2016 and 1 February 2022. The solid line shows the
+             marginal probability and the uncertainty is displayed as shaded
+             region; b) Continuous wavelet transform of the time series shown in
+             a; c) Power spectral density of the heat input rate shown as a
+             solid line with uncertainty displayed as shaded region.}
+\label{inference_result}
+\end{figure}
+
+\begin{figure}[h!]
+ 	%\includegraphics[width=12 cm]{figures/cumulative_heat.png}  
+    \caption{Cumulative difference to the mean for the heat input rate into RCL
+             (solid line) and its uncertainty (shaded region) calculated from
+             the time-series in Figure \ref{inference_result}a.} 
+\label{cumulative}
+\end{figure}
+
+
+
 %%   \begin{figure}[h!]
 %%   \caption{\csentence{Sample figure title.}
 %%       A short description of the figure content
