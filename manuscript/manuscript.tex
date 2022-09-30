@@ -44,7 +44,8 @@
 %%% loading packages, author definitions
 
 %\documentclass[twocolumn]{bmcart}% uncomment this for twocolumn layout and comment line below
-\documentclass[doublespacing, linenumbers]{bmcart}
+%\documentclass[doublespacing, linenumbers]{bmcart}
+\documentclass[doublespacing]{bmcart}
 
 %%% Load packages
 %\usepackage{amsthm,amsmath}
@@ -54,7 +55,7 @@
 \usepackage[utf8]{inputenc} %unicode support
 %\usepackage[applemac]{inputenc} %applemac support if unicode package fails
 %\usepackage[latin1]{inputenc} %UNIX support if unicode package fails
-%\usepackage{graphicx}
+\usepackage{graphicx}
 
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -73,8 +74,8 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-\def\includegraphic{}
-\def\includegraphics{}
+%\def\includegraphic{}
+%\def\includegraphics{}
 
 
 
@@ -712,7 +713,8 @@ and the mass-loss due to evaporation is:
 
 \begin{backmatter}
 
-\section*{Acknowledgements}
+\section*{Declarations}
+\subsection*{Acknowledgements}
 The authors would like to thank Nico Fournier for providing feedback and ideas
 throughout the project and Sophie Pearson-Grant for her constructive and
 insightful feedback on this manuscript. GNS Science's volcano monitoring group
@@ -721,19 +723,51 @@ produced using the open-source graphing libraries Plotly
 (https://plotly.com/python/), matplotlib (https://matplotlib.org/) and cartopy
 (https://scitools.org.uk/cartopy/docs/latest/).
 
-\section*{Competing interests}
+\subsection*{Funding}%% if any
+This project was funded in parts by the Strategic Science Investment Funding to
+GNS Science within the Datascience programme and by the GeoNet programme.
+
+\subsection*{Abbreviations}%% if any
+  \begin{tabular}{ll}
+    RCL  & Ruapehu Crater Lake \\ 
+    $\dot{M}$ & Lake water mass change \\
+    $\dot{M_i}$ & Steam input \\ 
+    $\dot{M_s}$ & Melt water and precipitation inflow \\
+    $\dot{M_o}$ & Seepage and overflow \\ 
+    $H$ & Enthalpy \\
+    $T$ & Lake temperature \\
+    $c_w$ & Specific heat of water \\
+    $\dot{Q_i}$ & Energy input from volcanic sources \\
+    $\dot{Q_r}$ & Solar irradiation \\
+    $\dot{Q_e}$ & Surface energy loss \\
+    $X$ & Total ion amount in the lake\\
+  \end{tabular}
+
+\subsection*{Availability of data and materials}%% if any
+The source code for this work can be accessed at
+https://github.com/yannikbehr/pumahu. All data used in this study is provided
+free of charge by the GeoNet program (https://www.geonet.org.nz).
+
+\subsection*{Ethics approval and consent to participate}%% if any
+Not applicable
+
+\subsection*{Competing interests}
 The authors declare that they have no competing interests.
 
-\section*{Author's contributions}
+\subsection*{Consent for publication}%% if any
+Not applicable
+
+\subsection*{Author's contributions}
   Y.B. wrote the main manuscript text, produced graphs, and implemented the
   Kalman Smoothing. S.S. worked on data collection and interpretation. T.H.
   developed and implemented the mass and energy balance model. All
   authors reviewed the manuscript.
 
-\section*{Availability of data and materials}%% if any
-The source code for this work can be accessed at
-https://github.com/yannikbehr/pumahu. All data used in this study is provided
-free of charge by the GeoNet program (https://www.geonet.org.nz)
+\subsection*{Authors' information}%% if any
+All authors are affiliated with GNS Science. TH is Emeritus Volcano
+Geophysicist, SS is Senior Volcano Geophysicist and YB is Volcano Science
+Operations Specialist.
+
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%                  The Bibliography                       %%
@@ -781,7 +815,7 @@ free of charge by the GeoNet program (https://www.geonet.org.nz)
 \section*{Figures}
 
 \begin{figure}[h!]
-    %\includegraphics[width=12 cm]{figures/overview.png}  
+    \includegraphics[width=12 cm]{figures/overview.png}  
     \caption{Image of Mt. Ruapehu's crater lake from 2008 (\textcopyright Visual
         Media Library, GNS Science, ID 6277, photographer Karen Britten). The red
         circle marks the location of the lake outlet. The location of Mt. Ruapehu is
@@ -790,7 +824,7 @@ free of charge by the GeoNet program (https://www.geonet.org.nz)
 \end{figure}
 
 \begin{figure}[h!]
-   %\includegraphics[width=12 cm]{figures/sensitivity_analysis.png}  
+   \includegraphics[width=12 cm]{figures/sensitivity_analysis.png}  
     \caption{Surface energy loss ($Q_e$) with respect to lake water temperature
              ($T$). The model parameters that have been held fixed are shown in  
              the title.}
@@ -798,7 +832,7 @@ free of charge by the GeoNet program (https://www.geonet.org.nz)
 \end{figure}
     
 \begin{figure}[h!]
-	%\includegraphics[width=12 cm]{figures/synthetic_inversion_uks.png}  
+	\includegraphics[width=12 cm]{figures/synthetic_inversion_uks.png}  
     \caption{Inversion result for the synthetic test described in Section
         \ref{syn_test}. Turquoise lines and markers represent synthetic
         observations; red dashed lines are the inversion results and black
@@ -808,7 +842,7 @@ free of charge by the GeoNet program (https://www.geonet.org.nz)
 \end{figure}
 
 \begin{figure}[h!]
- 	%\includegraphics[width=12 cm]{figures/time_frequency_analysis.png}  
+ 	\includegraphics[width=12 cm]{figures/time_frequency_analysis.png}  
     \caption{ a) Inference results for the heat input rate $\dot{Q_i}$ at RCL
              between 4 March 2016 and 1 February 2022. The solid line shows the
              marginal probability and the uncertainty is displayed as shaded
@@ -819,7 +853,7 @@ free of charge by the GeoNet program (https://www.geonet.org.nz)
 \end{figure}
 
 \begin{figure}[h!]
- 	%\includegraphics[width=12 cm]{figures/cumulative_heat.png}  
+ 	\includegraphics[width=12 cm]{figures/cumulative_heat.png}  
     \caption{Cumulative difference to the mean for the heat input rate into RCL
              (solid line) and its uncertainty (shaded region) calculated from
              the time-series in Figure \ref{inference_result}a.} 
