@@ -19,7 +19,7 @@ class FDTestCase(unittest.TestCase):
         q_exp = rs.exp.loc[:, 'q_in', 'val'].values
         q_diff = (q_test[:-1] - q_exp[:-1])
         rmse = np.sqrt(((q_diff) ** 2).mean())
-        self.assertAlmostEqual(rmse, 15.64, 2)
+        self.assertAlmostEqual(rmse, 17.37, 2)
 
     def test_historic_data(self):
         """
@@ -30,7 +30,8 @@ class FDTestCase(unittest.TestCase):
                           smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.01})
         xdf = xdf.dropna('dates', how='all')
         rs = fd(xdf, results_file=None, new=False, use_drmg=False)
-        print(rs)
+        rmse = np.sqrt(np.nanmean(rs.exp.loc[:, 'q_in', 'val'].values ** 2))
+        self.assertAlmostEqual(rmse, 149.6, 2)
 
 
 if __name__ == '__main__':

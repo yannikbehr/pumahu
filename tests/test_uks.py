@@ -6,7 +6,7 @@ import xarray as xr
 
 from filterpy.kalman import unscented_transform
 
-from pumahu import get_data
+from pumahu import get_data, get_outflow
 from pumahu.uks import UnscentedKalmanSmoother
 from pumahu.syn_model import (SynModel,
                               setup_test,
@@ -46,7 +46,7 @@ class UKSTestCase(unittest.TestCase):
         uks = UnscentedKalmanSmoother(data=self.xds.exp)
         res = uks(test=True)
         log_lh = np.nansum(res['p_samples'].loc[dict(p_parameters='lh')].values)
-        self.assertAlmostEqual(log_lh, -29.2659392, 4) 
+        self.assertAlmostEqual(log_lh, -37.8449, 4) 
         
     def test_synthetic_extensive(self):
         """
@@ -66,7 +66,7 @@ class UKSTestCase(unittest.TestCase):
         uks = UnscentedKalmanSmoother(data=xds3.exp, P0=P0, Q=Q)
         rs = uks(test=True, smooth=True)
         logl_mean = np.nansum(rs.p_samples.values)/rs.dates.shape[0]
-        self.assertAlmostEqual(logl_mean, -12.56475, 4)
+        self.assertAlmostEqual(logl_mean, -15.7801, 4)
 
     def test_nans(self):
         """
@@ -77,18 +77,18 @@ class UKSTestCase(unittest.TestCase):
         logl = rs.p_samples[:, 0]
         np.testing.assert_array_almost_equal(logl,
                                              np.array([np.nan,
-                                                       -12.0177,
-                                                       -8.8329,
-                                                       -7.8945]), 4)
+                                                       -15.9388,
+                                                       -11.4676,
+                                                       -10.001]), 4)
 
     def test_real_data(self):
         ld = LakeData()
         data = ld.get_data('2019-01-01', '2019-02-01', smoothing='dv')
-        ld.get_outflow()
+        data = get_outflow(data)
         uks = UnscentedKalmanSmoother(data=data)
         rs = uks(test=True)
         logl_mean = np.nansum(rs.p_samples.values)/rs.dates.shape[0]
-        self.assertAlmostEqual(logl_mean, -6.40177, 4)
+        self.assertAlmostEqual(logl_mean, -6.7161, 4)
         
     def test_Hurstetal_data(self):
         """
@@ -97,7 +97,8 @@ class UKSTestCase(unittest.TestCase):
         ld = LakeData(csvfile=get_data('data/data.csv'), enthalpy=3.0,
                       windspeed=3.5, m_out=0, m_out_err=1.)
         xdf = ld.get_data('2003-1-16', '2010-1-29',
-                          smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.5})
+                          smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.5},
+                          initvals={'q_in': 0., 'm_in': 0., 'm_out': 20., 'X': 5.})
         xdf = xdf.interpolate_na(dim='dates')
         P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e1,
                  m_in=1e1, m_out=1e1, h=1e-1, W=1e-1,
@@ -108,8 +109,7 @@ class UKSTestCase(unittest.TestCase):
                         m_in=1e0, m_out=1e0, h=1e-3, W=1e-3,
                         dqi=1e-3, dMi=0, dMo=0, dH=0, dW=0)
         Q = np.eye(len(Q))*list(Q.values())
-        uks = UnscentedKalmanSmoother(data=xdf, Q=Q, P0=P0,
-                                      initvals={'qi': 0., 'm_in': 0., 'm_out': 20., 'X': 5.})
+        uks = UnscentedKalmanSmoother(data=xdf, Q=Q, P0=P0)
         xds_uks = uks() 
 
     def test_pre1995_data(self):
@@ -119,7 +119,8 @@ class UKSTestCase(unittest.TestCase):
         startdate2 = '1993-4-20'
         enddate2 = '1995-7-4'
         ld = LakeData(enthalpy=3.0, windspeed=3.5, m_out=0, m_out_err=1.)
-        xdf = ld.get_data(startdate2, enddate2, smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.5}, ignore_cache=True)
+        xdf = ld.get_data(startdate2, enddate2, smoothing={'Mg': 2.6, 'T': 0.4, 'z': 0.5},
+                          initvals={'q_in': 0., 'm_in': 0., 'm_out': 20., 'X': 5.}, ignore_cache=True)
         xdf = xdf.interpolate_na(dim='dates')
         
         P0 = OrderedDict(T=1e0, M=1e0, X=1e0, q_in=1e1,
@@ -131,8 +132,7 @@ class UKSTestCase(unittest.TestCase):
                         m_in=1e0, m_out=1e0, h=1e-3, W=1e-3,
                         dqi=1e-3, dMi=0, dMo=0, dH=0, dW=0)
         Q = np.eye(len(Q))*list(Q.values())
-        uks = UnscentedKalmanSmoother(data=xdf, Q=Q, P0=P0,
-                                      initvals={'qi': 0., 'm_in': 0., 'm_out': 20., 'X': 5.})
+        uks = UnscentedKalmanSmoother(data=xdf, Q=Q, P0=P0)
         xds_uks = uks() 
 
     def test_truncated_sigma_pts(self):

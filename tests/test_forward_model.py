@@ -69,7 +69,7 @@ class ForwardModelTestCase(unittest.TestCase):
         fw = Forwardmodel()
         y_new = fw.integrate(y0, dtime, dt, dp)
         y_new = np.array(tuple(y_new), dtype=npdp)
-        self.assertAlmostEqual(y_new['T'], 30.61, places=2)
+        self.assertAlmostEqual(y_new['T'], 30.56, places=2)
         self.assertAlmostEqual(y_new['M'], 8827.93, places=2)
         self.assertAlmostEqual(y_new['X'], 1.999, places=3)
         self.assertAlmostEqual(fw.get_steam(), 12.34, places=2)
@@ -80,23 +80,23 @@ class ForwardModelTestCase(unittest.TestCase):
         fw1 = Forwardmodel(method='rk2')
         y_new = fw1.integrate(y0, dtime, dt, dp)
         y_new = np.array(tuple(y_new), dtype=npdp)
-        self.assertAlmostEqual(y_new['T'], 30.6, places=2)
-        self.assertAlmostEqual(y_new['M'], 8827.85, places=2)
+        self.assertAlmostEqual(y_new['T'], 30.55, places=2)
+        self.assertAlmostEqual(y_new['M'], 8827.86, places=2)
         self.assertAlmostEqual(y_new['X'], 1.999, places=3)
         self.assertAlmostEqual(fw1.get_steam(), 12.34, places=2)
-        self.assertAlmostEqual(fw1.get_evap()[0], 14.9, places=2)
+        self.assertAlmostEqual(fw1.get_evap()[0], 14.88, places=2)
         self.assertAlmostEqual(fw1.get_evap()[1], 3.25, places=2)
 
         # Finally test with fourth-order Runge-Kutta
         fw2 = Forwardmodel(method='rk4')
         y_new = fw2.integrate(y0, dtime, dt, dp)
         y_new = np.array(tuple(y_new), dtype=npdp)
-        self.assertAlmostEqual(y_new['T'], 30.60, places=2)
-        self.assertAlmostEqual(y_new['M'], 8827.85, places=2)
+        self.assertAlmostEqual(y_new['T'], 30.55, places=2)
+        self.assertAlmostEqual(y_new['M'], 8827.86, places=2)
         self.assertAlmostEqual(y_new['X'], 1.999, places=3)
         self.assertAlmostEqual(fw2.get_steam(), 12.34, places=2)
-        self.assertAlmostEqual(fw2.get_evap()[0], 15.16, places=2)
-        self.assertAlmostEqual(fw2.get_evap()[1], 3.32, places=2)
+        self.assertAlmostEqual(fw2.get_evap()[0], 15.12, places=2)
+        self.assertAlmostEqual(fw2.get_evap()[1], 3.31, places=2)
 
     def test_with_q_gradient(self):
         """
@@ -128,7 +128,7 @@ class ForwardModelTestCase(unittest.TestCase):
         fw = Forwardmodel()
         y_new = fw.integrate(y0, dtime, dt, dp)
         y_new = np.array(tuple(y_new), dtype=npdp)
-        self.assertAlmostEqual(y_new['T'], 30.61, places=2)
+        self.assertAlmostEqual(y_new['T'], 30.56, places=2)
         self.assertAlmostEqual(y_new['M'], 8827.93, places=2)
         self.assertAlmostEqual(y_new['X'], 1.999, places=3)
         self.assertAlmostEqual(fw.get_steam(), 12.34, places=2)
@@ -139,23 +139,23 @@ class ForwardModelTestCase(unittest.TestCase):
         fw1 = Forwardmodel(method='rk2')
         y_new = fw1.integrate(y0, dtime, dt, dp)
         y_new = np.array(tuple(y_new), dtype=npdp)
-        self.assertAlmostEqual(y_new['T'], 31.3, places=2)
-        self.assertAlmostEqual(y_new['M'], 8837.11, places=2)
+        self.assertAlmostEqual(y_new['T'], 31.22, places=2)
+        self.assertAlmostEqual(y_new['M'], 8837.12, places=2)
         self.assertAlmostEqual(y_new['X'], 1.999, places=3)
         self.assertAlmostEqual(fw1.get_steam(), 21.6, places=2)
-        self.assertAlmostEqual(fw1.get_evap()[0], 14.9, places=2)
+        self.assertAlmostEqual(fw1.get_evap()[0], 14.88, places=2)
         self.assertAlmostEqual(fw1.get_evap()[1], 3.25, places=2)
 
         # Finally test with fourth-order Runge-Kutta
         fw2 = Forwardmodel(method='rk4')
         y_new = fw2.integrate(y0, dtime, dt, dp)
         y_new = np.array(tuple(y_new), dtype=npdp)
-        self.assertAlmostEqual(y_new['T'], 31.29, places=2)
-        self.assertAlmostEqual(y_new['M'], 8837.05, places=2)
+        self.assertAlmostEqual(y_new['T'], 31.21, places=2)
+        self.assertAlmostEqual(y_new['M'], 8837.06, places=2)
         self.assertAlmostEqual(y_new['X'], 1.999, places=3)
         self.assertAlmostEqual(fw2.get_steam(), 30.86, places=2)
-        self.assertAlmostEqual(fw2.get_evap()[0], 15.77, places=2)
-        self.assertAlmostEqual(fw2.get_evap()[1], 3.49, places=2)
+        self.assertAlmostEqual(fw2.get_evap()[0], 15.7, places=2)
+        self.assertAlmostEqual(fw2.get_evap()[1], 3.47, places=2)
 
     def test_synthetic_model_euler(self):
         """
@@ -171,20 +171,20 @@ class ForwardModelTestCase(unittest.TestCase):
         X = tdata[0, :,2]
         Mo = tdata[0, :,3]
         np.testing.assert_array_almost_equal(T,
-                                             np.array([15.000, 14.953,
-                                                       15.374, 16.717]),
+                                             np.array([15.000, 14.952,
+                                                       15.369, 16.705]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(M,
                                              np.array([8782.84, 8783.277,
-                                                       8786.092, 8789.457]),
+                                                       8786.096, 8789.475]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(X,
                                              np.array([2., 1.998,
                                                        1.996, 1.993]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(Mo,
-                                             np.array([8.72, 9.225,
-                                                       14.395, 14.395]),
+                                             np.array([8.72, 9.222,
+                                                       14.382, 14.382]),
                                              decimal=3)
 
     def test_synthetic_model_rk4(self):
@@ -202,19 +202,19 @@ class ForwardModelTestCase(unittest.TestCase):
         Mo = tdata[0, :, 3]
         np.testing.assert_array_almost_equal(T,
                                              np.array([15.000, 14.953,
-                                                       15.371, 16.703]),
+                                                       15.366, 16.692]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(M,
                                              np.array([8782.84, 8783.279,
-                                                       8786.069, 8789.4]),
+                                                       8786.073, 8789.417]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(X,
                                              np.array([2., 1.998,
                                                        1.996, 1.993]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(Mo,
-                                             np.array([8.72, 9.23,
-                                                       14.362, 14.362]),
+                                             np.array([8.72, 9.227,
+                                                       14.349, 14.349]),
                                              decimal=3)
 
     def test_synthetic_model_rk4_dqi(self):
@@ -231,20 +231,20 @@ class ForwardModelTestCase(unittest.TestCase):
         X = tdata[0, :, 2]
         Mo = tdata[0, :, 3]
         np.testing.assert_array_almost_equal(T,
-                                             np.array([15.000, 15.186,
-                                                       16.062, 17.842]),
+                                             np.array([15.000, 15.183,
+                                                       16.054, 17.829]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(M,
                                              np.array([8782.84, 8784.712,
-                                                       8787.369, 8790.354]),
+                                                       8787.381, 8790.376]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(X,
                                              np.array([2., 1.998,
                                                        1.995, 1.991]),
                                              decimal=3)
         np.testing.assert_array_almost_equal(Mo,
-                                             np.array([8.72, 12.206,
-                                                       17.5, 17.5]),
+                                             np.array([8.72, 12.194,
+                                                       17.49, 17.49]),
                                              decimal=3)
 
     def test_setup_test(self):
