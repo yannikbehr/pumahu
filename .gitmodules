@@ -1,0 +1,3 @@
+[submodule "manuscript"]
+	path = manuscript
+	url = git@git.gns.cri.nz:behrya/pumahu_manuscript.git
