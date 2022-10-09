@@ -20,3 +20,4 @@ obspy
 sphinx
 schedule>=1.1*
 git+https://github.com/yannikbehr/nsampling.git
+importlib-metadata==4.13
