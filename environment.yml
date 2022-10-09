@@ -30,3 +30,4 @@ dependencies:
         - cachier
         - schedule>=1.1*
         - git+ssh://git@github.com/yannikbehr/nsampling.git
+        - importlib-metadata<5.0
