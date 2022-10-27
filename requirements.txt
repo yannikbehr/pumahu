@@ -19,5 +19,6 @@ cachier
 obspy
 sphinx
 schedule>=1.1*
+nbconvert
 git+https://github.com/yannikbehr/nsampling.git
 importlib-metadata==4.13
