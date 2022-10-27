@@ -7,19 +7,12 @@ import os
 import urllib
 import ssl
 
-import matplotlib as mpl
 import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import matplotlib.lines as mlines
 import numpy as np
 from obspy import read, UTCDateTime, Stream
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import plotly.io as pio
-from sklearn.neighbors import KernelDensity
-
-from pumahu import get_data
 
 
 class TrellisPlot:
@@ -212,83 +205,6 @@ def trellis_plot(data, data2=None, data2_params=None,
     return fig
 
 
-def density_plot(ax, data, prm, prm_lim=(0, 1600, 1000),  bw=60., mode='kde'):
-    nsteps = data.dims['dates']
-    X_plot = np.linspace(*prm_lim)
-    if mode == 'kde':
-        m = []
-        for i in range(nsteps):
-            y = data.ns_samples.loc[dict(parameters=prm)][dict(dates=i)].data
-            idx = np.isnan(y)
-            if np.all(idx):
-                m.append(np.zeros(X_plot.size))
-                continue
-            _kde = KernelDensity(kernel='gaussian', bandwidth=bw).fit(y[~idx].reshape(-1, 1))
-            log_dens = _kde.score_samples(X_plot[:, np.newaxis])
-            m.append(np.exp(log_dens))
-        m = np.array(m)
-        ax.contourf(np.arange(nsteps), X_plot, m.T, 30, cmap=plt.cm.get_cmap('RdBu_r'))
-    if mode == 'scatter':
-        datet = data.dates
-        nresample = data.ns_samples.shape[1]
-        for k in range(nsteps):
-            y = data.ns_samples.loc[dict(parameters=prm)][dict(dates=k)].data
-            c = data.p_samples.loc[dict(p_parameters='lh')][dict(dates=k)].data
-            ax.scatter([datet[k].data]*nresample, y, s=2, c=c,
-                       cmap=plt.cm.get_cmap('RdBu_r'), alpha=0.3)
-    return
-
-
-def adjust_labels(ax, dates, rotation=30):
-    new_labels = []
-    new_ticks = []
-    for _xt in ax.get_xticks():
-        try:
-            dt = dates[int(_xt)].astype('datetime64[us]').min()
-            new_labels.append((pd.to_datetime(str(dt)).strftime("%Y-%m-%d")))
-            new_ticks.append(_xt)
-        except IndexError:
-            continue
-    ax.set_xticks(new_ticks)
-    ax.set_xticklabels(new_labels, rotation=rotation, horizontalalignment='right')
-
-
-def mcmc_heat_input(data, filename=None):
-    fig = plt.figure(figsize=(16, 5))
-    ax1 = fig.add_axes([0.01, 0.1, 0.8, 0.9])
-    ax2 = fig.add_axes([0.82, 0.1, 0.15, 0.9])
-    axs = [ax1, ax2]
-
-    density_plot(axs[0], data, 'q_in', prm_lim=(0, 1100, 1000), mode='kde')
-    exp_q_in = data.exp.loc[dict(parameters='q_in', val_std='val')]
-    axs[0].plot(exp_q_in, 'k')
-    adjust_labels(axs[0], data.dates.data)
-    axs[0].set_ylabel('Energy input rate [MW]')
-    axs[0].set_xlim(0, data.dims['dates']-1)
-    axs[0].set_ylim(0, 1100)
-
-    X_plot = np.linspace(0, 1600, 1000)[:, np.newaxis]
-    for i in [-2, -3, -4, -5]:
-        y = data.ns_samples.loc[dict(parameters='q_in')][dict(dates=i)].data
-        idx = np.isnan(y)
-        kde = KernelDensity(kernel='gaussian', bandwidth=60.).fit(y[~idx].reshape(-1, 1))
-        log_dens = kde.score_samples(X_plot)
-        Y = np.exp(log_dens)
-        date_str = pd.to_datetime(data['dates'].data[i]).strftime("%Y-%m-%d")
-        if i == -2:
-            axs[1].plot(Y, X_plot[:, 0], linewidth=5., label=date_str)
-        else:
-            axs[1].plot(Y, X_plot[:, 0], label=date_str)
-
-    axs[1].legend()
-    axs[1].yaxis.tick_right()
-    axs[1].set_xticks([])
-    axs[1].set_ylim(0, 1100)
-    if filename is not None:
-        plt.savefig(filename, dpi=300, bbox_inches='tight')
-    return fig
-
-
 def plot_qin_uks(data_uks, data_mcmc=None, data2y=None, filename=None,
                  annotations=False, showlegend=False):
     """
@@ -362,9 +278,10 @@ def heat_vs_rsam(data, filename=None):
     st = Stream()
     rsamfiles = ['2019.MAVZ.10-HHZ.NZ.bp_1.00-4.00.rsam',
                  '2020.MAVZ.10-HHZ.NZ.bp_1.00-4.00.rsam',
-                 '2021.MAVZ.10-HHZ.NZ.bp_1.00-4.00.rsam']
+                 '2021.MAVZ.10-HHZ.NZ.bp_1.00-4.00.rsam',
+                 '2022.MAVZ.10-HHZ.NZ.bp_1.00-4.00.rsam']
     for _fn in rsamfiles:
-        outdir = os.path.join(os.environ['HOME'], '.cache', 'pumahu_mcmc')
+        outdir = os.path.join(os.environ['HOME'], '.cache', 'pumahu')
         st_tmp = read(get_rsam_data(_fn, outdir))
         tr = st_tmp[0]
         tr.stats.delta = 86400.0
