@@ -1,6 +1,6 @@
 FROM python:3.7 as builder
 
-MAINTAINER Yannik Behr <y.behr@gns.cri.nz>
+LABEL maintainer="Yannik Behr <y.behr@gns.cri.nz>"
 
 COPY ./requirements.txt .
 
