@@ -2,6 +2,7 @@ from collections import OrderedDict
 import numpy as np
 import unittest
 import pandas as pd
+import pytest
 import xarray as xr
 
 from filterpy.kalman import unscented_transform
@@ -48,6 +49,7 @@ class UKSTestCase(unittest.TestCase):
         log_lh = np.nansum(res['p_samples'].loc[dict(p_parameters='lh')].values)
         self.assertAlmostEqual(log_lh, -37.8449, 4) 
         
+    @pytest.mark.slow
     def test_synthetic_extensive(self):
         """
         Test with more extensive synthetic model.
@@ -90,6 +92,7 @@ class UKSTestCase(unittest.TestCase):
         logl_mean = np.nansum(rs.p_samples.values)/rs.dates.shape[0]
         self.assertAlmostEqual(logl_mean, -6.7161, 4)
         
+    @pytest.mark.slow
     def test_Hurstetal_data(self):
         """
         Test with dataset used by Hurst et al. [2015]. 
@@ -112,6 +115,7 @@ class UKSTestCase(unittest.TestCase):
         uks = UnscentedKalmanSmoother(data=xdf, Q=Q, P0=P0)
         xds_uks = uks() 
 
+    @pytest.mark.slow
     def test_pre1995_data(self):
         """
         Test with dataset from before 1995-96 eruptions. 
