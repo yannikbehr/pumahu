@@ -3,10 +3,7 @@ import subprocess
 import time
 
 def job():
-    subprocess.run(['heat_mcmc', '--rdir', '/opt/data', '-f', '-p', '-d'])
-    subprocess.run(['heat_uks', '--rdir', '/opt/data',
-                    '-f', '-p', '-d',
-                    '--benchmark', '/opt/data/mcmc_sampling.nc'])
+    subprocess.run(['heat_uks', '--rdir', '/opt/data', '-s', '2016-03-04', '-f', '-p', '-d'])
 
 schedule.every().day.at("11:00").do(job)
 
