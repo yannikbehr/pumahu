@@ -1,4 +1,4 @@
-FROM python:3.7 as builder
+FROM python:3.8 as builder
 
 LABEL maintainer="Yannik Behr <y.behr@gns.cri.nz>"
 
@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir --upgrade pip
 RUN pip install --user numpy 
 RUN pip install --user -r requirements.txt
 
-FROM python:3.7-slim
+FROM python:3.8-slim
 
 #Install Cron
 RUN apt-get -y update && apt-get -y install \
