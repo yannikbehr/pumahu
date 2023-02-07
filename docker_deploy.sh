@@ -1,8 +1,7 @@
 #!/bin/bash
 
 ####### Docker config ###########################
-DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }' \
-Cmd:='["python", "./pumahu/job_scheduler.py"]')
+DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
 #################################################
 ####### Aliases #################################
 PORTAINER_HOST='portainer'
@@ -56,6 +55,15 @@ while (( "$#" )); do
     -d|--dockerConfig)
       if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
         DOCKER_CONFIG=("$2")
+        shift 2
+      else
+        echo "Error: Argument for $1 is missing" >&2
+        exit 1
+      fi
+      ;;
+    -c|--command)
+      if [ -n "$2" ] && [ "${2:0:1}" != "-" ]; then
+        DOCKER_CMD=("$2")
         shift 2
       else
         echo "Error: Argument for $1 is missing" >&2
@@ -180,6 +188,7 @@ CONTAINER_CREATE=$(https -b POST "$PORTAINER_HOST"/api/endpoints/"$APP_SERVER_ID
 name=="$APP_NAME" \
 Image="$IMAGE" \
 "${DOCKER_CONFIG[@]}" \
+"${DOCKER_CMD[@]}" \
 "$AUTH" --verify no --ignore-stdin )
 
 if [[ -z $(echo "$CONTAINER_CREATE" | jq .Id ) ]]

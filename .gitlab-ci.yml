@@ -10,7 +10,7 @@ stages:
   - deploy
 
 test:
-  image: python:3.7
+  image: python:3.8
   tags:
     - docker
   stage: test
@@ -35,10 +35,21 @@ build:
   script:
     - bash docker_build.sh -i "$IMAGE"
 
-deploy:
+deploy-processing:
+  tags:
+    - linux
+  stage: deploy
+  script: |
+    DOCKER_CMD=(Cmd:='["python", "./pumahu/job_scheduler.py"]')
+    bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}"
+    
+
+deploy-api:
   tags:
     - linux
   stage: deploy
   script:
-    - bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM"
+    DOCKER_CMD=(Cmd:='["heat_api"]')
+    - bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}"
+
 
