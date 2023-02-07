@@ -1,5 +1,3 @@
-from ez_setup import use_setuptools
-use_setuptools()
 from setuptools import setup
 
 ####################################################################
@@ -21,5 +19,6 @@ setup(
     package_data={'pumahu': ['data/*.dat', 'data/*.csv', 'data/*.npz', 'notebook/*.ipynb']},
     entry_points={'console_scripts':
                   ['heat_mcmc=pumahu.mcmc:main',
-                   'heat_uks=pumahu.uks:main']}
+                   'heat_uks=pumahu.uks:main',
+                   'heat_api=pumahu.api:main']}
 )
