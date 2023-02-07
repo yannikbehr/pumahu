@@ -53,4 +53,4 @@ COPY --chown=$NB_USER:users . .
 RUN python setup.py develop --user 
 
 WORKDIR $HOME
-CMD ["heat_mcmc", "-d", "--rdir", "/opt/data", "-f", "-p"]
+CMD ["heat_uks", "--rdir", "/opt/data", "-s", "2016-03-04", "-f", "-p", "-d"]
