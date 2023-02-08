@@ -18,7 +18,7 @@ fastapi==0.89
 uvicorn[standard]==0.20
 filterpy==1.4
 cachier==1.5
-obspy==1.2
+obspy==1.3
 sphinx==4.2
 schedule>=1.1*
 nbconvert==6.2

@@ -7,6 +7,8 @@ COPY ./requirements.txt .
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     python3-pip \
+    libhdf5-dev \
+    libnetcdf-dev \
     git \
     gfortran \
     cmake && \
@@ -23,9 +25,10 @@ RUN pip install --user -r requirements.txt
 
 FROM python:3.8-slim
 
-#Install Cron
 RUN apt-get -y update && apt-get -y install \
     gfortran \
+    libhdf5-dev \
+    libnetcdf-dev \
     make && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
