@@ -48,8 +48,8 @@ deploy-api:
   tags:
     - linux
   stage: deploy
-  script:
+  script: |
     DOCKER_CMD=(Cmd:='["heat_api"]')
-    - bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}"
+    bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}"
 
 
