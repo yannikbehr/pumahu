@@ -1,10 +1,7 @@
 #!/bin/bash
 
-####### Docker config ###########################
-DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
-#################################################
 ####### Aliases #################################
-PORTAINER_HOST='portainer'
+PORTAINER_HOST='portainer.gns.cri.nz'
 STD_HTTPS_OPTS="--verify no --ignore-stdin"
 STATUS_HTTPS_OPTS="--check-status $STD_HTTPS_OPTS"
 #################################################

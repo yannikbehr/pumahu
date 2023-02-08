@@ -21,7 +21,6 @@ test:
   - python -V  # Print out python version for debugging
   script:
     - python -c "import os; print(os.environ)"
-    - pip install numpy
     - pip install -r requirements.txt
     - python setup.py develop
     - pip install pytest flake8  # you can also use tox
@@ -40,16 +39,20 @@ deploy-processing:
     - linux
   stage: deploy
   script: |
+    DOCKER_CONFIG=(HostConfig:='{"RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
     DOCKER_CMD=(Cmd:='["python", "./pumahu/job_scheduler.py"]')
-    bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}"
+    bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}" -d "${DOCKER_CONFIG[@]}"
     
 
 deploy-api:
   tags:
     - linux
   stage: deploy
+  variables:
+    HOSTPORT: "11111"
   script: |
+    DOCKER_CONFIG=(HostConfig:='{ "PortBindings": { "8061/tcp": [ { "HostPort": '\"${HOSTPORT}\"' } ] }, "RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
     DOCKER_CMD=(Cmd:='["heat_api"]')
-    bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}"
+    bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}" -d "${DOCKER_CONFIG[@]}"
 
 
