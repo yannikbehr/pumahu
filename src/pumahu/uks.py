@@ -341,11 +341,6 @@ class UnscentedKalmanSmoother:
     
 def mainCore(args):
     
-    # If the script runs in daemon mode update the start
-    # and end time
-    if args.daemon:
-        args.starttime = datetime.utcnow()-timedelta(days=365)
-        args.endtime = datetime.utcnow()
     # Setup path for results file
     res_fn = 'uks.nc'
     if args.pretxt is not None:
@@ -360,9 +355,13 @@ def mainCore(args):
         xds_uks = uks(results_file=res_fn)
     if args.plot:
         xdf = xr.open_dataset(res_fn)
+        # Only plot the past year by default
+        starttime = datetime.utcnow()-timedelta(days=365)
+        xdf = xdf.loc[dict(dates=slice(starttime, xdf.dates[-1]))]
         fout_trellis = os.path.join(args.rdir, 'uks_trellis.png')
         if args.benchmark is not None:
             data2 = xr.open_dataset(args.benchmark)
+            data2 = data2.loc[dict(dates=slice(starttime, data2.dates[-1]))]
             trellis_plot(xdf, data2=data2, filename=fout_trellis)
             plot_qin_uks(xdf, annotations=True,
                          filename=os.path.join(args.rdir, 'uks_exp.png'))
