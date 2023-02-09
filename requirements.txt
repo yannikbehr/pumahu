@@ -9,7 +9,7 @@ xarray==0.19
 ipykernel==6.4
 nbformat==5.1
 ipdb==0.13
-plotly==4.14.3
+plotly==5.13.0
 kaleido==0.2
 ipywidgets>=7.5
 seaborn==0.11
@@ -24,4 +24,4 @@ schedule>=1.1*
 nbconvert==6.2
 git+https://github.com/yannikbehr/nsampling.git
 importlib-metadata==4.13
-dash
+dash==2.8.1
