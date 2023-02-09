@@ -1,15 +1,13 @@
-## Crater lake energy and mass balance
+## Pumahu (=steam/heat in [Te Reo Maori](https://maoridictionary.co.nz/search?idiom=&phrase=&proverb=&loan=&histLoanWords=&keywords=pumahu) )
 
-A package that contains different inversion algorithms to estimate the heat and
-steam input into Mt. Ruapehu's crater lake using the physical model described
-by Hurst et al. [2014] and Stevenson [1992].
+This package implements a non-linear Kalman Smoother to make continuous estimates of the heat flow into Ruapehu Crater Lake (Te Wai a-moe), New Zealand. For details of the method see [Behr et al. [2023]](https://rdcu.be/c47TL).
 
 ### Installation
 
 #### Local
 First check out the source code:
 ```
-git clone --depth=1 https://tanuki.gns.cri.nz/behrya/pumahu.git
+git clone --depth=1 https://github.com/yannikbehr/pumahu.git
 ```
 
 Setup the environment:
@@ -38,7 +36,3 @@ https://numpydoc.readthedocs.io/en/latest/format.html#docstring-standard
 
 Issue Tracker: https://git.gns.cri.nz/behrya/pumahu/-/issues
 Source Code: https://git.gns.cri.nz/behrya/pumahu
-
-#### *References*
-Hurst, T., Hashimoto, T., & Terada, A. (2015). Crater Lake Energy and Mass Balance. In J. V. Dmitri Rouwet, Bruce Christenson, Franco Tassi (Ed.), Volcanic Lakes (pp. 1–533). Springer Berlin Heidelberg. http://doi.org/10.1007/978-3-642-36833-2_13
-D. S. Stevenson (1992), “Heat transfer in active volcanoes: models of crater lake systems,” The Open University
