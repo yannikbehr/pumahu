@@ -39,7 +39,7 @@ def main():
     fig = dashboard_plot(df_q, df_T)
     app = Dash(__name__)
     app.layout = html.Div([dcc.Graph(figure = fig)])
-    app.run_server(debug=True, use_reloader=False)
+    app.run_server(host='0.0.0.0', debug=True, use_reloader=False)
     
 
 if __name__ == '__main__':
