@@ -1,31 +1,14 @@
 variables:
   IMAGE: "artifactory.gns.cri.nz/gns/pumahu:0.1"
   APP_NAME: "Pumahu"
+  API_NAME: "Pumahu_api"
   APP_SERVER: "Vulkan"
   TEAM: "Volcano"
 
 stages:
-  - test
   - build
+  - test
   - deploy
-
-test:
-  image: python:3.8
-  tags:
-    - docker
-  stage: test
-  variables:
-    TRAVIS: "true"
-  before_script:
-  - apt-get -y update && apt-get -y install cmake libhdf5-dev libnetcdf-dev
-  - python -V  # Print out python version for debugging
-  script:
-    - python -c "import os; print(os.environ)"
-    - pip install -r requirements.txt
-    - python setup.py develop
-    - pip install pytest flake8  # you can also use tox
-    - pytest tests/
-  allow_failure: true
 
 build:
   tags:
@@ -33,6 +16,14 @@ build:
   stage: build
   script:
     - bash docker_build.sh -i "$IMAGE"
+
+test:
+  tags:
+    - linux
+  stage: test
+  script:
+    - docker run $IMAGE pytest 
+  allow_failure: true
 
 deploy-processing:
   tags:
@@ -53,6 +44,6 @@ deploy-api:
   script: |
     DOCKER_CONFIG=(HostConfig:='{ "PortBindings": { "8061/tcp": [ { "HostPort": '\"${HOSTPORT}\"' } ] }, "RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
     DOCKER_CMD=(Cmd:='["heat_api"]')
-    bash docker_deploy.sh -i "$IMAGE" -a "$APP_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}" -d "${DOCKER_CONFIG[@]}"
+    bash docker_deploy.sh -i "$IMAGE" -a "$API_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}" -d "${DOCKER_CONFIG[@]}"
 
 
