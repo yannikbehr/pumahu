@@ -1,14 +1,9 @@
-FROM python:3.8 as builder
+FROM python:3.7 as builder
 
 LABEL maintainer="Yannik Behr <y.behr@gns.cri.nz>"
 
-COPY ./requirements.txt .
-
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    python3-pip \
-    libhdf5-dev \
-    libnetcdf-dev \
     git \
     gfortran \
     cmake && \
@@ -16,22 +11,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/* 
 
 # update PATH environment variable just to stop the warnings
-ENV PATH=/root/.local/bin:$PATH
-
-# install dependencies to the local user directory (eg. /root/.local)
-RUN pip install --no-cache-dir --upgrade pip
-RUN pip install --user numpy 
-RUN pip install --user -r requirements.txt
-
-FROM python:3.8-slim
-
-RUN apt-get -y update && apt-get -y install \
-    gfortran \
-    libhdf5-dev \
-    libnetcdf-dev \
-    make && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* 
+#ENV PATH=/root/.local/bin:$PATH
 
 # Setup new user
 ARG NB_USER="pumahu"
@@ -46,9 +26,12 @@ RUN mkdir -p /opt/data && \
 USER $NB_USER
 WORKDIR $HOME
 
-# copy only the dependencies installation from the 1st stage image
-COPY --from=builder --chown=$NB_USER:users /root/.local /home/$NB_USER/.local
- 
+COPY ./requirements.txt .
+RUN pip install --no-cache-dir --upgrade pip \
+    && pip install --user numpy \
+    && pip install --user -r requirements.txt \
+    && rm -rf  .cache/pip
+
 RUN mkdir -p $HOME/pumahu
 WORKDIR $HOME/pumahu
 
