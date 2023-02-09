@@ -24,4 +24,4 @@ schedule>=1.1*
 nbconvert==6.2
 git+https://github.com/yannikbehr/nsampling.git
 importlib-metadata==4.13
-dash==2.8*
+dash
