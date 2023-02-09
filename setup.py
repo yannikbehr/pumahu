@@ -20,5 +20,6 @@ setup(
     entry_points={'console_scripts':
                   ['heat_mcmc=pumahu.mcmc:main',
                    'heat_uks=pumahu.uks:main',
+                   'heat_dash=pumahu.dashboard:main',
                    'heat_api=pumahu.api:main']}
 )
