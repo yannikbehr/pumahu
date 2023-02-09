@@ -40,4 +40,5 @@ RUN python setup.py develop --user
 
 WORKDIR $HOME
 EXPOSE 8061
+EXPOSE 8050
 CMD ["heat_uks", "--rdir", "/opt/data", "-s", "2016-03-04", "-f", "-p", "-d"]

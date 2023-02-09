@@ -2,6 +2,7 @@ variables:
   IMAGE: "artifactory.gns.cri.nz/gns/pumahu:0.1"
   APP_NAME: "Pumahu"
   API_NAME: "Pumahu_api"
+  DASH_NAME: "Pumahu_dash"
   APP_SERVER: "Vulkan"
   TEAM: "Volcano"
 
@@ -45,5 +46,18 @@ deploy-api:
     DOCKER_CONFIG=(HostConfig:='{ "PortBindings": { "8061/tcp": [ { "HostPort": '\"${HOSTPORT}\"' } ] }, "RestartPolicy": {"Name":"always" } , "Binds": [ "pumahu_data:/opt/data" ] }')
     DOCKER_CMD=(Cmd:='["heat_api"]')
     bash docker_deploy.sh -i "$IMAGE" -a "$API_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}" -d "${DOCKER_CONFIG[@]}"
+
+
+deploy-dashboard:
+  tags:
+    - linux
+  stage: deploy
+  variables:
+    HOSTPORT: "11112"
+  script: |
+    DOCKER_CONFIG=(HostConfig:='{ "PortBindings": { "8050/tcp": [ { "HostPort": '\"${HOSTPORT}\"' } ] }, "RestartPolicy": {"Name":"always" } }')
+    DOCKER_CMD=(Cmd:='["heat_dash"]')
+    bash docker_deploy.sh -i "$IMAGE" -a "$DASH_NAME" -s "$APP_SERVER" -t "$TEAM" -c "${DOCKER_CMD[@]}" -d "${DOCKER_CONFIG[@]}"
+
 
 
