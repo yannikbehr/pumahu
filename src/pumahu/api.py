@@ -2,6 +2,7 @@ from datetime import date, timedelta
 import os
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 import uvicorn
 import xarray as xr
@@ -14,6 +15,12 @@ if not os.path.isfile(DATAFILE):
     main_uks(['--rdir', DATADIR, '-s', '2016-03-04', '-f'])
 
 app = FastAPI()
+# -- allow any origin to query API
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"]
+)
+
 host = "volcanolab.gns.cri.nz"
 port = "11111"
 
